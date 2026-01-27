@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # Database Service (PostgreSQL)
+  db:
+    image: postgres:15-alpine
+    container_name: asyuraa_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-asyuraa_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - asyuraa_network
+
+  # Database Management (Adminer) - Optional for easy DB view
+  adminer:
+    image: adminer
+    container_name: asyuraa_adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    networks:
+      - asyuraa_network
+
+  # Backend API
+  api:
+    build: ./apps/api
+    container_name: asyuraa_api
+    restart: unless-stopped
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./apps/api:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      - db
+    networks:
+      - asyuraa_network
+
+  # Frontend Web
+  web:
+    build: ./apps/web
+    container_name: asyuraa_web
+    restart: unless-stopped
+    command: npm run dev
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - api
+    networks:
+      - asyuraa_network
+
+  # Redis (Optional/Future use)
+  redis:
+    image: redis:alpine
+    container_name: asyuraa_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - asyuraa_network
+
+volumes:
+  postgres_data:
+
+
+networks:
+  asyuraa_network:
+    driver: bridge
