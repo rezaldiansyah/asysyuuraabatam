@@ -1,0 +1,13 @@
+INFO:     Started server process [13551]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+--- PASSWORD RESET LINK ---
+To: admin@asysyuura.sch.id
+Link: http://localhost:3000/reset-password?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbkBhc3lzeXV1cmEuc2NoLmlkIiwicHVycG9zZSI6InJlc2V0X3Bhc3N3b3JkIiwiZXhwIjoxNzY5NDg3NjYzfQ.sbWgO6tvGd_8wRIoGR3oXUL2j9eqQbqfxfTrrQu4k1s
+---------------------------
+INFO:     127.0.0.1:53175 - "POST /auth/forgot-password HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53177 - "POST /auth/reset-password HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53178 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54778 - "POST /auth/login HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:54779 - "POST /auth/login HTTP/1.1" 401 Unauthorized

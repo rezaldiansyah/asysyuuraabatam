@@ -122,7 +122,7 @@ export default function LoginPage() {
                             {isLoading ? "Memproses..." : "Masuk Sekarang"}
                         </Button>
                         <p className="text-center text-sm text-slate-500">
-                            Lupa password? Hubungi <Link href="#" className="font-semibold text-[var(--syuura-green)] hover:underline">Tata Usaha</Link>
+                            Lupa password? <Link href="/forgot-password" className="font-semibold text-[var(--syuura-green)] hover:underline">Reset disini</Link>
                         </p>
                     </CardFooter>
                 </form>

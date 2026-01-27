@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
 from datetime import date, datetime
 
@@ -115,6 +115,22 @@ class JournalItem(JournalItemBase):
     class Config:
         from_attributes = True
 
+# --- Scholarship Schemas ---
+class ScholarshipBase(BaseModel):
+    name: str
+    type: str # FIXED, PERCENTAGE
+    value: int
+    is_active: bool = True
+
+class ScholarshipCreate(ScholarshipBase):
+    pass
+
+class Scholarship(ScholarshipBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+
 # --- CMS Schemas ---
 class PostBase(BaseModel):
     title: str
@@ -143,6 +159,7 @@ class PageContentBase(BaseModel):
     image_url: Optional[str] = None
     cta_text: Optional[str] = None
     cta_link: Optional[str] = None
+    content_json: Optional[str] = None
 
 class PageContentCreate(PageContentBase):
     pass
@@ -157,7 +174,9 @@ class PaymentCategoryBase(BaseModel):
     name: str
     amount: int
     type: str # MONTHLY, ONE_TIME
+    is_scholarship_eligible: bool = True
     income_account_id: Optional[int] = None # Link to Account
+
 
 class PaymentCategoryCreate(PaymentCategoryBase):
     pass
@@ -185,10 +204,35 @@ class StudentBill(StudentBillBase):
     created_at: datetime
     
     category: Optional[PaymentCategory] = None
-    student: Optional[Student] = None  # We might need Student schema here, careful with circular deps if any
+    student: Optional["Student"] = None
     
     class Config:
         from_attributes = True
+
+# --- Bulk Billing Schemas ---
+class BulkBillPreviewRequest(BaseModel):
+    classroom_id: int
+    category_id: int
+    title: str
+    due_date: Optional[datetime] = None
+
+class BulkBillItem(BaseModel):
+    student_id: int
+    amount: int
+    title: str
+
+class BulkBillPreviewResponse(BaseModel):
+    student_id: int
+    student_name: str
+    original_amount: int
+    scholarship_name: Optional[str] = None
+    discount_amount: int
+    final_amount: int
+
+class BulkBillCreateRequest(BaseModel):
+    category_id: int
+    items: List[BulkBillItem]
+    due_date: Optional[datetime] = None
 
 class PaymentTransactionBase(BaseModel):
     bill_id: int
@@ -241,7 +285,9 @@ class StudentBase(BaseModel):
     birth_date: Optional[date] = None
     address: Optional[str] = None
     unit_id: int
+    unit_id: int
     current_classroom_id: Optional[int] = None
+    scholarship_id: Optional[int] = None
 
 class StudentCreate(StudentBase):
     pass
@@ -254,7 +300,9 @@ class StudentUpdate(StudentBase):
 class Student(StudentBase):
     id: int
     status: StudentStatusEnum
+    scholarship: Optional[Scholarship] = None
     created_at: Optional[datetime] = None # If we had it, but we didn't add it in model.
+
     
     class Config:
         from_attributes = True
@@ -292,3 +340,11 @@ class AcademicYear(AcademicYearBase):
     
     class Config:
         from_attributes = True
+StudentBill.model_rebuild()
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str

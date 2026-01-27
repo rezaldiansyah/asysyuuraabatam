@@ -108,14 +108,17 @@ export function ScheduleFormDialog({ onSuccess }: { onSuccess?: () => void }) {
                 body: JSON.stringify(values),
             })
 
-            if (!response.ok) throw new Error("Gagal menyimpan jadwal")
+            if (!response.ok) {
+                const errorData = await response.json()
+                throw new Error(errorData.detail || "Gagal menyimpan jadwal")
+            }
 
             toast.success("Jadwal berhasil ditambahkan")
             setOpen(false)
             form.reset()
             onSuccess?.()
-        } catch (error) {
-            toast.error("Gagal menyimpan jadwal")
+        } catch (error: any) {
+            toast.error(error.message || "Gagal menyimpan jadwal")
         } finally {
             setIsLoading(false)
         }

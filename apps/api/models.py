@@ -17,6 +17,11 @@ class UnitCode(str, enum.Enum):
     SDIT = "SDIT"
     SMPIT = "SMPIT"
 
+class ScholarshipType(str, enum.Enum):
+    FIXED = "FIXED" # Potongan Nominal (e.g. Rp 500.000)
+    PERCENTAGE = "PERCENTAGE" # Potongan Persen (e.g. 50%)
+
+
 # Models
 class Unit(Base):
     __tablename__ = "units"
@@ -120,10 +125,12 @@ class Student(Base):
     # Current placement
     current_classroom_id = Column(Integer, ForeignKey("classrooms.id"), nullable=True)
     unit_id = Column(Integer, ForeignKey("units.id")) # To know which unit they belong to inherently
+    scholarship_id = Column(Integer, ForeignKey("scholarships.id"), nullable=True)
     
     # Relationships
     classroom = relationship("Classroom", back_populates="students")
     unit = relationship("Unit")
+    scholarship = relationship("Scholarship")
 
 class Subject(Base):
     __tablename__ = "subjects"
@@ -157,6 +164,17 @@ class Schedule(Base):
 
 # --- Finance Models ---
 
+class Scholarship(Base):
+    __tablename__ = "scholarships"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String) # "Beasiswa Yatim", "Anak Guru"
+    type = Column(Enum(ScholarshipType), default=ScholarshipType.PERCENTAGE)
+    value = Column(Integer) # 50 (for 50%) or 500000 (for Rp 500k)
+    is_active = Column(Boolean, default=True)
+    
+    students = relationship("Student", back_populates="scholarship")
+
 class PaymentCategory(Base):
     __tablename__ = "payment_categories"
 
@@ -164,6 +182,8 @@ class PaymentCategory(Base):
     name = Column(String) # SPP, Uang Gedung, Seragam
     amount = Column(Integer, default=0) # Default nominal
     type = Column(Enum("MONTHLY", "ONE_TIME", name="payment_type_enum"), default="MONTHLY")
+    is_scholarship_eligible = Column(Boolean, default=True) # Whether scholarship applies to this category
+
     
     # Accounting Link
     income_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
@@ -271,6 +291,7 @@ class PageContent(Base):
     image_url = Column(String, nullable=True)
     cta_text = Column(String, nullable=True)
     cta_link = Column(String, nullable=True)
+    content_json = Column(String, nullable=True) # JSON String for arrays (Features, Testimonials)
 
 
 # Update PaymentCategory to link to Account

@@ -1,25 +1,81 @@
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { UnitSection } from "@/components/home/UnitSection";
-import { FeatureSection } from "@/components/home/FeatureSection";
+import { DynamicFeatureSection } from "@/components/home/DynamicFeatureSection";
+
+const DEFAULT_FEATURES = [
+  {
+    id: "1",
+    icon: "BookOpen", // Lucide Icon Name
+    title: "Kurikulum Terpadu",
+    description: "Memadukan Kurikulum Nasional (Merdeka) dengan Kurikulum Khas Sekolah Islam Terpadu.",
+  },
+  {
+    id: "2",
+    icon: "Heart",
+    title: "Bina Pribadi Islami",
+    description: "Pembentukan karakter (adab & akhlaq) yang intensif melalui mentoring dan keteladanan.",
+  },
+  {
+    id: "3",
+    icon: "Sun",
+    title: "Program Tahfidz",
+    description: "Target hafalan yang terukur dengan metode yang menyenangkan sesuai jenjang usia.",
+  },
+  {
+    id: "4",
+    icon: "Users",
+    title: "Pengajar Berkualitas",
+    description: "Didukung oleh asatidz/asatidzah yang kompeten, berdedikasi, dan menyayangi anak didik.",
+  },
+  {
+    id: "5",
+    icon: "Trophy",
+    title: "Ekstrakurikuler",
+    description: "Beragam kegiatan penyaluran bakat dan minat siswa (Pramuka, Panahan, Futsal, dll).",
+  },
+  {
+    id: "6",
+    icon: "ShieldCheck",
+    title: "Lingkungan Aman",
+    description: "Lingkungan sekolah yang kondusif, aman, dan nyaman untuk tumbuh kembang anak.",
+  },
+];
 
 export default async function Home() {
   let heroContent = {
     title: "Mendidik Generasi Qurani",
     body: "Sekolah Islam Terpadu Asy-Syuuraa Batam berkomitmen mencetak pemimpin masa depan yang cerdas, berwawasan global, dan berakhlak mulia.",
     cta_text: "Daftar Sekarang",
-    cta_link: "/daftar"
+    cta_link: "/daftar",
+    image_url: ""
   };
+
+  let featuresContent = DEFAULT_FEATURES;
 
   try {
     const API_URL = "http://localhost:8000";
-    const res = await fetch(`${API_URL}/public/content/home_hero`, {
-      next: { revalidate: 60 }
-    });
-    if (res.ok) {
-      const data = await res.json();
+    // Parallel Fetch
+    const [heroRes, featureRes] = await Promise.all([
+      fetch(`${API_URL}/public/content/home_hero`, { next: { revalidate: 0 } }),
+      fetch(`${API_URL}/public/content/home_features`, { next: { revalidate: 0 } })
+    ]);
+
+    if (heroRes.ok) {
+      const data = await heroRes.json();
       heroContent = { ...heroContent, ...data };
     }
+
+    if (featureRes.ok) {
+      const data = await featureRes.json();
+      if (data.content_json) {
+        const parsed = JSON.parse(data.content_json);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          featuresContent = parsed;
+        }
+      }
+    }
+
   } catch (e) {
     console.error("Failed to fetch CMS content", e);
   }
@@ -30,7 +86,15 @@ export default async function Home() {
 
       <main className="flex-1">
         {/* HERO SECTION */}
-        <section className="bg-[var(--syuura-green-surface)] py-20 lg:py-32 text-center relative overflow-hidden">
+        <section className="relative py-20 lg:py-32 text-center overflow-hidden bg-[var(--syuura-green-surface)]">
+          {/* Background Image Overlay if exists */}
+          {heroContent.image_url && (
+            <div
+              className="absolute inset-0 bg-cover bg-center z-0 opacity-20"
+              style={{ backgroundImage: `url(${heroContent.image_url})` }}
+            />
+          )}
+
           {/* Decorative Circle */}
           <div className="hidden lg:block absolute -top-24 -right-24 w-96 h-96 bg-green-200/20 rounded-full blur-3xl pointer-events-none" />
           <div className="hidden lg:block absolute -bottom-24 -left-24 w-72 h-72 bg-yellow-200/20 rounded-full blur-3xl pointer-events-none" />
@@ -57,7 +121,9 @@ export default async function Home() {
         <UnitSection />
 
         {/* KEUNGGULAN */}
-        <FeatureSection />
+        <DynamicFeatureSection
+          features={featuresContent}
+        />
       </main>
 
       <Footer />

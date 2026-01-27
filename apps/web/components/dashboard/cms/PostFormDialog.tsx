@@ -26,9 +26,9 @@ import {
     FormDescription,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
+import { RichTextEditor } from "./RichTextEditor"
 
 const formSchema = z.object({
     title: z.string().min(5, { message: "Judul minimal 5 karakter." }),
@@ -133,7 +133,7 @@ export function PostFormDialog({ post, onSuccess }: { post?: any, onSuccess?: ()
                     </Button>
                 )}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[625px]">
+            <DialogContent className="sm:max-w-[800px]">
                 <DialogHeader>
                     <DialogTitle>{post ? "Edit Berita" : "Buat Berita Baru"}</DialogTitle>
                     <DialogDescription>
@@ -149,7 +149,7 @@ export function PostFormDialog({ post, onSuccess }: { post?: any, onSuccess?: ()
                                 <FormItem>
                                     <FormLabel>Judul Berita</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Contoh: Pendaftaran Siswa Baru Dibuka" {...field} onChange={handleTitleChange} />
+                                        <Input placeholder="Contoh: Pendaftaran Siswa Baru Dibuka" {...field} onChange={(e) => { field.onChange(e); handleTitleChange(e); }} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -174,7 +174,7 @@ export function PostFormDialog({ post, onSuccess }: { post?: any, onSuccess?: ()
                             name="image_url"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>URL Gambar (Opsional)</FormLabel>
+                                    <FormLabel>Featured Image URL (Opsional)</FormLabel>
                                     <FormControl>
                                         <Input placeholder="https://..." {...field} />
                                     </FormControl>
@@ -187,9 +187,12 @@ export function PostFormDialog({ post, onSuccess }: { post?: any, onSuccess?: ()
                             name="content"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Isi Berita</FormLabel>
+                                    <FormLabel>Isi Berita (Konten Lengkap)</FormLabel>
                                     <FormControl>
-                                        <Textarea placeholder="Tulis konten berita di sini..." className="min-h-[200px]" {...field} />
+                                        <RichTextEditor
+                                            content={field.value}
+                                            onChange={field.onChange}
+                                        />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

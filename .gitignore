@@ -39,3 +39,6 @@ venv.bak/
 .terraform/
 *.tfstate
 *.tfstate.backup
+
+# Database Dumps
+*.sql

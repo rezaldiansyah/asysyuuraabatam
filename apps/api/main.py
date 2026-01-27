@@ -1,10 +1,22 @@
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
+from fastapi import FastAPI, Depends, HTTPException, status
+from sqlalchemy.orm import Session, joinedload
+from typing import List, Optional
+from datetime import datetime, timedelta
+from fastapi import File, UploadFile
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import models, schemas, auth
-from database import get_db
+import models, schemas, auth
+from database import engine, get_db
+import os
+import shutil
+import uuid
+
+# Create Upload Directory
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI(
     title="Asy-Syuuraa Batam API",
@@ -26,7 +38,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount Uploads Directory
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
+from jose import JWTError, jwt
+
+# ... (imports)
+
+# Remove "from auth import get_current_user" - handled by replacing the block or just not adding it? 
+# The ReplaceFileContent targets a block. I should target the top imports to remove the line, 
+# and then target the body to add the function.
+# I will do it in two steps or one large block if possible.
+# Let's do imports first.
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    user = db.query(models.User).filter(models.User.nik == username).first()
+    if user is None:
+        raise credentials_exception
+    return user
 
 @app.get("/")
 async def root():
@@ -69,6 +112,37 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": user.nik} # Use NIK as subject identity
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/auth/forgot-password")
+async def forgot_password(request: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == request.email).first()
+    if not user:
+        # Don't reveal if user exists
+        return {"message": "If email exists, a reset link has been sent."}
+    
+    token = auth.create_password_reset_token(request.email)
+    # Simulate sending email
+    print(f"--- PASSWORD RESET LINK ---")
+    print(f"To: {request.email}")
+    print(f"Link: http://localhost:3000/reset-password?token={token}")
+    print(f"---------------------------")
+    
+    return {"message": "If email exists, a reset link has been sent."}
+
+@app.post("/auth/reset-password")
+async def reset_password(request: schemas.ResetPasswordRequest, db: Session = Depends(get_db)):
+    email = auth.verify_password_reset_token(request.token)
+    if not email:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+        
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.password_hash = auth.get_password_hash(request.new_password)
+    db.commit()
+    
+    return {"message": "Password has been reset successfully"}
 
 # --- General Routes ---
 @app.get("/units", response_model=List[schemas.Unit])
@@ -191,10 +265,40 @@ async def get_schedules(classroom_id: Optional[int] = None, teacher_id: Optional
 
 @app.post("/academic/schedules", response_model=schemas.Schedule)
 async def create_schedule(schedule: schemas.ScheduleCreate, db: Session = Depends(get_db)):
-    db.add(db_schedule)
-    db.commit()
-    db.refresh(db_schedule)
-    return db_schedule
+    try:
+        # 1. Check Room Conflict
+        room_conflict = db.query(models.Schedule).filter(
+            models.Schedule.day == schedule.day,
+            models.Schedule.classroom_id == schedule.classroom_id,
+            models.Schedule.start_time < schedule.end_time,
+            models.Schedule.end_time > schedule.start_time
+        ).first()
+        
+        if room_conflict:
+            raise HTTPException(status_code=400, detail=f"Room Conflict: Classroom is already booked from {room_conflict.start_time} to {room_conflict.end_time}")
+
+        # 2. Check Teacher Conflict
+        teacher_conflict = db.query(models.Schedule).filter(
+            models.Schedule.day == schedule.day,
+            models.Schedule.teacher_id == schedule.teacher_id,
+            models.Schedule.start_time < schedule.end_time,
+            models.Schedule.end_time > schedule.start_time
+        ).first()
+
+        if teacher_conflict:
+            raise HTTPException(status_code=400, detail=f"Teacher Conflict: Teacher is already teaching in another class from {teacher_conflict.start_time} to {teacher_conflict.end_time}")
+
+        db_schedule = models.Schedule(**schedule.dict())
+        db.add(db_schedule)
+        db.commit()
+        db.refresh(db_schedule)
+        return db_schedule
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
 
 # --- Finance Routes ---
 
@@ -234,6 +338,96 @@ async def get_bills(student_id: Optional[int] = None, status: Optional[str] = No
     # query = query.options(joinedload(models.StudentBill.category), joinedload(models.StudentBill.student))
     
     return query.order_by(models.StudentBill.created_at.desc()).all()
+
+# --- Scholarship Endpoints ---
+@app.get("/finance/scholarships", response_model=List[schemas.Scholarship])
+async def get_scholarships(db: Session = Depends(get_db)):
+    return db.query(models.Scholarship).filter(models.Scholarship.is_active == True).all()
+
+@app.post("/finance/scholarships", response_model=schemas.Scholarship)
+async def create_scholarship(scholarship: schemas.ScholarshipCreate, db: Session = Depends(get_db)):
+    db_obj = models.Scholarship(**scholarship.dict())
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+# --- Bulk Billing Endpoints ---
+
+@app.post("/finance/bills/bulk-preview", response_model=List[schemas.BulkBillPreviewResponse])
+async def preview_bulk_bills(
+    request: schemas.BulkBillPreviewRequest,
+    db: Session = Depends(get_db)
+):
+    # 1. Get Classroom Students
+    students = db.query(models.Student).filter(
+        models.Student.current_classroom_id == request.classroom_id,
+        models.Student.status == "ACTIVE"
+    ).all()
+    
+    if not students:
+        return []
+
+    # 2. Get Payment Category
+    category = db.query(models.PaymentCategory).filter(models.PaymentCategory.id == request.category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    timestamp_title = datetime.utcnow().strftime("%B %Y") # e.g. January 2026 (simplified, user provided title is preferred or auto-appended)
+    # Actually user provides title in request.
+
+    response_items = []
+    
+    for student in students:
+        original_amount = category.amount
+        discount = 0
+        scholarship_name = None
+        
+        # Calculate Scholarship if Category is eligible
+        if category.is_scholarship_eligible and student.scholarship_id:
+            scholarship = db.query(models.Scholarship).filter(models.Scholarship.id == student.scholarship_id).first()
+            if scholarship and scholarship.is_active:
+                scholarship_name = scholarship.name
+                if scholarship.type == models.ScholarshipType.FIXED:
+                    discount = scholarship.value
+                elif scholarship.type == models.ScholarshipType.PERCENTAGE:
+                    discount = int(original_amount * (scholarship.value / 100))
+        
+        final_amount = max(0, original_amount - discount)
+        
+        response_items.append(schemas.BulkBillPreviewResponse(
+            student_id=student.id,
+            student_name=student.full_name,
+            original_amount=original_amount,
+            scholarship_name=scholarship_name,
+            discount_amount=discount,
+            final_amount=final_amount
+        ))
+        
+    return response_items
+
+@app.post("/finance/bills/bulk")
+async def create_bulk_bills(
+    request: schemas.BulkBillCreateRequest,
+    db: Session = Depends(get_db)
+):
+    count = 0
+    for item in request.items:
+        db_bill = models.StudentBill(
+            student_id=item.student_id,
+            category_id=request.category_id,
+            title=item.title,
+            amount=item.amount,
+            status="UNPAID",
+            due_date=request.due_date,
+            created_at=datetime.utcnow()
+        )
+        db.add(db_bill)
+        count += 1
+    
+    db.commit()
+    return {"message": f"Successfully created {count} bills"}
+
 
 @app.post("/finance/payments", response_model=schemas.PaymentTransaction)
 async def create_payment(payment: schemas.PaymentTransactionCreate, db: Session = Depends(get_db)):
@@ -387,3 +581,20 @@ async def update_page_content(section_key: str, content: schemas.PageContentCrea
     db.commit()
     db.refresh(db_content)
     return db_content
+
+@app.post("/cms/upload")
+async def upload_file(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
+    try:
+        # Create safe filename
+        file_extension = os.path.splitext(file.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        file_path = os.path.join(UPLOAD_DIR, unique_filename)
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Return full URL
+        # In production this should be based on env var or request.base_url
+        return {"url": f"http://localhost:8000/uploads/{unique_filename}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")

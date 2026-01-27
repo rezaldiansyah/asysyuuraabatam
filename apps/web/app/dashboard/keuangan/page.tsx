@@ -12,6 +12,8 @@ import { PaymentCategoryDialog } from "@/components/dashboard/keuangan/PaymentCa
 import { GenerateBillDialog } from "@/components/dashboard/keuangan/GenerateBillDialog"
 import { PaymentDialog } from "@/components/dashboard/keuangan/PaymentDialog"
 import { AccountFormDialog } from "@/components/dashboard/keuangan/AccountFormDialog"
+import { ScholarshipDialog } from "@/components/dashboard/keuangan/ScholarshipDialog"
+import { BulkGenerateBillDialog } from "@/components/dashboard/keuangan/BulkGenerateBillDialog"
 
 import {
     Table,
@@ -28,6 +30,9 @@ export default function KeuanganPage() {
     const [categories, setCategories] = useState<any[]>([])
     const [accounts, setAccounts] = useState<any[]>([])
     const [journals, setJournals] = useState<any[]>([])
+    const [scholarships, setScholarships] = useState<any[]>([])
+
+    // ... (fetch functions)
 
     const fetchBills = async () => {
         setLoading(true)
@@ -96,12 +101,28 @@ export default function KeuanganPage() {
         }
     }
 
+    const fetchScholarships = async () => {
+        try {
+            const API_URL = "http://localhost:8000"
+            const token = localStorage.getItem("token")
+            const response = await fetch(`${API_URL}/finance/scholarships`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            })
+            if (response.ok) {
+                const data = await response.json()
+                setScholarships(data)
+            }
+        } catch (error) {
+            console.error(error)
+        }
+    }
 
     useEffect(() => {
         fetchBills()
         fetchCategories()
         fetchAccounts()
         fetchJournals()
+        fetchScholarships()
     }, [])
 
     const totalUnpaid = bills.filter(b => b.status === "UNPAID").reduce((acc, curr) => acc + curr.amount, 0)
@@ -110,11 +131,12 @@ export default function KeuanganPage() {
         <div className="flex flex-col gap-4">
             <div>
                 <h2 className="text-3xl font-bold tracking-tight">Keuangan & Akuntansi</h2>
-                <p className="text-muted-foreground">Kelola tagihan, pembayaran, dan pembukuan sederhana.</p>
+                <p className="text-muted-foreground">Kelola tagihan, beasiswa, pembayaran, dan pembukuan.</p>
             </div>
             <Separator />
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {/* ... (Cards same as before) */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Tagihan Aktif</CardTitle>
@@ -140,6 +162,7 @@ export default function KeuanganPage() {
             <Tabs defaultValue="overview" className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="overview">Daftar Tagihan</TabsTrigger>
+                    <TabsTrigger value="scholarships">Data Beasiswa</TabsTrigger>
                     <TabsTrigger value="accounts">Daftar Akun (CoA)</TabsTrigger>
                     <TabsTrigger value="journals">Jurnal Umum</TabsTrigger>
                     <TabsTrigger value="categories">Master Kategori</TabsTrigger>
@@ -147,15 +170,13 @@ export default function KeuanganPage() {
 
                 {/* --- BILLS TAB --- */}
                 <TabsContent value="overview" className="space-y-4">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center bg-white p-4 rounded-lg border shadow-sm">
                         <div className="flex items-center space-x-2">
-                            <Input
-                                placeholder="Cari siswa..."
-                                className="w-[150px] lg:w-[250px]"
-                            />
+                            <h3 className="text-lg font-medium">Manajemen Tagihan</h3>
                         </div>
                         <div className="flex items-center space-x-2">
                             <GenerateBillDialog onSuccess={fetchBills} />
+                            <BulkGenerateBillDialog onSuccess={fetchBills} />
                         </div>
                     </div>
 
@@ -201,8 +222,51 @@ export default function KeuanganPage() {
                     </div>
                 </TabsContent>
 
+                {/* --- SCHOLARSHIPS TAB --- */}
+                <TabsContent value="scholarships" className="space-y-4">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-lg font-medium">Master Data Beasiswa</h3>
+                        <ScholarshipDialog onSuccess={fetchScholarships} />
+                    </div>
+                    <div className="rounded-md border bg-white">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Nama Beasiswa</TableHead>
+                                    <TableHead>Tipe Potongan</TableHead>
+                                    <TableHead>Nilai</TableHead>
+                                    <TableHead>Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {scholarships.length === 0 ? (
+                                    <TableRow><TableCell colSpan={4} className="h-24 text-center">Belum ada data beasiswa.</TableCell></TableRow>
+                                ) : (
+                                    scholarships.map((s) => (
+                                        <TableRow key={s.id}>
+                                            <TableCell className="font-medium">{s.name}</TableCell>
+                                            <TableCell><Badge variant="outline">{s.type}</Badge></TableCell>
+                                            <TableCell>
+                                                {s.type === "FIXED"
+                                                    ? `Rp ${s.value.toLocaleString('id-ID')}`
+                                                    : `${s.value}%`}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant={s.is_active ? "default" : "secondary"}>
+                                                    {s.is_active ? "Aktif" : "Non-Aktif"}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </TabsContent>
+
                 {/* --- ACCOUNTS TAB (CoA) --- */}
                 <TabsContent value="accounts" className="space-y-4">
+                    {/* ... existing code ... */}
                     <div className="flex justify-between items-center">
                         <h3 className="text-lg font-medium">Chart of Accounts (CoA)</h3>
                         <AccountFormDialog onSuccess={fetchAccounts} />
@@ -235,9 +299,9 @@ export default function KeuanganPage() {
 
                 {/* --- JOURNALS TAB --- */}
                 <TabsContent value="journals" className="space-y-4">
+                    {/* ... existing code ... */}
                     <div className="flex justify-between items-center">
                         <h3 className="text-lg font-medium">Jurnal Umum</h3>
-                        {/* Filter date maybe */}
                     </div>
                     <div className="rounded-md border bg-white">
                         <Table>
@@ -257,13 +321,11 @@ export default function KeuanganPage() {
                                 ) : (
                                     journals.map((journal) => (
                                         <>
-                                            {/* Header Row for Journal Entry */}
                                             <TableRow key={`h-${journal.id}`} className="bg-muted/50">
                                                 <TableCell className="font-medium">{new Date(journal.date).toLocaleDateString('id-ID')}</TableCell>
                                                 <TableCell>{journal.reference_id}</TableCell>
                                                 <TableCell colSpan={4} className="italic">{journal.description}</TableCell>
                                             </TableRow>
-                                            {/* Item Rows */}
                                             {journal.items.map((item: any) => (
                                                 <TableRow key={`i-${item.id}`} className="hover:bg-transparent">
                                                     <TableCell colSpan={3}></TableCell>
@@ -282,6 +344,7 @@ export default function KeuanganPage() {
 
                 {/* --- CATEGORIES TAB --- */}
                 <TabsContent value="categories" className="space-y-4">
+                    {/* ... existing code ... */}
                     <div className="flex justify-between items-center">
                         <h3 className="text-lg font-medium">Jenis Pembayaran</h3>
                         <PaymentCategoryDialog onSuccess={fetchCategories} />

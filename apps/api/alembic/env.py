@@ -10,7 +10,7 @@ import sys
 import os
 sys.path.append(os.getcwd())
 from database import Base, DATABASE_URL
-from models import User, Role, Unit, UserUnit # Import models to register them
+from models import User, Role, Unit, UserUnit, Scholarship, Student, PaymentCategory # Import models to register them
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -73,7 +73,9 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, 
+            target_metadata=target_metadata,
+            render_as_batch=True
         )
 
         with context.begin_transaction():
