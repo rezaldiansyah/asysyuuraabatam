@@ -144,6 +144,64 @@ async def reset_password(request: schemas.ResetPasswordRequest, db: Session = De
     
     return {"message": "Password has been reset successfully"}
 
+# --- User & Role Routes ---
+
+@app.get("/users", response_model=List[schemas.User])
+async def get_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    users = db.query(models.User).offset(skip).limit(limit).all()
+    return users
+
+@app.post("/users", response_model=schemas.User)
+async def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_password = auth.get_password_hash(user.password)
+    db_user = models.User(
+        email=user.email,
+        full_name=user.full_name,
+        nik=user.nik,
+        role_id=user.role_id,
+        password_hash=hashed_password,
+        is_active=user.is_active
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+@app.put("/users/{user_id}", response_model=schemas.User)
+async def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    update_data = user_update.dict(exclude_unset=True)
+    if 'password' in update_data and update_data['password']:
+         update_data['password_hash'] = auth.get_password_hash(update_data.pop('password'))
+    
+    for key, value in update_data.items():
+        setattr(db_user, key, value)
+        
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+@app.delete("/users/{user_id}")
+async def delete_user(user_id: int, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+         raise HTTPException(status_code=404, detail="User not found")
+    
+    db.delete(db_user)
+    db.commit()
+    return {"message": "User deleted"}
+    
+@app.get("/roles", response_model=List[schemas.Role])
+async def get_roles(db: Session = Depends(get_db)):
+    return db.query(models.Role).all()
+
 # --- General Routes ---
 @app.get("/units", response_model=List[schemas.Unit])
 async def get_units(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -598,3 +656,393 @@ async def upload_file(file: UploadFile = File(...), current_user: models.User = 
         return {"url": f"http://localhost:8000/uploads/{unique_filename}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+# --- SDM / Employee Routes ---
+
+@app.get("/sdm/employees", response_model=List[schemas.Employee])
+async def get_employees(is_active: Optional[bool] = None, db: Session = Depends(get_db)):
+    query = db.query(models.Employee).options(joinedload(models.Employee.user))
+    if is_active is not None:
+        query = query.filter(models.Employee.is_active == is_active)
+    return query.all()
+
+@app.get("/sdm/employees/{employee_id}", response_model=schemas.Employee)
+async def get_employee(employee_id: int, db: Session = Depends(get_db)):
+    emp = db.query(models.Employee).options(joinedload(models.Employee.user)).filter(models.Employee.id == employee_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    return emp
+
+@app.post("/sdm/employees", response_model=schemas.Employee)
+async def create_employee(employee: schemas.EmployeeCreate, db: Session = Depends(get_db)):
+    # Check if user exists
+    user = db.query(models.User).filter(models.User.id == employee.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if employee already exists for this user
+    existing = db.query(models.Employee).filter(models.Employee.user_id == employee.user_id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Employee record already exists for this user")
+    
+    db_emp = models.Employee(**employee.dict())
+    db.add(db_emp)
+    db.commit()
+    db.refresh(db_emp)
+    return db_emp
+
+@app.put("/sdm/employees/{employee_id}", response_model=schemas.Employee)
+async def update_employee(employee_id: int, employee: schemas.EmployeeCreate, db: Session = Depends(get_db)):
+    db_emp = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
+    if not db_emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    for key, value in employee.dict().items():
+        setattr(db_emp, key, value)
+    
+    db.commit()
+    db.refresh(db_emp)
+    return db_emp
+
+# --- Attendance Routes ---
+
+@app.get("/attendance/students", response_model=List[schemas.StudentAttendance])
+async def get_student_attendances(
+    classroom_id: Optional[int] = None,
+    date: Optional[str] = None,  # Format: YYYY-MM-DD
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.StudentAttendance).options(joinedload(models.StudentAttendance.student))
+    
+    if classroom_id:
+        # Join with student to filter by classroom
+        query = query.join(models.Student).filter(models.Student.current_classroom_id == classroom_id)
+    
+    if date:
+        from datetime import datetime as dt
+        target_date = dt.strptime(date, "%Y-%m-%d").date()
+        query = query.filter(models.StudentAttendance.date == target_date)
+    
+    return query.order_by(models.StudentAttendance.date.desc()).all()
+
+@app.post("/attendance/students", response_model=schemas.StudentAttendance)
+async def create_student_attendance(attendance: schemas.StudentAttendanceCreate, db: Session = Depends(get_db)):
+    # Check for duplicate
+    existing = db.query(models.StudentAttendance).filter(
+        models.StudentAttendance.student_id == attendance.student_id,
+        models.StudentAttendance.date == attendance.date
+    ).first()
+    
+    if existing:
+        raise HTTPException(status_code=400, detail="Attendance already recorded for this student on this date")
+    
+    db_att = models.StudentAttendance(**attendance.dict())
+    db.add(db_att)
+    db.commit()
+    db.refresh(db_att)
+    return db_att
+
+@app.post("/attendance/students/bulk")
+async def create_bulk_student_attendance(request: schemas.BulkStudentAttendanceCreate, db: Session = Depends(get_db)):
+    count = 0
+    skipped = 0
+    
+    for item in request.items:
+        # Check for existing
+        existing = db.query(models.StudentAttendance).filter(
+            models.StudentAttendance.student_id == item.student_id,
+            models.StudentAttendance.date == request.date
+        ).first()
+        
+        if existing:
+            skipped += 1
+            continue
+        
+        db_att = models.StudentAttendance(
+            student_id=item.student_id,
+            date=request.date,
+            status=item.status.value,
+            notes=item.notes
+        )
+        db.add(db_att)
+        count += 1
+    
+    db.commit()
+    return {"message": f"Created {count} attendance records, skipped {skipped} duplicates"}
+
+@app.get("/attendance/employees", response_model=List[schemas.EmployeeAttendance])
+async def get_employee_attendances(
+    date: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.EmployeeAttendance).options(joinedload(models.EmployeeAttendance.employee))
+    
+    if date:
+        from datetime import datetime as dt
+        target_date = dt.strptime(date, "%Y-%m-%d").date()
+        query = query.filter(models.EmployeeAttendance.date == target_date)
+    
+    return query.order_by(models.EmployeeAttendance.date.desc()).all()
+
+@app.post("/attendance/employees", response_model=schemas.EmployeeAttendance)
+async def create_employee_attendance(attendance: schemas.EmployeeAttendanceCreate, db: Session = Depends(get_db)):
+    # Check for duplicate
+    existing = db.query(models.EmployeeAttendance).filter(
+        models.EmployeeAttendance.employee_id == attendance.employee_id,
+        models.EmployeeAttendance.date == attendance.date
+    ).first()
+    
+    if existing:
+        raise HTTPException(status_code=400, detail="Attendance already recorded for this employee on this date")
+    
+    db_att = models.EmployeeAttendance(**attendance.dict())
+    db.add(db_att)
+    db.commit()
+    db.refresh(db_att)
+    return db_att
+
+# --- Grade Routes ---
+
+@app.get("/academic/grades", response_model=List[schemas.Grade])
+async def get_grades(
+    student_id: Optional[int] = None,
+    subject_id: Optional[int] = None,
+    academic_year_id: Optional[int] = None,
+    type: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.Grade).options(
+        joinedload(models.Grade.student),
+        joinedload(models.Grade.subject)
+    )
+    
+    if student_id:
+        query = query.filter(models.Grade.student_id == student_id)
+    if subject_id:
+        query = query.filter(models.Grade.subject_id == subject_id)
+    if academic_year_id:
+        query = query.filter(models.Grade.academic_year_id == academic_year_id)
+    if type:
+        query = query.filter(models.Grade.type == type)
+    
+    return query.order_by(models.Grade.created_at.desc()).all()
+
+@app.post("/academic/grades", response_model=schemas.Grade)
+async def create_grade(grade: schemas.GradeCreate, db: Session = Depends(get_db)):
+    db_grade = models.Grade(**grade.dict())
+    db.add(db_grade)
+    db.commit()
+    db.refresh(db_grade)
+    return db_grade
+
+@app.post("/academic/grades/bulk")
+async def create_bulk_grades(request: schemas.BulkGradeCreate, db: Session = Depends(get_db)):
+    count = 0
+    
+    for item in request.items:
+        db_grade = models.Grade(
+            student_id=item.student_id,
+            subject_id=request.subject_id,
+            academic_year_id=request.academic_year_id,
+            type=request.type.value,
+            score=item.score,
+            notes=item.notes
+        )
+        db.add(db_grade)
+        count += 1
+    
+    db.commit()
+    return {"message": f"Created {count} grade records"}
+
+@app.get("/academic/grades/report/{student_id}")
+async def get_student_grade_report(
+    student_id: int,
+    academic_year_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    # Get student
+    student = db.query(models.Student).filter(models.Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Get grades
+    query = db.query(models.Grade).filter(models.Grade.student_id == student_id)
+    if academic_year_id:
+        query = query.filter(models.Grade.academic_year_id == academic_year_id)
+    
+    grades = query.options(joinedload(models.Grade.subject)).all()
+    
+    # Group by subject and calculate averages
+    from collections import defaultdict
+    subject_grades = defaultdict(list)
+    
+    for grade in grades:
+        subject_grades[grade.subject_id].append({
+            "type": grade.type.value if hasattr(grade.type, 'value') else grade.type,
+            "score": grade.score
+        })
+    
+    # Calculate average per subject
+    report = []
+    for subject_id, grade_list in subject_grades.items():
+        subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
+        avg_score = sum(g["score"] for g in grade_list) / len(grade_list) if grade_list else 0
+        
+        report.append({
+            "subject_id": subject_id,
+            "subject_name": subject.name if subject else "Unknown",
+            "grades": grade_list,
+            "average": round(avg_score, 2)
+        })
+    
+    # Get attitude grade
+    attitude = db.query(models.AttitudeGrade).filter(
+        models.AttitudeGrade.student_id == student_id
+    )
+    if academic_year_id:
+        attitude = attitude.filter(models.AttitudeGrade.academic_year_id == academic_year_id)
+    attitude = attitude.first()
+    
+    return {
+        "student_id": student_id,
+        "student_name": student.full_name,
+        "subjects": report,
+        "attitude": {
+            "spiritual": attitude.spiritual if attitude else None,
+            "social": attitude.social if attitude else None
+        } if attitude else None
+    }
+
+# Attitude Grade endpoints
+@app.get("/academic/attitude-grades", response_model=List[schemas.AttitudeGrade])
+async def get_attitude_grades(
+    classroom_id: Optional[int] = None,
+    academic_year_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.AttitudeGrade).options(joinedload(models.AttitudeGrade.student))
+    
+    if classroom_id:
+        query = query.join(models.Student).filter(models.Student.current_classroom_id == classroom_id)
+    if academic_year_id:
+        query = query.filter(models.AttitudeGrade.academic_year_id == academic_year_id)
+    
+    return query.all()
+
+@app.post("/academic/attitude-grades", response_model=schemas.AttitudeGrade)
+async def create_attitude_grade(attitude: schemas.AttitudeGradeCreate, db: Session = Depends(get_db)):
+    # Check existing
+    existing = db.query(models.AttitudeGrade).filter(
+        models.AttitudeGrade.student_id == attitude.student_id,
+        models.AttitudeGrade.academic_year_id == attitude.academic_year_id
+    ).first()
+    
+    if existing:
+        # Update existing
+        for key, value in attitude.dict().items():
+            setattr(existing, key, value)
+        db.commit()
+        db.refresh(existing)
+        return existing
+    
+    db_att = models.AttitudeGrade(**attitude.dict())
+    db.add(db_att)
+    db.commit()
+    db.refresh(db_att)
+    return db_att
+
+# --- Tahfidz Routes ---
+
+@app.get("/tahfidz/progress", response_model=List[schemas.TahfidzProgress])
+async def get_tahfidz_progress(
+    student_id: Optional[int] = None,
+    type: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.TahfidzProgress).options(joinedload(models.TahfidzProgress.student))
+    
+    if student_id:
+        query = query.filter(models.TahfidzProgress.student_id == student_id)
+    if type:
+        query = query.filter(models.TahfidzProgress.type == type)
+    
+    return query.order_by(models.TahfidzProgress.date.desc()).all()
+
+@app.post("/tahfidz/progress", response_model=schemas.TahfidzProgress)
+async def create_tahfidz_progress(progress: schemas.TahfidzProgressCreate, db: Session = Depends(get_db)):
+    db_progress = models.TahfidzProgress(**progress.dict())
+    db.add(db_progress)
+    db.commit()
+    db.refresh(db_progress)
+    return db_progress
+
+@app.get("/tahfidz/progress/{student_id}/summary")
+async def get_tahfidz_summary(student_id: int, db: Session = Depends(get_db)):
+    # Get student
+    student = db.query(models.Student).filter(models.Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Get all progress records
+    progress_list = db.query(models.TahfidzProgress).filter(
+        models.TahfidzProgress.student_id == student_id
+    ).all()
+    
+    # Group by type
+    quran_count = sum(1 for p in progress_list if p.type.value == "QURAN" or p.type == "QURAN")
+    mutun_count = sum(1 for p in progress_list if p.type.value == "MUTUN" or p.type == "MUTUN")
+    
+    # Get unique surah/kitab names
+    quran_surah = set()
+    mutun_kitab = set()
+    
+    for p in progress_list:
+        ptype = p.type.value if hasattr(p.type, 'value') else p.type
+        if ptype == "QURAN":
+            quran_surah.add(p.new_memorization)
+        else:
+            if p.kitab_name:
+                mutun_kitab.add(p.kitab_name)
+    
+    # Calculate average score
+    scores = [p.score for p in progress_list if p.score]
+    avg_score = sum(scores) / len(scores) if scores else 0
+    
+    return {
+        "student_id": student_id,
+        "student_name": student.full_name,
+        "total_sessions": len(progress_list),
+        "quran": {
+            "sessions": quran_count,
+            "surah_learned": list(quran_surah)
+        },
+        "mutun": {
+            "sessions": mutun_count,
+            "kitab_learned": list(mutun_kitab)
+        },
+        "average_score": round(avg_score, 2)
+    }
+
+# Tahfidz Exam endpoints
+@app.get("/tahfidz/exams", response_model=List[schemas.TahfidzExam])
+async def get_tahfidz_exams(
+    student_id: Optional[int] = None,
+    academic_year_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.TahfidzExam).options(joinedload(models.TahfidzExam.student))
+    
+    if student_id:
+        query = query.filter(models.TahfidzExam.student_id == student_id)
+    if academic_year_id:
+        query = query.filter(models.TahfidzExam.academic_year_id == academic_year_id)
+    
+    return query.order_by(models.TahfidzExam.created_at.desc()).all()
+
+@app.post("/tahfidz/exams", response_model=schemas.TahfidzExam)
+async def create_tahfidz_exam(exam: schemas.TahfidzExamCreate, db: Session = Depends(get_db)):
+    db_exam = models.TahfidzExam(**exam.dict())
+    db.add(db_exam)
+    db.commit()
+    db.refresh(db_exam)
+    return db_exam

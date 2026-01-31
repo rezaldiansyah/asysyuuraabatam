@@ -72,7 +72,7 @@ export function GenerateBillDialog({ onSuccess }: { onSuccess?: () => void }) {
     }, [open])
 
     const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
+        resolver: zodResolver(formSchema) as any,
         defaultValues: {
             student_id: 0,
             category_id: 0,

@@ -64,7 +64,7 @@ export function SubjectFormDialog({ onSuccess }: { onSuccess?: () => void }) {
     }, [open])
 
     const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
+        resolver: zodResolver(formSchema) as any,
         defaultValues: {
             name: "",
             code: "",

@@ -37,9 +37,7 @@ import { toast } from "sonner"
 const formSchema = z.object({
     name: z.string().min(2, { message: "Nama kategori wajib diisi." }),
     amount: z.coerce.number().min(0, { message: "Nominal tidak boleh negatif." }),
-    type: z.enum(["MONTHLY", "ONE_TIME"], {
-        required_error: "Pilih tipe pembayaran.",
-    }),
+    type: z.enum(["MONTHLY", "ONE_TIME"]),
     income_account_id: z.coerce.number().optional(),
 })
 
@@ -64,7 +62,7 @@ export function PaymentCategoryDialog({ onSuccess }: { onSuccess?: () => void })
     }, [open])
 
     const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
+        resolver: zodResolver(formSchema) as any,
         defaultValues: {
             name: "",
             amount: 0,

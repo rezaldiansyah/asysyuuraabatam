@@ -36,9 +36,7 @@ import { toast } from "sonner"
 
 const formSchema = z.object({
     amount_paid: z.coerce.number().min(1, { message: "Nominal bayar wajib diisi." }),
-    method: z.enum(["CASH", "TRANSFER"], {
-        required_error: "Pilih metode pembayaran.",
-    }),
+    method: z.enum(["CASH", "TRANSFER"]),
     notes: z.string().optional(),
 })
 
@@ -52,7 +50,7 @@ export function PaymentDialog({ bill, onSuccess }: PaymentDialogProps) {
     const [isLoading, setIsLoading] = useState(false)
 
     const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
+        resolver: zodResolver(formSchema) as any,
         defaultValues: {
             amount_paid: bill.amount, // Default full amount
             method: "CASH",

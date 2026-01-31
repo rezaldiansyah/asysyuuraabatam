@@ -36,9 +36,7 @@ import { toast } from "sonner"
 
 const formSchema = z.object({
     name: z.string().min(2, { message: "Nama beasiswa wajib diisi." }),
-    type: z.enum(["FIXED", "PERCENTAGE"], {
-        required_error: "Pilih tipe potongan.",
-    }),
+    type: z.enum(["FIXED", "PERCENTAGE"]),
     value: z.coerce.number().min(0, { message: "Nilai tidak boleh negatif." }),
 })
 
@@ -47,7 +45,7 @@ export function ScholarshipDialog({ onSuccess }: { onSuccess?: () => void }) {
     const [isLoading, setIsLoading] = useState(false)
 
     const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
+        resolver: zodResolver(formSchema) as any,
         defaultValues: {
             name: "",
             type: "PERCENTAGE",

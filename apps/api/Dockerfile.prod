@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies for building python packages (if needed)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+
+# Install dependencies including production server and postgres driver
+# Explicitly installing gunicorn and psycopg2-binary for production
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir gunicorn psycopg2-binary
+
+COPY . .
+
+# Run with Gunicorn + Uvicorn workers
+# Adjust workers as needed (e.g., 2-4 for typical VPS)
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000"]

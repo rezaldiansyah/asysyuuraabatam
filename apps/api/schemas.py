@@ -14,6 +14,16 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     username: Optional[str] = None
 
+class RoleBase(BaseModel):
+    code: str
+    name: str
+    scope: str
+    
+class Role(RoleBase):
+    id: int
+    class Config:
+        from_attributes = True
+
 # --- User/Teacher Schemas ---
 class UserBase(BaseModel):
     email: str
@@ -23,6 +33,19 @@ class UserBase(BaseModel):
 class TeacherCreate(UserBase):
     unit_id: int
     password: str # Initial password
+
+class UserCreate(UserBase):
+    password: str
+    role_id: int
+    is_active: bool = True
+
+class UserUpdate(BaseModel):
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+    nik: Optional[str] = None
+    role_id: Optional[int] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = None
 
 class User(UserBase):
     id: int
@@ -348,3 +371,185 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
+
+# --- SDM/Employee Schemas ---
+class AttendanceStatusEnum(str, Enum):
+    PRESENT = "PRESENT"
+    SICK = "SICK"
+    PERMIT = "PERMIT"
+    ABSENT = "ABSENT"
+
+class EmployeeBase(BaseModel):
+    user_id: int
+    nip: Optional[str] = None
+    nuptk: Optional[str] = None
+    position: Optional[str] = None
+    join_date: Optional[date] = None
+    is_active: bool = True
+
+class EmployeeCreate(EmployeeBase):
+    pass
+
+class Employee(EmployeeBase):
+    id: int
+    user: Optional[User] = None
+    
+    class Config:
+        from_attributes = True
+
+# --- Attendance Schemas ---
+class StudentAttendanceBase(BaseModel):
+    student_id: int
+    date: date
+    status: AttendanceStatusEnum = AttendanceStatusEnum.PRESENT
+    notes: Optional[str] = None
+
+class StudentAttendanceCreate(StudentAttendanceBase):
+    pass
+
+class StudentAttendance(StudentAttendanceBase):
+    id: int
+    created_at: datetime
+    student: Optional[Student] = None
+    
+    class Config:
+        from_attributes = True
+
+class EmployeeAttendanceBase(BaseModel):
+    employee_id: int
+    date: date
+    status: AttendanceStatusEnum = AttendanceStatusEnum.PRESENT
+    check_in: Optional[datetime] = None
+    check_out: Optional[datetime] = None
+    notes: Optional[str] = None
+
+class EmployeeAttendanceCreate(EmployeeAttendanceBase):
+    pass
+
+class EmployeeAttendance(EmployeeAttendanceBase):
+    id: int
+    created_at: datetime
+    employee: Optional[Employee] = None
+    
+    class Config:
+        from_attributes = True
+
+# Bulk Attendance Schema
+class BulkStudentAttendanceItem(BaseModel):
+    student_id: int
+    status: AttendanceStatusEnum
+    notes: Optional[str] = None
+
+class BulkStudentAttendanceCreate(BaseModel):
+    date: date
+    classroom_id: int
+    items: List[BulkStudentAttendanceItem]
+
+# --- Grade Schemas ---
+
+class GradeTypeEnum(str, Enum):
+    QUIZ = "QUIZ"
+    MIDTERM = "MIDTERM"
+    FINAL = "FINAL"
+    ASSIGNMENT = "ASSIGNMENT"
+    PRACTICE = "PRACTICE"
+
+class GradeBase(BaseModel):
+    student_id: int
+    subject_id: int
+    academic_year_id: int
+    type: GradeTypeEnum = GradeTypeEnum.QUIZ
+    score: int = 0
+    notes: Optional[str] = None
+
+class GradeCreate(GradeBase):
+    pass
+
+class Grade(GradeBase):
+    id: int
+    created_at: datetime
+    student: Optional[Student] = None
+    subject: Optional[Subject] = None
+    
+    class Config:
+        from_attributes = True
+
+class AttitudeGradeBase(BaseModel):
+    student_id: int
+    academic_year_id: int
+    spiritual: str = "B"
+    social: str = "B"
+    notes: Optional[str] = None
+
+class AttitudeGradeCreate(AttitudeGradeBase):
+    pass
+
+class AttitudeGrade(AttitudeGradeBase):
+    id: int
+    created_at: datetime
+    student: Optional[Student] = None
+    
+    class Config:
+        from_attributes = True
+
+# Bulk Grade Schema
+class BulkGradeItem(BaseModel):
+    student_id: int
+    score: int
+    notes: Optional[str] = None
+
+class BulkGradeCreate(BaseModel):
+    subject_id: int
+    academic_year_id: int
+    type: GradeTypeEnum
+    classroom_id: int  # To filter students
+    items: List[BulkGradeItem]
+
+# --- Tahfidz Schemas ---
+
+class MemorizationTypeEnum(str, Enum):
+    QURAN = "QURAN"
+    MUTUN = "MUTUN"
+
+class TahfidzProgressBase(BaseModel):
+    student_id: int
+    date: date
+    type: MemorizationTypeEnum = MemorizationTypeEnum.QURAN
+    new_memorization: str
+    review: Optional[str] = None
+    kitab_name: Optional[str] = None  # For MUTUN type
+    score: int = 0
+    notes: Optional[str] = None
+
+class TahfidzProgressCreate(TahfidzProgressBase):
+    pass
+
+class TahfidzProgress(TahfidzProgressBase):
+    id: int
+    created_at: datetime
+    student: Optional[Student] = None
+    
+    class Config:
+        from_attributes = True
+
+class TahfidzExamBase(BaseModel):
+    student_id: int
+    academic_year_id: int
+    type: MemorizationTypeEnum = MemorizationTypeEnum.QURAN
+    surah_from: Optional[str] = None
+    surah_to: Optional[str] = None
+    kitab_name: Optional[str] = None
+    score: int = 0
+    notes: Optional[str] = None
+    exam_date: Optional[date] = None
+
+class TahfidzExamCreate(TahfidzExamBase):
+    pass
+
+class TahfidzExam(TahfidzExamBase):
+    id: int
+    created_at: datetime
+    student: Optional[Student] = None
+    
+    class Config:
+        from_attributes = True

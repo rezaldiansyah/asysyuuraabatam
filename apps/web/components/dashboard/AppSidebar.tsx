@@ -15,6 +15,9 @@ import {
     Users,
     ChevronRight,
     CircleDollarSign,
+    ClipboardCheck,
+    BookMarked,
+    GraduationCap,
 } from "lucide-react"
 
 import {
@@ -71,6 +74,32 @@ const data = {
                     title: "Jadwal Pelajaran",
                     url: "/dashboard/jadwal",
                 },
+                {
+                    title: "Nilai Siswa",
+                    url: "/dashboard/nilai",
+                },
+            ],
+        },
+        {
+            title: "Absensi",
+            url: "#",
+            icon: ClipboardCheck,
+            items: [
+                {
+                    title: "Absensi Siswa",
+                    url: "/dashboard/absensi",
+                },
+            ],
+        },
+        {
+            title: "Tahfidz",
+            url: "#",
+            icon: BookMarked,
+            items: [
+                {
+                    title: "Setoran Harian",
+                    url: "/dashboard/tahfidz",
+                },
             ],
         },
         {
@@ -116,6 +145,7 @@ const data = {
         },
     ],
 }
+
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return (

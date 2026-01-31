@@ -65,8 +65,14 @@ export function TeacherFormDialog({ onSuccess }: { onSuccess?: () => void }) {
         if (open) fetchUnits()
     }, [open])
 
-    const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
+    const form = useForm<{
+        full_name: string
+        email: string
+        nik: string
+        password: string
+        unit_id: number
+    }>({
+        resolver: zodResolver(formSchema) as any,
         defaultValues: {
             full_name: "",
             email: "",

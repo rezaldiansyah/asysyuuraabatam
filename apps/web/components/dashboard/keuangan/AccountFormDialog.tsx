@@ -37,9 +37,7 @@ import { toast } from "sonner"
 const formSchema = z.object({
     code: z.string().min(3, { message: "Kode akun wajib diisi." }),
     name: z.string().min(3, { message: "Nama akun wajib diisi." }),
-    type: z.enum(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"], {
-        required_error: "Pilih tipe akun.",
-    }),
+    type: z.enum(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]),
 })
 
 export function AccountFormDialog({ onSuccess }: { onSuccess?: () => void }) {
@@ -47,7 +45,7 @@ export function AccountFormDialog({ onSuccess }: { onSuccess?: () => void }) {
     const [isLoading, setIsLoading] = useState(false)
 
     const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
+        resolver: zodResolver(formSchema) as any,
         defaultValues: {
             code: "",
             name: "",

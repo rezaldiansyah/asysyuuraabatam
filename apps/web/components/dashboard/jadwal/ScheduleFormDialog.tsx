@@ -39,9 +39,7 @@ const formSchema = z.object({
     classroom_id: z.coerce.number().min(1, { message: "Wajib pilih kelas." }),
     subject_id: z.coerce.number().min(1, { message: "Wajib pilih mapel." }),
     teacher_id: z.coerce.number().min(1, { message: "Wajib pilih guru." }),
-    day: z.enum(["SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"], {
-        required_error: "Pilih hari.",
-    }),
+    day: z.enum(["SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"]),
     start_time: z.string().min(1, "Jam mulai wajib diisi"),
     end_time: z.string().min(1, "Jam selesai wajib diisi"),
 })
@@ -83,7 +81,7 @@ export function ScheduleFormDialog({ onSuccess }: { onSuccess?: () => void }) {
     }, [open])
 
     const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
+        resolver: zodResolver(formSchema) as any,
         defaultValues: {
             academic_year_id: 0,
             classroom_id: 0,

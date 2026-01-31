@@ -72,7 +72,7 @@ export function StudentFormDialog({ onSuccess }: { onSuccess?: () => void }) {
     }, [open])
 
     const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
+        resolver: zodResolver(formSchema) as any,
         defaultValues: {
             full_name: "",
             nis: "",

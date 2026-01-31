@@ -306,3 +306,142 @@ class PageContent(Base):
 # String forward ref `income_account = relationship("Account")` works even if Account is defined later.
 # But I need to add the Column `income_account_id`.
 
+# --- SDM/Employee Models ---
+
+class AttendanceStatus(str, enum.Enum):
+    PRESENT = "PRESENT"   # Hadir
+    SICK = "SICK"         # Sakit
+    PERMIT = "PERMIT"     # Izin
+    ABSENT = "ABSENT"     # Alpa
+
+class Employee(Base):
+    __tablename__ = "employees"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    
+    # Employee specific fields
+    nip = Column(String, unique=True, index=True, nullable=True)  # Nomor Induk Pegawai
+    nuptk = Column(String, unique=True, index=True, nullable=True)  # NUPTK for teachers
+    position = Column(String, nullable=True)  # Jabatan: Guru, Staff, etc.
+    join_date = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+    
+    # Relationships
+    user = relationship("User")
+    attendances = relationship("EmployeeAttendance", back_populates="employee")
+
+class StudentAttendance(Base):
+    __tablename__ = "student_attendances"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"))
+    date = Column(DateTime, index=True)
+    status = Column(Enum(AttendanceStatus), default=AttendanceStatus.PRESENT)
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    student = relationship("Student")
+
+class EmployeeAttendance(Base):
+    __tablename__ = "employee_attendances"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"))
+    date = Column(DateTime, index=True)
+    status = Column(Enum(AttendanceStatus), default=AttendanceStatus.PRESENT)
+    check_in = Column(DateTime, nullable=True)
+    check_out = Column(DateTime, nullable=True)
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    employee = relationship("Employee", back_populates="attendances")
+
+# --- Academic Grade Models ---
+
+class GradeType(str, enum.Enum):
+    QUIZ = "QUIZ"           # Ulangan Harian
+    MIDTERM = "MIDTERM"     # UTS
+    FINAL = "FINAL"         # UAS
+    ASSIGNMENT = "ASSIGNMENT"  # Tugas
+    PRACTICE = "PRACTICE"   # Praktik
+
+class Grade(Base):
+    __tablename__ = "grades"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"))
+    subject_id = Column(Integer, ForeignKey("subjects.id"))
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
+    
+    type = Column(Enum(GradeType), default=GradeType.QUIZ)
+    score = Column(Integer, default=0)  # 0-100
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    student = relationship("Student")
+    subject = relationship("Subject")
+    academic_year = relationship("AcademicYear")
+
+class AttitudeGrade(Base):
+    __tablename__ = "attitude_grades"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"))
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
+    
+    spiritual = Column(String, default="B")  # A, B, C
+    social = Column(String, default="B")     # A, B, C
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    student = relationship("Student")
+    academic_year = relationship("AcademicYear")
+
+# --- Tahfidz Models ---
+
+class MemorizationType(str, enum.Enum):
+    QURAN = "QURAN"     # Al-Quran tahfidz
+    MUTUN = "MUTUN"     # Kitab/Nazham (Urjuzah Mi'iyah, etc.)
+
+class TahfidzProgress(Base):
+    __tablename__ = "tahfidz_progress"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"))
+    date = Column(DateTime, index=True)
+    
+    type = Column(Enum(MemorizationType), default=MemorizationType.QURAN)
+    new_memorization = Column(String)  # Hafalan baru (surah name / bab kitab)
+    review = Column(String, nullable=True)  # Murojaah
+    kitab_name = Column(String, nullable=True)  # For MUTUN type: Urjuzah Mi'iyah, etc.
+    score = Column(Integer, default=0)  # 0-100
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    student = relationship("Student")
+
+class TahfidzExam(Base):
+    __tablename__ = "tahfidz_exams"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"))
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
+    
+    type = Column(Enum(MemorizationType), default=MemorizationType.QURAN)
+    surah_from = Column(String, nullable=True)  # Start range
+    surah_to = Column(String, nullable=True)    # End range
+    kitab_name = Column(String, nullable=True)  # For MUTUN
+    score = Column(Integer, default=0)
+    notes = Column(String, nullable=True)
+    exam_date = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    student = relationship("Student")
+    academic_year = relationship("AcademicYear")

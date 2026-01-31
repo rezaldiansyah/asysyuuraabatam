@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Asy-Syuuraa Branding */
+:root {
+    /* Primary - Syuuraa Green */
+    --color-primary: 22 101 52;
+    /* #166534 */
+    --color-primary-light: 34 197 94;
+    /* #22c55e */
+    --color-primary-dark: 20 83 45;
+    /* #14532d */
+
+    /* Secondary - Gold */
+    --color-secondary: 202 138 4;
+    /* #CA8A04 */
+    --color-secondary-light: 234 179 8;
+    /* #EAB308 */
+    --color-secondary-dark: 161 98 7;
+    /* #a16207 */
+
+    /* Neutral */
+    --color-background: 255 255 255;
+    --color-foreground: 15 23 42;
+    /* slate-900 */
+    --color-muted: 100 116 139;
+    /* slate-500 */
+    --color-border: 226 232 240;
+    /* slate-200 */
+}
+
+.dark {
+    --color-background: 15 23 42;
+    /* slate-900 */
+    --color-foreground: 248 250 252;
+    /* slate-50 */
+    --color-muted: 148 163 184;
+    /* slate-400 */
+    --color-border: 51 65 85;
+    /* slate-700 */
+}
+
+/* Base Styles */
+body {
+    @apply bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
+/* Typography - Amiri for Arabic text */
+.font-arabic {
+    font-family: 'Amiri', serif;
+}
