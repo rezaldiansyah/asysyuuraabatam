@@ -37,6 +37,7 @@ def seed_data():
         ]
         
         for role in roles_data:
+            exists = db.query(models.Role).filter(models.Role.code == role["code"]).first()
             if not exists:
                 db_role = models.Role(**role)
                 db.add(db_role)
