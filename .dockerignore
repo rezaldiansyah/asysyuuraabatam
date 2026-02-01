@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+**/node_modules
+npm-debug.log
+yarn-debug.log
+pnpm-debug.log
+
+# Python
+**/venv
+**/env
+**/.venv
+__pycache__
+**/*.pyc
+
+# Docker
+.dockerignore
+Dockerfile
+**/Dockerfile*
+docker-compose.yml
+DEPLOY.md
+README.md
+
+# Build Outputs
+dist
+out
+build
+.next
+.nuxt
+.output

@@ -8,14 +8,14 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY apps/api/requirements.txt .
 
 # Install dependencies including production server and postgres driver
 # Explicitly installing gunicorn and psycopg2-binary for production
 RUN pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir gunicorn psycopg2-binary
 
-COPY . .
+COPY apps/api .
 
 # Run with Gunicorn + Uvicorn workers
 # Adjust workers as needed (e.g., 2-4 for typical VPS)

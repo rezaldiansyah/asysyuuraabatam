@@ -10,11 +10,11 @@ WORKDIR /app
 # Build stage
 FROM base AS builder
 
-COPY package.json package-lock.json ./
+COPY apps/web-nuxt/package.json apps/web-nuxt/package-lock.json ./
 # Install dependencies (clean install)
 RUN npm ci
 
-COPY . .
+COPY apps/web-nuxt .
 
 # Build the application
 RUN npm run build
