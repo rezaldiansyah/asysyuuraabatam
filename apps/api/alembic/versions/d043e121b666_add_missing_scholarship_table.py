@@ -28,6 +28,9 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_scholarships_id'), 'scholarships', ['id'], unique=False)
+    
+    # Add dependency column
+    op.add_column('students', sa.Column('scholarship_id', sa.Integer(), nullable=True))
 
 
 def downgrade() -> None:
