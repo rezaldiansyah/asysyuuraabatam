@@ -98,12 +98,6 @@
 
 <script setup lang="ts">
 import { useAuthStore } from '~/stores/auth'
-
-const authStore = useAuthStore()
-const router = useRouter()
-const sidebarOpen = ref(false)
-const openSubmenus = ref<string[]>(['Akademik', 'Keuangan'])
-
 import { navigation, type MenuItem } from '~/config/navigation'
 
 const authStore = useAuthStore()
