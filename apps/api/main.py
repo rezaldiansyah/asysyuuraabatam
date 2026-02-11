@@ -625,14 +625,20 @@ async def delete_post(post_id: int, current_user: models.User = Depends(get_curr
 @app.put("/cms/content/{section_key}", response_model=schemas.PageContent)
 async def update_page_content(section_key: str, content: schemas.PageContentCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     db_content = db.query(models.PageContent).filter(models.PageContent.section_key == section_key).first()
+    
+    # Get content data, always override section_key with URL path value
+    content_data = content.dict()
+    content_data["section_key"] = section_key
+    
     if not db_content:
         # Create if not exists
-        db_content = models.PageContent(**content.dict())
+        db_content = models.PageContent(**content_data)
         db.add(db_content)
     else:
-        # Update
-        for key, value in content.dict().items():
-            setattr(db_content, key, value)
+        # Update, skip section_key to avoid PK issues  
+        for key, value in content_data.items():
+            if key != "section_key":
+                setattr(db_content, key, value)
     
     db.commit()
     db.refresh(db_content)
