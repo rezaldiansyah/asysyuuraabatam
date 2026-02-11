@@ -42,9 +42,12 @@
                             <InputText v-model="heroData.cta_link" placeholder="/ppdb" />
                         </div>
                     </div>
-                     <div class="flex flex-col gap-2">
-                        <label class="font-medium">URL Gambar Latar</label>
-                        <InputText v-model="heroData.image_url" placeholder="https://..." />
+                    <div class="flex flex-col gap-2">
+                        <CmsImageUploader 
+                            v-model="heroData.image_url" 
+                            label="Gambar Latar Hero" 
+                            placeholder="https://..." 
+                        />
                     </div>
                     <Button label="Simpan Banner" icon="pi pi-save" :loading="loading" @click="saveSection('hero')" />
                 </div>
@@ -95,8 +98,11 @@
                         <Textarea v-model="sambutanData.body" rows="8" placeholder="Assalamu'alaikum..." />
                     </div>
                      <div class="flex flex-col gap-2">
-                        <label class="font-medium">URL Foto Pimpinan</label>
-                        <InputText v-model="sambutanData.image_url" placeholder="https://..." />
+                        <CmsImageUploader 
+                            v-model="sambutanData.image_url" 
+                            label="Foto Pimpinan" 
+                            placeholder="https://..." 
+                        />
                     </div>
                      <Button label="Simpan Sambutan" icon="pi pi-save" :loading="loading" @click="saveSection('sambutan')" />
                 </div>

@@ -56,8 +56,12 @@
 
           <!-- Image URL -->
           <div class="flex flex-col gap-2">
-            <label class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ imageLabel }}</label>
-            <InputText v-model="item.image_url" @input="emitUpdate" placeholder="https://..." />
+            <CmsImageUploader 
+              :modelValue="item.image_url" 
+              @update:modelValue="(val: string) => { item.image_url = val; emitUpdate() }"
+              :label="imageLabel"
+              placeholder="https://..." 
+            />
           </div>
         </div>
 
