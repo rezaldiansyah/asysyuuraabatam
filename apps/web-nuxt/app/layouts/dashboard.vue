@@ -104,56 +104,24 @@ const router = useRouter()
 const sidebarOpen = ref(false)
 const openSubmenus = ref<string[]>(['Akademik', 'Keuangan'])
 
-const menuItems = [
-  { label: 'Dashboard', icon: 'pi pi-home', to: '/dashboard' },
-  {
-    label: 'Akademik',
-    icon: 'pi pi-book',
-    children: [
-      { label: 'Data Siswa', to: '/dashboard/siswa' },
-      { label: 'Data Guru', to: '/dashboard/guru' },
-      { label: 'Jadwal Pelajaran', to: '/dashboard/jadwal' },
-      { label: 'Nilai Siswa', to: '/dashboard/nilai' },
-    ],
-  },
-  {
-    label: 'Absensi',
-    icon: 'pi pi-check-square',
-    children: [
-      { label: 'Absensi Siswa', to: '/dashboard/absensi' },
-    ],
-  },
-  {
-    label: 'Tahfidz',
-    icon: 'pi pi-bookmark',
-    children: [
-      { label: 'Setoran Harian', to: '/dashboard/tahfidz' },
-    ],
-  },
-  {
-    label: 'Keuangan',
-    icon: 'pi pi-wallet',
-    children: [
-      { label: 'SPP & Tagihan', to: '/dashboard/keuangan' },
-    ],
-  },
-  {
-    label: 'CMS Website',
-    icon: 'pi pi-send',
-    children: [
-      { label: 'Konten Landing Page', to: '/dashboard/cms/konten' },
-      { label: 'Berita Sekolah', to: '/dashboard/berita' },
-    ],
-  },
-  {
-    label: 'Settings',
-    icon: 'pi pi-cog',
-    children: [
-      { label: 'Manajemen User', to: '/dashboard/users' },
-      { label: 'Konfigurasi Sekolah', to: '/dashboard/settings' },
-    ],
-  },
-]
+import { navigation, type MenuItem } from '~/config/navigation'
+
+const authStore = useAuthStore()
+const router = useRouter()
+const sidebarOpen = ref(false)
+const openSubmenus = ref<string[]>(['Akademik', 'Keuangan'])
+
+// Filter menu based on user role
+const menuItems = computed(() => {
+  const userRole = authStore.user?.role?.code || 'guest'
+  
+  return navigation.filter(item => {
+    // If no roles defined, accessible by everyone
+    if (!item.roles) return true
+    // Check if user has required role
+    return item.roles.includes(userRole)
+  })
+})
 
 function toggleSubmenu(label: string) {
   if (openSubmenus.value.includes(label)) {

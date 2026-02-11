@@ -21,6 +21,12 @@ class ScholarshipType(str, enum.Enum):
     FIXED = "FIXED" # Potongan Nominal (e.g. Rp 500.000)
     PERCENTAGE = "PERCENTAGE" # Potongan Persen (e.g. 50%)
 
+class CalendarEventType(str, enum.Enum):
+    HOLIDAY = "HOLIDAY"       # Libur Nasional / Cuti Bersama
+    EXAM = "EXAM"             # Ujian (UTS/UAS)
+    EVENT = "EVENT"           # Kegiatan Sekolah (Classmeeting, Lomba)
+    EFFECTIVE = "EFFECTIVE"   # Hari Efektif Belajar (Default)
+
 
 # Models
 class Unit(Base):
@@ -445,3 +451,22 @@ class TahfidzExam(Base):
     # Relationships
     student = relationship("Student")
     academic_year = relationship("AcademicYear")
+
+
+# --- Calendar Models ---
+
+class AcademicCalendarEvent(Base):
+    __tablename__ = "academic_calendar_events"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
+    
+    date = Column(DateTime, index=True)
+    type = Column(Enum(CalendarEventType), default=CalendarEventType.EFFECTIVE)
+    description = Column(String, nullable=True) # "Libur Idul Fitri"
+    is_holiday = Column(Boolean, default=False) # True = tidak wajib absen
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    academic_year = relationship("AcademicYear")
+
