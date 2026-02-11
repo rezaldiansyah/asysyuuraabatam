@@ -647,17 +647,26 @@ async def update_page_content(section_key: str, content: schemas.PageContentCrea
 @app.post("/cms/upload")
 async def upload_file(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
     try:
-        # Create safe filename
-        file_extension = os.path.splitext(file.filename)[1]
-        unique_filename = f"{uuid.uuid4()}{file_extension}"
-        file_path = os.path.join(UPLOAD_DIR, unique_filename)
+        from storage import upload_to_r2, is_r2_configured
         
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # Read file content
+        file_bytes = await file.read()
+        
+        if is_r2_configured():
+            # Upload to Cloudflare R2 (with auto image compression)
+            url = upload_to_r2(file_bytes, file.filename, folder="uploads")
+            return {"url": url}
+        else:
+            # Fallback: save locally
+            file_extension = os.path.splitext(file.filename)[1]
+            unique_filename = f"{uuid.uuid4()}{file_extension}"
+            file_path = os.path.join(UPLOAD_DIR, unique_filename)
             
-        # Return full URL using API_BASE_URL env var or fallback
-        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
-        return {"url": f"{base_url.rstrip('/')}/uploads/{unique_filename}"}
+            with open(file_path, "wb") as buffer:
+                buffer.write(file_bytes)
+                
+            base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+            return {"url": f"{base_url.rstrip('/')}/uploads/{unique_filename}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
