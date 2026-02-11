@@ -188,8 +188,36 @@ class PageContentCreate(PageContentBase):
     pass
 
 class PageContent(PageContentBase):
+    section_key: str
+
     class Config:
-        from_attributes = True
+        orm_mode = True
+
+# --- Calendar Schemas ---
+
+class CalendarEventBase(BaseModel):
+    date: datetime
+    type: "CalendarEventType" # Forward reference
+    description: Optional[str] = None
+    is_holiday: bool = False
+    academic_year_id: int
+
+class CalendarEventCreate(CalendarEventBase):
+    pass
+
+class CalendarEventUpdate(BaseModel):
+    date: Optional[datetime] = None
+    type: Optional["CalendarEventType"] = None # Forward reference
+    description: Optional[str] = None
+    is_holiday: Optional[bool] = None
+    academic_year_id: Optional[int] = None
+
+class CalendarEvent(CalendarEventBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
 
 JournalEntry.model_rebuild()
 
@@ -295,6 +323,12 @@ class StudentStatusEnum(str, Enum):
     GRADUATED = "GRADUATED"
     MOVED = "MOVED"
     DROPPED = "DROPPED"
+
+class CalendarEventType(str, Enum):
+    HOLIDAY = "HOLIDAY"
+    EXAM = "EXAM"
+    EVENT = "EVENT"
+    EFFECTIVE = "EFFECTIVE"
 
 # --- Academic Schemas ---
 

@@ -670,6 +670,47 @@ async def upload_file(file: UploadFile = File(...), current_user: models.User = 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
+# --- Academic Calendar Routes ---
+
+@app.get("/academic-calendar", response_model=List[schemas.CalendarEvent])
+def get_calendar_events(academic_year_id: Optional[int] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    query = db.query(models.AcademicCalendarEvent)
+    if academic_year_id:
+        query = query.filter(models.AcademicCalendarEvent.academic_year_id == academic_year_id)
+    return query.order_by(models.AcademicCalendarEvent.date).offset(skip).limit(limit).all()
+
+@app.post("/academic-calendar", response_model=schemas.CalendarEvent)
+def create_calendar_event(event: schemas.CalendarEventCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    db_event = models.AcademicCalendarEvent(**event.dict())
+    db.add(db_event)
+    db.commit()
+    db.refresh(db_event)
+    return db_event
+
+@app.put("/academic-calendar/{event_id}", response_model=schemas.CalendarEvent)
+def update_calendar_event(event_id: int, event: schemas.CalendarEventUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    db_event = db.query(models.AcademicCalendarEvent).filter(models.AcademicCalendarEvent.id == event_id).first()
+    if not db_event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    event_data = event.dict(exclude_unset=True)
+    for key, value in event_data.items():
+        setattr(db_event, key, value)
+    
+    db.commit()
+    db.refresh(db_event)
+    return db_event
+
+@app.delete("/academic-calendar/{event_id}")
+def delete_calendar_event(event_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    db_event = db.query(models.AcademicCalendarEvent).filter(models.AcademicCalendarEvent.id == event_id).first()
+    if not db_event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    db.delete(db_event)
+    db.commit()
+    return {"ok": True}
+
 # --- SDM / Employee Routes ---
 
 @app.get("/sdm/employees", response_model=List[schemas.Employee])
