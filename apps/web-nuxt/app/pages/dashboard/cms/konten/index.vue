@@ -102,6 +102,28 @@
                 </div>
             </TabPanel>
 
+            <!-- UNIT PENDIDIKAN TAB (Home Only) -->
+            <TabPanel header="Unit Pendidikan" v-if="context === 'home'">
+                <div class="space-y-4 pt-4">
+                    <div class="flex flex-col gap-2">
+                        <label class="font-medium">Judul Section</label>
+                        <InputText v-model="unitsData.title" placeholder="Unit Pendidikan" />
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="font-medium">Deskripsi Section</label>
+                        <Textarea v-model="unitsData.body" rows="2" placeholder="Deskripsi singkat tentang unit..." />
+                    </div>
+                    <CmsListEditor 
+                        v-model="unitsData.items" 
+                        titleLabel="Nama Unit" 
+                        descLabel="Deskripsi Unit"
+                        :withLink="true"
+                        linkLabel="Link (e.g. /unit/ra)"
+                    />
+                    <Button label="Simpan Unit Pendidikan" icon="pi pi-save" :loading="loading" @click="saveSection('units')" />
+                </div>
+            </TabPanel>
+
             <!-- KEUNGGULAN TAB (Hide on Profil) -->
             <TabPanel header="Keunggulan" v-if="context !== 'profil'">
                  <div class="space-y-4 pt-4">
@@ -112,6 +134,31 @@
                     />
                     <Button label="Simpan Keunggulan" icon="pi pi-save" :loading="loading" @click="saveSection('features')" />
                  </div>
+            </TabPanel>
+
+            <!-- PPDB TAB (Home Only) -->
+            <TabPanel header="Info PPDB" v-if="context === 'home'">
+                <div class="space-y-4 pt-4">
+                    <div class="flex flex-col gap-2">
+                        <label class="font-medium">Judul PPDB</label>
+                        <InputText v-model="ppdbData.title" placeholder="Pendaftaran Peserta Didik Baru (PPDB) Dibuka!" />
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="font-medium">Deskripsi PPDB</label>
+                        <Textarea v-model="ppdbData.body" rows="3" placeholder="Daftarkan putra-putri Anda..." />
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-2">
+                            <label class="font-medium">Teks Tombol</label>
+                            <InputText v-model="ppdbData.cta_text" placeholder="Daftar Sekarang" />
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="font-medium">Link Tombol</label>
+                            <InputText v-model="ppdbData.cta_link" placeholder="/ppdb" />
+                        </div>
+                    </div>
+                    <Button label="Simpan Info PPDB" icon="pi pi-save" :loading="loading" @click="saveSection('ppdb')" />
+                </div>
             </TabPanel>
 
             <!-- TESTIMONI TAB (Hide on Profil) -->
@@ -137,7 +184,6 @@ import { useToast } from 'primevue/usetoast'
 
 definePageMeta({
     layout: 'dashboard'
-    // middleware: ['auth'] - Handled by auth.global.ts
 })
 
 const api = useApi()
@@ -161,10 +207,18 @@ const featuresData = ref('[]')
 const testimonialsData = ref('[]')
 const visiMisiData = reactive({ visi: '', misi: '[]' })
 const historyData = reactive({ body: '' })
+const unitsData = reactive({ title: '', body: '', items: '[]' })
+const ppdbData = reactive({ title: '', body: '', cta_text: '', cta_link: '' })
 
 const defaultFeatures = [
     { icon: "BookOpen", title: "Kurikulum Terpadu", description: "Memadukan Kurikulum Nasional (Merdeka) dengan Kurikulum Khas Sekolah Islam Terpadu." },
     { icon: "Heart", title: "Bina Pribadi Islami", description: "Pembentukan karakter (adab & akhlaq) yang intensif melalui mentoring dan keteladanan." },
+]
+
+const defaultUnits = [
+    { icon: "🎨", title: "RA (TK Islam)", description: "Pendidikan anak usia dini dengan kurikulum bermain dan belajar berbasis Islam.", link: "/unit/ra" },
+    { icon: "📚", title: "SDIT", description: "Sekolah Dasar Islam Terpadu dengan kurikulum nasional plus tahfidz Al-Quran.", link: "/unit/sdit" },
+    { icon: "🎓", title: "SMPIT", description: "SMP Islam Terpadu dengan boarding program dan kurikulum karakter Islami.", link: "/unit/smpit" },
 ]
 
 // Fetch Data
@@ -183,17 +237,29 @@ async function fetchData() {
                 api.get<any>(`/public/content/profil_visimisi`).catch(() => ({})),
                 api.get<any>(`/public/content/profil_history`).catch(() => ({})),
                 Promise.resolve({}), // Dummy for features
-                Promise.resolve({})  // Dummy for testimonials
+                Promise.resolve({}), // Dummy for testimonials
+                Promise.resolve({}), // Dummy for units
+                Promise.resolve({})  // Dummy for ppdb
+             )
+        } else if (context.value === 'home') {
+             promises.push(
+                api.get<any>(`/public/content/home_sambutan`).catch(() => ({})),
+                api.get<any>(`/public/content/home_features`).catch(() => ({})),
+                api.get<any>(`/public/content/home_testimonials`).catch(() => ({})),
+                api.get<any>(`/public/content/home_units`).catch(() => ({})),
+                api.get<any>(`/public/content/home_ppdb`).catch(() => ({})),
              )
         } else {
              promises.push(
                 api.get<any>(`/public/content/${prefix}_sambutan`).catch(() => ({})),
                 api.get<any>(`/public/content/${prefix}_features`).catch(() => ({})),
                 api.get<any>(`/public/content/${prefix}_testimonials`).catch(() => ({})),
+                Promise.resolve({}), // Dummy for units
+                Promise.resolve({})  // Dummy for ppdb
              )
         }
         
-        const [hero, second, third, fourth] = await Promise.all(promises)
+        const [hero, second, third, fourth, fifth, sixth] = await Promise.all(promises)
 
         // Hero (Common)
         Object.assign(heroData, { 
@@ -232,10 +298,12 @@ async function fetchData() {
             }
 
         } else {
-            // Normal Flow
+            // Normal Flow (Home / Unit pages)
             const sambutan = second
             const features = third
             const testimonials = fourth
+            const units = fifth
+            const ppdb = sixth
 
             Object.assign(sambutanData, {
                 title: sambutan.title || '',
@@ -255,6 +323,25 @@ async function fetchData() {
             } else {
                 testimonialsData.value = '[]'
             }
+
+            // Units (home only)
+            if (context.value === 'home') {
+                unitsData.title = units.title || 'Unit Pendidikan'
+                unitsData.body = units.body || 'Asy-Syuuraa Batam memiliki tiga unit pendidikan Islam terpadu dari tingkat TK hingga SMP.'
+                if (units.content_json && units.content_json !== 'null') {
+                    unitsData.items = units.content_json
+                } else {
+                    unitsData.items = JSON.stringify(defaultUnits)
+                }
+
+                // PPDB
+                Object.assign(ppdbData, {
+                    title: ppdb.title || 'Pendaftaran Peserta Didik Baru (PPDB) Dibuka!',
+                    body: ppdb.body || 'Daftarkan putra-putri Anda untuk tahun ajaran baru sekarang.',
+                    cta_text: ppdb.cta_text || 'Daftar Sekarang',
+                    cta_link: ppdb.cta_link || '/ppdb'
+                })
+            }
         }
 
     } catch (e) {
@@ -266,14 +353,14 @@ async function fetchData() {
 }
 
 // Watch context change
-watch(context, () => fetchData(), { value: 'home' }) // Immediate handled by watcher if we set initial? No, watch works. But fetch called on mount if immediate true.
+watch(context, () => fetchData())
 
 // Initial fetch
 onMounted(() => {
     fetchData()
 })
 
-async function saveSection(section: 'hero' | 'sambutan' | 'features' | 'testimonials' | 'visimisi' | 'history') {
+async function saveSection(section: 'hero' | 'sambutan' | 'features' | 'testimonials' | 'visimisi' | 'history' | 'units' | 'ppdb') {
     loading.value = true
     try {
         const prefix = context.value === 'home' ? 'home' : context.value.replace('unit_', '')
@@ -295,6 +382,14 @@ async function saveSection(section: 'hero' | 'sambutan' | 'features' | 'testimon
         }
         else if (section === 'history') {
             payload.body = historyData.body
+        }
+        else if (section === 'units') {
+            payload.title = unitsData.title
+            payload.body = unitsData.body
+            payload.content_json = unitsData.items
+        }
+        else if (section === 'ppdb') {
+            Object.assign(payload, ppdbData)
         }
 
         await api.put(`/cms/content/${key}`, payload)

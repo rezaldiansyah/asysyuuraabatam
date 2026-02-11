@@ -49,51 +49,28 @@
     <section class="py-20 bg-white dark:bg-slate-800">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-12">
-          <h2 class="text-3xl font-bold text-slate-800 dark:text-white mb-4">Unit Pendidikan</h2>
+          <h2 class="text-3xl font-bold text-slate-800 dark:text-white mb-4">{{ unitsSection.title }}</h2>
           <p class="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-            Asy-Syuuraa Batam memiliki tiga unit pendidikan Islam terpadu dari tingkat TK hingga SMP.
+            {{ unitsSection.body }}
           </p>
         </div>
 
         <div class="grid md:grid-cols-3 gap-8">
-          <!-- RA -->
-          <div class="bg-slate-50 dark:bg-slate-700 rounded-2xl p-8 text-center hover:shadow-xl transition">
-            <div class="w-16 h-16 bg-pink-100 dark:bg-pink-900/30 rounded-xl mx-auto mb-4 flex items-center justify-center">
-              <span class="text-3xl">🎨</span>
+          <div
+            v-for="(unit, idx) in unitCards"
+            :key="idx"
+            class="bg-slate-50 dark:bg-slate-700 rounded-2xl p-8 text-center hover:shadow-xl transition"
+          >
+            <div class="w-16 h-16 rounded-xl mx-auto mb-4 flex items-center justify-center"
+              :class="unitColors[idx % unitColors.length]"
+            >
+              <span class="text-3xl">{{ unit.icon || unitIcons[idx % unitIcons.length] }}</span>
             </div>
-            <h3 class="text-xl font-bold text-slate-800 dark:text-white mb-2">RA (TK Islam)</h3>
+            <h3 class="text-xl font-bold text-slate-800 dark:text-white mb-2">{{ unit.title }}</h3>
             <p class="text-slate-600 dark:text-slate-400 text-sm mb-4">
-              Pendidikan anak usia dini dengan kurikulum bermain dan belajar berbasis Islam.
+              {{ unit.description }}
             </p>
-            <NuxtLink to="/unit/ra" class="text-primary font-medium hover:underline">
-              Selengkapnya →
-            </NuxtLink>
-          </div>
-
-          <!-- SDIT -->
-          <div class="bg-slate-50 dark:bg-slate-700 rounded-2xl p-8 text-center hover:shadow-xl transition">
-            <div class="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-xl mx-auto mb-4 flex items-center justify-center">
-              <span class="text-3xl">📚</span>
-            </div>
-            <h3 class="text-xl font-bold text-slate-800 dark:text-white mb-2">SDIT</h3>
-            <p class="text-slate-600 dark:text-slate-400 text-sm mb-4">
-              Sekolah Dasar Islam Terpadu dengan kurikulum nasional plus tahfidz Al-Quran.
-            </p>
-            <NuxtLink to="/unit/sdit" class="text-primary font-medium hover:underline">
-              Selengkapnya →
-            </NuxtLink>
-          </div>
-
-          <!-- SMPIT -->
-          <div class="bg-slate-50 dark:bg-slate-700 rounded-2xl p-8 text-center hover:shadow-xl transition">
-            <div class="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-xl mx-auto mb-4 flex items-center justify-center">
-              <span class="text-3xl">🎓</span>
-            </div>
-            <h3 class="text-xl font-bold text-slate-800 dark:text-white mb-2">SMPIT</h3>
-            <p class="text-slate-600 dark:text-slate-400 text-sm mb-4">
-              SMP Islam Terpadu dengan boarding program dan kurikulum karakter Islami.
-            </p>
-            <NuxtLink to="/unit/smpit" class="text-primary font-medium hover:underline">
+            <NuxtLink v-if="unit.link" :to="unit.link" class="text-primary font-medium hover:underline">
               Selengkapnya →
             </NuxtLink>
           </div>
@@ -124,20 +101,20 @@
       </div>
     </section>
 
-    <!-- CTA Section -->
+    <!-- CTA / PPDB Section -->
     <section class="py-16 bg-primary">
       <div class="max-w-4xl mx-auto px-4 text-center">
         <h2 class="text-2xl lg:text-3xl font-bold text-white mb-4">
-          Pendaftaran Peserta Didik Baru (PPDB) Dibuka!
+          {{ ppdb.title }}
         </h2>
         <p class="text-slate-200 mb-6">
-          Daftarkan putra-putri Anda untuk tahun ajaran baru sekarang.
+          {{ ppdb.body }}
         </p>
         <NuxtLink
-          to="/ppdb"
+          :to="ppdb.cta_link || '/ppdb'"
           class="inline-block px-8 py-3 bg-white text-primary font-bold rounded-lg hover:bg-secondary hover:text-white transition"
         >
-          Daftar Sekarang
+          {{ ppdb.cta_text || 'Daftar Sekarang' }}
         </NuxtLink>
       </div>
     </section>
@@ -160,6 +137,17 @@ const defaultHero = {
   image_url: ''
 }
 
+const defaultUnitsSection = {
+  title: 'Unit Pendidikan',
+  body: 'Asy-Syuuraa Batam memiliki tiga unit pendidikan Islam terpadu dari tingkat TK hingga SMP.',
+}
+
+const defaultUnitCards = [
+  { icon: '🎨', title: 'RA (TK Islam)', description: 'Pendidikan anak usia dini dengan kurikulum bermain dan belajar berbasis Islam.', link: '/unit/ra' },
+  { icon: '📚', title: 'SDIT', description: 'Sekolah Dasar Islam Terpadu dengan kurikulum nasional plus tahfidz Al-Quran.', link: '/unit/sdit' },
+  { icon: '🎓', title: 'SMPIT', description: 'SMP Islam Terpadu dengan boarding program dan kurikulum karakter Islami.', link: '/unit/smpit' }
+]
+
 const defaultFeatures = [
   { icon: 'BookOpen', title: 'Program Tahfidz', description: 'Target hafalan Al-Quran terintegrasi' },
   { icon: 'Heart', title: 'Pendidikan Karakter', description: 'Akhlak Islami dalam keseharian' },
@@ -167,7 +155,22 @@ const defaultFeatures = [
   { icon: 'Users', title: 'Boarding Program', description: 'Asrama untuk SMPIT (opsional)' }
 ]
 
-// Mapping for dynamic icons (Lucide names to Emojis/Icons for simple rendering)
+const defaultPpdb = {
+  title: 'Pendaftaran Peserta Didik Baru (PPDB) Dibuka!',
+  body: 'Daftarkan putra-putri Anda untuk tahun ajaran baru sekarang.',
+  cta_text: 'Daftar Sekarang',
+  cta_link: '/ppdb'
+}
+
+// Unit styling
+const unitColors = [
+  'bg-pink-100 dark:bg-pink-900/30',
+  'bg-blue-100 dark:bg-blue-900/30',
+  'bg-green-100 dark:bg-green-900/30'
+]
+const unitIcons = ['🎨', '📚', '🎓']
+
+// Mapping for dynamic icons
 const iconMap: Record<string, string> = {
   BookOpen: '📖',
   Heart: '❤️',
@@ -181,38 +184,55 @@ const iconMap: Record<string, string> = {
 }
 
 // Fetch Data
-const { data: pageContent, error } = await useAsyncData('home-content', async () => {
+const { data: pageContent } = await useAsyncData('home-content', async () => {
   try {
-    const [heroRes, featuresRes] = await Promise.all([
+    const [heroRes, featuresRes, unitsRes, ppdbRes] = await Promise.all([
       $fetch<any>(`${apiBase}/public/content/home_hero`).catch(() => null),
-      $fetch<any>(`${apiBase}/public/content/home_features`).catch(() => null)
+      $fetch<any>(`${apiBase}/public/content/home_features`).catch(() => null),
+      $fetch<any>(`${apiBase}/public/content/home_units`).catch(() => null),
+      $fetch<any>(`${apiBase}/public/content/home_ppdb`).catch(() => null)
     ])
 
+    // Parse features
     let features = defaultFeatures
     if (featuresRes && featuresRes.content_json) {
       try {
         const parsed = JSON.parse(featuresRes.content_json)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          features = parsed
-        }
-      } catch (e) {
-        console.error('Failed to parse features JSON', e)
-      }
+        if (Array.isArray(parsed) && parsed.length > 0) features = parsed
+      } catch (e) { console.error('Failed to parse features JSON', e) }
+    }
+
+    // Parse unit cards
+    let unitCards = defaultUnitCards
+    if (unitsRes && unitsRes.content_json) {
+      try {
+        const parsed = JSON.parse(unitsRes.content_json)
+        if (Array.isArray(parsed) && parsed.length > 0) unitCards = parsed
+      } catch (e) { console.error('Failed to parse units JSON', e) }
     }
 
     return {
       hero: heroRes || defaultHero,
-      features
+      features,
+      unitsSection: {
+        title: unitsRes?.title || defaultUnitsSection.title,
+        body: unitsRes?.body || defaultUnitsSection.body,
+      },
+      unitCards,
+      ppdb: ppdbRes || defaultPpdb,
     }
   } catch (e) {
     console.error('Failed to fetch home content', e)
-    return { hero: defaultHero, features: defaultFeatures }
+    return { hero: defaultHero, features: defaultFeatures, unitsSection: defaultUnitsSection, unitCards: defaultUnitCards, ppdb: defaultPpdb }
   }
 })
 
-// Use computed to safe access
+// Use computed for safe access
 const hero = computed(() => pageContent.value?.hero || defaultHero)
 const features = computed(() => pageContent.value?.features || defaultFeatures)
+const unitsSection = computed(() => pageContent.value?.unitsSection || defaultUnitsSection)
+const unitCards = computed(() => pageContent.value?.unitCards || defaultUnitCards)
+const ppdb = computed(() => pageContent.value?.ppdb || defaultPpdb)
 
 useSeoMeta({
   title: 'Asy-Syuuraa Batam - Sekolah Islam Terpadu',

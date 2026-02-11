@@ -60,6 +60,12 @@
             <InputText v-model="item.image_url" @input="emitUpdate" placeholder="https://..." />
           </div>
         </div>
+
+        <!-- Link -->
+        <div v-if="withLink" class="flex flex-col gap-2">
+          <label class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ linkLabel }}</label>
+          <InputText v-model="item.link" @input="emitUpdate" placeholder="/unit/ra" />
+        </div>
       </div>
     </div>
 
@@ -75,6 +81,7 @@ interface ListItem {
   description: string
   image_url?: string
   icon?: string
+  link?: string
 }
 
 const props = defineProps({
@@ -85,7 +92,9 @@ const props = defineProps({
   titleLabel: { type: String, default: 'Judul' },
   descLabel: { type: String, default: 'Deskripsi' },
   imageLabel: { type: String, default: 'Image URL' },
-  withIcon: { type: Boolean, default: true }
+  withIcon: { type: Boolean, default: true },
+  withLink: { type: Boolean, default: false },
+  linkLabel: { type: String, default: 'Link' }
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -118,7 +127,8 @@ function addItem() {
     title: '',
     description: '',
     icon: 'CheckCircle',
-    image_url: ''
+    image_url: '',
+    link: ''
   })
   emitUpdate()
 }
