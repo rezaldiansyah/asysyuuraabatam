@@ -35,17 +35,15 @@ Aplikasi butuh database. Kita deploy ini dulu.
     *   *Jika private repo, pastikan sudah connect akun GitHub atau pakai Token.*
 4.  **Branch**: `main` (atau branch yang mau dideploy).
 5.  **Build Settings** (PENTING!):
-    *   **Root Directory**: `apps/api`
-    *   **Dockerfile Path**: `Dockerfile.prod`
+    *   **Root Directory**: `/` (root repo, karena monorepo)
+    *   **Dockerfile Path**: `apps/api/Dockerfile.prod`
 6.  **Environment Variables**:
     Isi sesuai koneksi database tadi:
     ```
-    POSTGRES_USER=postgres
-    POSTGRES_PASSWORD=password_dari_langkah_2
-    POSTGRES_DB=asyuraa_db
-    POSTGRES_HOST=db
-    POSTGRES_PORT=5432
+    DATABASE_URL=postgresql://postgres:password_dari_langkah_2@db:5432/asyuraa_db
     SECRET_KEY=isi_random_secret_string
+    ALLOWED_ORIGINS=https://web-asyuraa.vps-anda.com
+    API_BASE_URL=https://api-asyuraa.vps-anda.com
     ```
 7.  **Network/Port**:
     *   Container Port: `8000` (Sesuai `Dockerfile.prod`).
@@ -55,15 +53,15 @@ Aplikasi butuh database. Kita deploy ini dulu.
 
 ---
 
-## Langkah 4: Deploy Web (Frontend)
+## Langkah 4: Deploy Web (Frontend - Nuxt.js)
 1.  Buat Service baru lagi (**"App"**).
 2.  **Source**: "GitHub" (Repo yang sama).
 3.  **Branch**: `main`.
 4.  **Build Settings** (PENTING!):
-    *   **Root Directory**: `apps/web`
-    *   **Dockerfile Path**: `Dockerfile.prod`
+    *   **Root Directory**: `/` (root repo)
+    *   **Dockerfile Path**: `apps/web-nuxt/Dockerfile`
 5.  **Environment Variables**:
-    *   `NEXT_PUBLIC_API_URL`: `https://api-asyuraa.vps-anda.com` (Ganti dengan URL API dari Langkah 3).
+    *   `NUXT_PUBLIC_API_BASE`: `https://api-asyuraa.vps-anda.com` (Ganti dengan URL API dari Langkah 3).
 6.  **Network/Port**:
     *   Container Port: `3000`.
     *   Expose ke Public: Ya.

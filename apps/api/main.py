@@ -25,10 +25,8 @@ app = FastAPI(
 )
 
 # CORS Configuration
-origins = [
-    "http://localhost:3000",
-    "http://localhost:8000",
-]
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "*")
+origins = [o.strip() for o in allowed_origins_env.split(",")] if allowed_origins_env != "*" else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -651,9 +649,9 @@ async def upload_file(file: UploadFile = File(...), current_user: models.User = 
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        # Return full URL
-        # In production this should be based on env var or request.base_url
-        return {"url": f"http://localhost:8000/uploads/{unique_filename}"}
+        # Return full URL using API_BASE_URL env var or fallback
+        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+        return {"url": f"{base_url.rstrip('/')}/uploads/{unique_filename}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
