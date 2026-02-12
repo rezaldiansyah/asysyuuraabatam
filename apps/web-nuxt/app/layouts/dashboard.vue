@@ -113,10 +113,6 @@ const menuItems = computed(() => {
   const role = authStore.user?.role
   const userRole = (role && typeof role === 'object' ? role.code : role) || 'guest'
   
-  console.log('DEBUG: Auth User:', authStore.user)
-  console.log('DEBUG: User Role Raw:', role)
-  console.log('DEBUG: User Role Code:', userRole)
-  
   const filtered = navigation.filter(item => {
     // If no roles defined, accessible by everyone
     if (!item.roles) return true
@@ -124,7 +120,6 @@ const menuItems = computed(() => {
     return item.roles.includes(userRole)
   })
   
-  console.log('DEBUG: Filtered Menu:', filtered)
   return filtered
 })
 
