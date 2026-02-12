@@ -113,12 +113,15 @@ async function handleLogin() {
       }
     )
 
-    // Use username from form as basic user info (API doesn't have /auth/me endpoint)
-    const user = { nik: form.nik, full_name: 'Admin' }
-
+    // Fetch user profile
+    const user = await $fetch<any>(`${config.public.apiBase}/auth/me`, {
+      headers: { Authorization: `Bearer ${response.access_token}` }
+    })
+    
     authStore.setAuth(response.access_token, user)
     router.push('/dashboard')
   } catch (error: any) {
+    console.error('Login Error:', error)
     errorMessage.value = error?.data?.detail || 'NIK atau password salah'
   } finally {
     loading.value = false

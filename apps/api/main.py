@@ -147,6 +147,10 @@ async def reset_password(request: schemas.ResetPasswordRequest, db: Session = De
     
     return {"message": "Password has been reset successfully"}
 
+@app.get("/auth/me", response_model=schemas.User)
+async def read_users_me(current_user: models.User = Depends(get_current_active_user)):
+    return current_user
+
 # --- User & Role Routes ---
 
 @app.get("/users", response_model=List[schemas.User])
