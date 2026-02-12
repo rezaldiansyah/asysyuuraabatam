@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-slate-50 dark:bg-slate-900">
     <!-- Public Navbar -->
-    <nav class="bg-white dark:bg-slate-800 shadow-sm border-b border-slate-200 dark:border-slate-700">
+    <nav class="sticky top-0 z-50 bg-white dark:bg-slate-800 shadow-sm border-b border-slate-200 dark:border-slate-700">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <!-- Logo -->
@@ -14,7 +14,7 @@
             </NuxtLink>
           </div>
 
-          <!-- Navigation Links -->
+          <!-- Navigation Links (Desktop) -->
           <div class="hidden md:flex items-center gap-6">
             <NuxtLink to="/" class="text-slate-600 dark:text-slate-300 hover:text-primary transition">
               Beranda
@@ -33,11 +33,51 @@
             </NuxtLink>
           </div>
 
-          <!-- Auth Button -->
+          <!-- Auth Button (Desktop) + Mobile Toggle -->
           <div class="flex items-center gap-4">
             <NuxtLink
               to="/login"
-              class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition font-medium"
+              class="hidden md:inline-block px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition font-medium"
+            >
+              Login
+            </NuxtLink>
+
+            <!-- Mobile Hamburger -->
+            <button @click="mobileMenuOpen = !mobileMenuOpen" class="md:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
+              <svg v-if="!mobileMenuOpen" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile Menu Dropdown -->
+      <div v-show="mobileMenuOpen" class="md:hidden border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg">
+        <div class="px-4 py-4 space-y-3">
+          <NuxtLink to="/" class="block text-slate-600 dark:text-slate-300 hover:text-primary transition py-2" @click="mobileMenuOpen = false">
+            Beranda
+          </NuxtLink>
+          <NuxtLink to="/profil" class="block text-slate-600 dark:text-slate-300 hover:text-primary transition py-2" @click="mobileMenuOpen = false">
+            Profil
+          </NuxtLink>
+          <NuxtLink to="/unit" class="block text-slate-600 dark:text-slate-300 hover:text-primary transition py-2" @click="mobileMenuOpen = false">
+            Unit Pendidikan
+          </NuxtLink>
+          <NuxtLink to="/ppdb" class="block text-slate-600 dark:text-slate-300 hover:text-primary transition py-2" @click="mobileMenuOpen = false">
+            PPDB
+          </NuxtLink>
+          <NuxtLink to="/berita" class="block text-slate-600 dark:text-slate-300 hover:text-primary transition py-2" @click="mobileMenuOpen = false">
+            Berita
+          </NuxtLink>
+          <div class="pt-2 border-t border-slate-200 dark:border-slate-700">
+            <NuxtLink
+              to="/login"
+              class="block w-full text-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition font-medium"
+              @click="mobileMenuOpen = false"
             >
               Login
             </NuxtLink>
@@ -100,3 +140,13 @@
     </footer>
   </div>
 </template>
+
+<script setup lang="ts">
+const mobileMenuOpen = ref(false)
+
+// Close mobile menu on route change
+const route = useRoute()
+watch(() => route.path, () => {
+  mobileMenuOpen.value = false
+})
+</script>
