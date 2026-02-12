@@ -1,3 +1,11 @@
+# ⚠️ DEPRECATED / UNUSED ⚠️
+
+> **NOTE:** This Next.js application (`apps/web`) is **NOT** the active production application. The active production application is the Nuxt.js app located in `apps/web-nuxt`.
+
+This project is kept for reference only.
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
