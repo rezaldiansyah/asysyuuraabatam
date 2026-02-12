@@ -53,7 +53,7 @@ export function Navbar() {
 
             {/* MOBILE MENU CONTENT */}
             {isOpen && (
-                <div className="md:hidden border-t bg-white p-4 flex flex-col gap-4">
+                <div className="md:hidden absolute top-16 left-0 w-full border-b bg-white p-4 flex flex-col gap-4 shadow-lg animate-in slide-in-from-top-5 z-50">
                     <Link href="/profil" className="text-sm font-medium text-slate-600" onClick={() => setIsOpen(false)}>
                         Profil
                     </Link>
