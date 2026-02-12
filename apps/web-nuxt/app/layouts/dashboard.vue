@@ -74,14 +74,21 @@
           Dashboard
         </div>
 
-        <!-- User Menu -->
-        <div class="flex items-center gap-4">
-          <span class="text-sm text-slate-600 dark:text-slate-300">{{ authStore.user?.name || 'User' }}</span>
-          <Button severity="secondary" size="small" @click="handleLogout">
-            <i class="pi pi-sign-out mr-2"></i>
-            Logout
-          </Button>
-        </div>
+        <!-- User Menu (client-only to prevent hydration mismatch) -->
+        <ClientOnly>
+          <div class="flex items-center gap-4">
+            <span class="text-sm text-slate-600 dark:text-slate-300">{{ authStore.user?.full_name || authStore.user?.name || 'User' }}</span>
+            <Button severity="secondary" size="small" @click="handleLogout">
+              <i class="pi pi-sign-out mr-2"></i>
+              Logout
+            </Button>
+          </div>
+          <template #fallback>
+            <div class="flex items-center gap-4">
+              <span class="text-sm text-slate-400">Loading...</span>
+            </div>
+          </template>
+        </ClientOnly>
       </header>
 
       <!-- Page Content -->
@@ -114,9 +121,7 @@ const menuItems = computed(() => {
   const userRole = (role && typeof role === 'object' ? role.code : role) || 'guest'
   
   const filtered = navigation.filter(item => {
-    // If no roles defined, accessible by everyone
     if (!item.roles) return true
-    // Check if user has required role
     return item.roles.includes(userRole)
   })
   
@@ -125,9 +130,9 @@ const menuItems = computed(() => {
 
 function toggleSubmenu(label: string) {
   if (openSubmenus.value.includes(label)) {
-    openSubmenus.value = [] // Close if clicking the same one
+    openSubmenus.value = []
   } else {
-    openSubmenus.value = [label] // Close others and open this one (Accordion)
+    openSubmenus.value = [label]
   }
 }
 

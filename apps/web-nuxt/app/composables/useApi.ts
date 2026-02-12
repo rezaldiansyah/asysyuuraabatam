@@ -32,11 +32,31 @@ export function useApi() {
         return response
     }
 
+    // Upload file (multipart/form-data)
+    async function upload(endpoint: string, file: File): Promise<{ url: string }> {
+        const formData = new FormData()
+        formData.append('file', file)
+
+        const headers: Record<string, string> = {}
+        if (authStore.token) {
+            headers['Authorization'] = `Bearer ${authStore.token}`
+        }
+
+        const response = await $fetch<{ url: string }>(`${baseUrl}${endpoint}`, {
+            method: 'POST',
+            headers,
+            body: formData,
+        })
+
+        return response
+    }
+
     return {
         get: <T>(endpoint: string) => fetch<T>(endpoint),
         post: <T>(endpoint: string, body: any) => fetch<T>(endpoint, { method: 'POST', body }),
         put: <T>(endpoint: string, body: any) => fetch<T>(endpoint, { method: 'PUT', body }),
         patch: <T>(endpoint: string, body: any) => fetch<T>(endpoint, { method: 'PATCH', body }),
         delete: <T>(endpoint: string) => fetch<T>(endpoint, { method: 'DELETE' }),
+        upload,
     }
 }
