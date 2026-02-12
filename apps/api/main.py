@@ -64,7 +64,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    user = db.query(models.User).filter(models.User.nik == username).first()
+    user = db.query(models.User).options(joinedload(models.User.role)).filter(models.User.nik == username).first()
     if user is None:
         raise credentials_exception
     return user
