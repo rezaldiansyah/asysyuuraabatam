@@ -51,6 +51,7 @@ class User(UserBase):
     id: int
     is_active: bool
     role_id: int
+    role: Optional[Role] = None
     
     class Config:
         from_attributes = True

@@ -5,7 +5,7 @@ interface User {
     nik: string
     name: string
     email: string | null
-    role: string
+    role: { code: string; name: string } | null
     units: string[]
 }
 

@@ -107,7 +107,8 @@ const openSubmenus = ref<string[]>(['Akademik', 'Keuangan'])
 
 // Filter menu based on user role
 const menuItems = computed(() => {
-  const userRole = authStore.user?.role?.code || 'guest'
+  const role = authStore.user?.role
+  const userRole = (role && typeof role === 'object' ? role.code : role) || 'guest'
   
   return navigation.filter(item => {
     // If no roles defined, accessible by everyone
