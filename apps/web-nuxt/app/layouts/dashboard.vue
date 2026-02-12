@@ -1,8 +1,9 @@
+```html
 <template>
   <div class="min-h-screen flex">
     <!-- Sidebar -->
     <aside
-      class="fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transform transition-transform duration-200 lg:translate-x-0"
+      class="fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transform transition-transform duration-200 lg:translate-x-0 overflow-y-auto"
       :class="{ '-translate-x-full': !sidebarOpen }"
     >
       <!-- Logo -->
@@ -127,9 +128,9 @@ const menuItems = computed(() => {
 
 function toggleSubmenu(label: string) {
   if (openSubmenus.value.includes(label)) {
-    openSubmenus.value = openSubmenus.value.filter((l) => l !== label)
+    openSubmenus.value = [] // Close if clicking the same one
   } else {
-    openSubmenus.value.push(label)
+    openSubmenus.value = [label] // Close others and open this one (Accordion)
   }
 }
 
