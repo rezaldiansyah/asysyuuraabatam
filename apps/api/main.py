@@ -8,8 +8,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import models, schemas, auth
-import models, schemas, auth
 from database import engine, get_db
+from jose import JWTError, jwt
 import os
 import shutil
 import uuid
@@ -38,16 +38,6 @@ app.add_middleware(
 
 # Mount Uploads Directory
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-
-from jose import JWTError, jwt
-
-# ... (imports)
-
-# Remove "from auth import get_current_user" - handled by replacing the block or just not adding it? 
-# The ReplaceFileContent targets a block. I should target the top imports to remove the line, 
-# and then target the body to add the function.
-# I will do it in two steps or one large block if possible.
-# Let's do imports first.
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
@@ -83,9 +73,11 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
+    from storage import is_r2_configured
     return {
         "status": "ok",
-        "database": "connected" # TODO: Implement DB check
+        "database": "connected",
+        "r2_storage": "configured" if is_r2_configured() else "NOT configured - uploads will use local fallback"
     }
 
 @app.post("/auth/login", response_model=schemas.Token)
@@ -657,16 +649,29 @@ async def update_page_content(section_key: str, content: schemas.PageContentCrea
 async def upload_file(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
     try:
         from storage import upload_to_r2, is_r2_configured
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # Read file content
+        # Validate file size (max 10MB)
         file_bytes = await file.read()
+        max_size = 10 * 1024 * 1024  # 10MB
+        if len(file_bytes) > max_size:
+            raise HTTPException(status_code=413, detail="File terlalu besar. Maksimal 10MB.")
         
-        if is_r2_configured():
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Nama file tidak valid")
+        
+        r2_configured = is_r2_configured()
+        logger.info(f"Upload request: filename={file.filename}, size={len(file_bytes)}, r2_configured={r2_configured}")
+        
+        if r2_configured:
             # Upload to Cloudflare R2 (with auto image compression)
             url = upload_to_r2(file_bytes, file.filename, folder="uploads")
+            logger.info(f"Upload to R2 successful: {url}")
             return {"url": url}
         else:
             # Fallback: save locally
+            logger.warning("R2 not configured, falling back to local storage. Images may be lost on container restart!")
             file_extension = os.path.splitext(file.filename)[1]
             unique_filename = f"{uuid.uuid4()}{file_extension}"
             file_path = os.path.join(UPLOAD_DIR, unique_filename)
@@ -676,7 +681,11 @@ async def upload_file(file: UploadFile = File(...), current_user: models.User = 
                 
             base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
             return {"url": f"{base_url.rstrip('/')}/uploads/{unique_filename}"}
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 # --- Academic Calendar Routes ---

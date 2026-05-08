@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Save, Loader2 } from "lucide-react"
+import { Save, Loader2, Upload } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -33,6 +33,39 @@ const CONTEXT_OPTIONS = [
 export default function ContentPage() {
     const [context, setContext] = useState("home")
     const [isLoading, setIsLoading] = useState(false)
+    const [isUploading, setIsUploading] = useState(false)
+
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, onSuccess: (url: string) => void) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setIsUploading(true)
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+
+            const token = localStorage.getItem("token")
+            const response = await fetch(`${API_URL}/cms/upload`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            })
+
+            if (!response.ok) throw new Error('Upload failed')
+
+            const data = await response.json()
+            onSuccess(data.url)
+            toast.success("Gambar berhasil diunggah")
+        } catch (error) {
+            console.error(error)
+            toast.error("Gagal mengupload gambar")
+        } finally {
+            setIsUploading(false)
+            e.target.value = ""
+        }
+    }
 
     // State for separate sections
     const [heroData, setHeroData] = useState({ title: "", body: "", cta_text: "", cta_link: "", image_url: "" })
@@ -54,7 +87,6 @@ export default function ContentPage() {
     const fetchData = async () => {
         setIsLoading(true)
         const keys = getKeys(context)
-        const API_URL = "http://localhost:8000"
 
         try {
             // Fetch All Sections in Parallel
@@ -104,7 +136,6 @@ export default function ContentPage() {
     const saveSection = async (section: 'hero' | 'sambutan' | 'features' | 'testimonials') => {
         setIsLoading(true)
         const keys = getKeys(context)
-        const API_URL = "http://localhost:8000"
         const token = localStorage.getItem("token")
 
         let payload = {}
@@ -221,7 +252,20 @@ export default function ContentPage() {
                             </div>
                             <div className="grid gap-2">
                                 <Label>URL Gambar Latar (Opsional)</Label>
-                                <Input value={heroData.image_url || ""} onChange={e => setHeroData({ ...heroData, image_url: e.target.value })} placeholder="http://..." />
+                                <div className="flex gap-2">
+                                    <Input value={heroData.image_url || ""} onChange={e => setHeroData({ ...heroData, image_url: e.target.value })} placeholder="https://... atau upload gambar" />
+                                    <div className="relative">
+                                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" accept="image/*" onChange={(e) => handleImageUpload(e, (url) => setHeroData({ ...heroData, image_url: url }))} disabled={isUploading} />
+                                        <Button type="button" variant="outline" size="icon" disabled={isUploading}>
+                                            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                                        </Button>
+                                    </div>
+                                </div>
+                                {heroData.image_url && (
+                                    <div className="rounded-md overflow-hidden border bg-muted/30">
+                                        <img src={heroData.image_url} alt="Preview Hero" className="w-full h-32 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                                    </div>
+                                )}
                             </div>
                             <Button onClick={() => saveSection('hero')} disabled={isLoading}>
                                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -255,7 +299,20 @@ export default function ContentPage() {
                             </div>
                             <div className="grid gap-2">
                                 <Label>URL Foto Pimpinan</Label>
-                                <Input value={sambutanData.image_url || ""} onChange={e => setSambutanData({ ...sambutanData, image_url: e.target.value })} placeholder="http://..." />
+                                <div className="flex gap-2">
+                                    <Input value={sambutanData.image_url || ""} onChange={e => setSambutanData({ ...sambutanData, image_url: e.target.value })} placeholder="https://... atau upload gambar" />
+                                    <div className="relative">
+                                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" accept="image/*" onChange={(e) => handleImageUpload(e, (url) => setSambutanData({ ...sambutanData, image_url: url }))} disabled={isUploading} />
+                                        <Button type="button" variant="outline" size="icon" disabled={isUploading}>
+                                            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                                        </Button>
+                                    </div>
+                                </div>
+                                {sambutanData.image_url && (
+                                    <div className="rounded-md overflow-hidden border bg-muted/30">
+                                        <img src={sambutanData.image_url} alt="Preview Sambutan" className="w-full h-32 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                                    </div>
+                                )}
                             </div>
                             <Button onClick={() => saveSection('sambutan')} disabled={isLoading}>
                                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

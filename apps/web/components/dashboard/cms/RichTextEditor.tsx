@@ -48,12 +48,7 @@ export function RichTextEditor({ content, onChange }: RichTextEditorProps) {
     // Update content if changed externally (e.g. from parent/reset)
     useEffect(() => {
         if (editor && content !== editor.getHTML()) {
-            // Only update if content is really different to avoid cursor jumps
-            // For simplicity in this edit form with reset, we can just check length or allow it
-            // Ideally we compare semantic content. But for 'reset' case, it works.
-            if (editor.isEmpty && content) {
-                editor.commands.setContent(content)
-            }
+            editor.commands.setContent(content)
         }
     }, [content, editor])
 
@@ -67,7 +62,7 @@ export function RichTextEditor({ content, onChange }: RichTextEditorProps) {
             formData.append('file', file)
 
             const token = localStorage.getItem("token")
-            const API_URL = "http://localhost:8000"
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
             const response = await fetch(`${API_URL}/cms/upload`, {
                 method: 'POST',

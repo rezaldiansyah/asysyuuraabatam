@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Plus, Loader2, Edit, FileText } from "lucide-react"
+import { Plus, Loader2, Edit, FileText, Upload, ImageIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -43,6 +43,7 @@ type FormValues = z.infer<typeof formSchema>
 export function PostFormDialog({ post, onSuccess }: { post?: any, onSuccess?: () => void }) {
     const [open, setOpen] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
+    const [isUploading, setIsUploading] = useState(false)
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
@@ -86,10 +87,43 @@ export function PostFormDialog({ post, onSuccess }: { post?: any, onSuccess?: ()
         }
     }
 
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setIsUploading(true)
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+
+            const token = localStorage.getItem("token")
+            const response = await fetch(`${API_URL}/cms/upload`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            })
+
+            if (!response.ok) throw new Error('Upload failed')
+
+            const data = await response.json()
+            form.setValue("image_url", data.url)
+            toast.success("Gambar berhasil diunggah")
+        } catch (error) {
+            console.error(error)
+            toast.error("Gagal mengupload gambar")
+        } finally {
+            setIsUploading(false)
+            e.target.value = ""
+        }
+    }
+
     async function onSubmit(values: FormValues) {
         setIsLoading(true)
         try {
-            const API_URL = "http://localhost:8000"
             const token = localStorage.getItem("token")
             const url = post
                 ? `${API_URL}/cms/posts/${post.id}`
@@ -174,10 +208,36 @@ export function PostFormDialog({ post, onSuccess }: { post?: any, onSuccess?: ()
                             name="image_url"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Featured Image URL (Opsional)</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="https://..." {...field} />
-                                    </FormControl>
+                                    <FormLabel>Featured Image (Opsional)</FormLabel>
+                                    <div className="space-y-3">
+                                        <div className="flex gap-2">
+                                            <FormControl>
+                                                <Input placeholder="https://... atau upload gambar" {...field} />
+                                            </FormControl>
+                                            <div className="relative">
+                                                <input
+                                                    type="file"
+                                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                                    accept="image/*"
+                                                    onChange={handleImageUpload}
+                                                    disabled={isUploading}
+                                                />
+                                                <Button type="button" variant="outline" size="icon" disabled={isUploading}>
+                                                    {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        {field.value && (
+                                            <div className="relative rounded-md overflow-hidden border bg-muted/30">
+                                                <img
+                                                    src={field.value}
+                                                    alt="Preview"
+                                                    className="w-full h-40 object-cover"
+                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
                                     <FormMessage />
                                 </FormItem>
                             )}

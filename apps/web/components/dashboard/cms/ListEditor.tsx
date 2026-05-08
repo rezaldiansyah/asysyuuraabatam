@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, Trash2, ArrowUp, ArrowDown, BookOpen, Heart, Sun, Users, Trophy, ShieldCheck, Star, Sparkles, CheckCircle } from "lucide-react"
+import { Plus, Trash2, ArrowUp, ArrowDown, BookOpen, Heart, Sun, Users, Trophy, ShieldCheck, Star, Sparkles, CheckCircle, Upload, Loader2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { toast } from "sonner"
 
 export interface ListItem {
     id: string
@@ -40,6 +41,7 @@ const AVAILABLE_ICONS = [
 
 export function ListEditor({ value, onChange, titleLabel = "Title", descLabel = "Description", imageLabel = "Image URL", withIcon = true }: ListEditorProps) {
     const [items, setItems] = useState<ListItem[]>([])
+    const [uploadingIndex, setUploadingIndex] = useState<number | null>(null)
 
     useEffect(() => {
         try {
@@ -94,6 +96,37 @@ export function ListEditor({ value, onChange, titleLabel = "Title", descLabel = 
         const newItems = [...items]
         newItems[index] = { ...newItems[index], [field]: val }
         updateItems(newItems)
+    }
+
+    const handleItemImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setUploadingIndex(index)
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+
+            const token = localStorage.getItem("token")
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+            const response = await fetch(`${API_URL}/cms/upload`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            })
+
+            if (!response.ok) throw new Error('Upload failed')
+
+            const data = await response.json()
+            updateItemField(index, 'image_url', data.url)
+            toast.success("Gambar berhasil diunggah")
+        } catch (error) {
+            console.error(error)
+            toast.error("Gagal mengupload gambar")
+        } finally {
+            setUploadingIndex(null)
+            e.target.value = ""
+        }
     }
 
     return (
@@ -169,11 +202,24 @@ export function ListEditor({ value, onChange, titleLabel = "Title", descLabel = 
 
                         <div className="grid gap-2">
                             <Label>{imageLabel}</Label>
-                            <Input
-                                value={item.image_url || ""}
-                                onChange={(e) => updateItemField(index, 'image_url', e.target.value)}
-                                placeholder="http://..."
-                            />
+                            <div className="flex gap-2">
+                                <Input
+                                    value={item.image_url || ""}
+                                    onChange={(e) => updateItemField(index, 'image_url', e.target.value)}
+                                    placeholder="https://... atau upload gambar"
+                                />
+                                <div className="relative">
+                                    <input type="file" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" accept="image/*" onChange={(e) => handleItemImageUpload(e, index)} disabled={uploadingIndex === index} />
+                                    <Button type="button" variant="outline" size="icon" disabled={uploadingIndex === index}>
+                                        {uploadingIndex === index ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                                    </Button>
+                                </div>
+                            </div>
+                            {item.image_url && (
+                                <div className="rounded-md overflow-hidden border bg-muted/30">
+                                    <img src={item.image_url} alt="Preview" className="w-full h-24 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
