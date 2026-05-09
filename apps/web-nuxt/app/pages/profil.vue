@@ -88,15 +88,15 @@
           <div class="max-w-lg mx-auto space-y-4 text-slate-600 dark:text-slate-400">
             <p class="flex items-center justify-center gap-3">
               <i class="pi pi-map-marker text-primary"></i>
-              Jl. Hang Kesturi, Batam, Kepulauan Riau
+              {{ data.footer.address || 'Batam, Kepulauan Riau' }}
             </p>
             <p class="flex items-center justify-center gap-3">
               <i class="pi pi-phone text-primary"></i>
-              (0778) 123-4567
+              {{ data.footer.phone || '(0778) xxx-xxxx' }}
             </p>
             <p class="flex items-center justify-center gap-3">
               <i class="pi pi-envelope text-primary"></i>
-              info@asy-syuuraa.sch.id
+              {{ data.footer.email || 'info@asy-syuuraa.sch.id' }}
             </p>
           </div>
         </div>
@@ -114,7 +114,8 @@ const data = reactive({
     hero: { title: 'Tentang Kami', body: 'Yayasan Pendidikan Islam Asy-Syuuraa Batam' },
     visi: { title: 'Visi', body: "Mewujudkan generasi Qur'ani yang berakhlak mulia, cerdas, mandiri, dan berwawasan global melalui pendidikan Islam terpadu." },
     misi: [] as any[],
-    history: { body: '' }
+    history: { body: '' },
+    footer: { address: '', phone: '', email: '' }
 })
 
 const defaultMisi = [
@@ -126,10 +127,11 @@ const defaultMisi = [
 
 onMounted(async () => {
     try {
-        const [hero, visimisi, history] = await Promise.all([
+        const [hero, visimisi, history, footer] = await Promise.all([
             api.get<any>('/public/content/profil_hero').catch(() => ({})),
             api.get<any>('/public/content/profil_visimisi').catch(() => ({})),
-            api.get<any>('/public/content/profil_history').catch(() => ({}))
+            api.get<any>('/public/content/profil_history').catch(() => ({})),
+            api.get<any>('/public/content/settings_footer').catch(() => ({}))
         ])
 
         if (hero.title) data.hero.title = hero.title
@@ -143,6 +145,13 @@ onMounted(async () => {
         else {
              // Default History text if empty
              data.history.body = `Yayasan Asy-Syuuraa didirikan dengan semangat untuk memberikan pendidikan Islam berkualitas bagi masyarakat Batam. Berawal dari sebuah TK Islam kecil, kini telah berkembang menjadi yayasan pendidikan yang menaungi tiga unit pendidikan: RA (Raudhatul Athfal), SDIT (Sekolah Dasar Islam Terpadu), dan SMPIT (Sekolah Menengah Pertama Islam Terpadu).\n\nDengan motto "Mewujudkan Generasi Qur'ani", Yayasan Asy-Syuuraa berkomitmen untuk mencetak lulusan yang tidak hanya unggul dalam akademik, tetapi juga memiliki pemahaman agama yang kuat dan akhlak yang mulia.`
+        }
+
+        if (footer.content_json) {
+            try {
+                const footerData = JSON.parse(footer.content_json)
+                data.footer = footerData
+            } catch (e) {}
         }
 
     } catch (e) {

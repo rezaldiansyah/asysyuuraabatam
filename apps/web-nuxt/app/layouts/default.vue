@@ -99,7 +99,7 @@
           <div>
             <h3 class="font-bold text-lg mb-4">Asy-Syuuraa Batam</h3>
             <p class="text-slate-400 text-sm">
-              Sekolah Islam Terpadu yang mengedepankan pendidikan akademik dan karakter Islami.
+              {{ footer.about }}
             </p>
           </div>
 
@@ -117,9 +117,9 @@
           <div>
             <h3 class="font-bold text-lg mb-4">Kontak</h3>
             <ul class="space-y-2 text-slate-400 text-sm">
-              <li>📍 Batam, Kepulauan Riau</li>
-              <li>📞 (0778) xxx-xxxx</li>
-              <li>✉️ info@asy-syuuraa.sch.id</li>
+              <li>📍 {{ footer.address }}</li>
+              <li>📞 {{ footer.phone }}</li>
+              <li>✉️ {{ footer.email }}</li>
             </ul>
           </div>
 
@@ -127,8 +127,9 @@
           <div>
             <h3 class="font-bold text-lg mb-4">Media Sosial</h3>
             <div class="flex gap-4">
-              <a href="#" class="text-slate-400 hover:text-secondary">Instagram</a>
-              <a href="#" class="text-slate-400 hover:text-secondary">Facebook</a>
+              <a v-if="footer.instagram" :href="footer.instagram" target="_blank" class="text-slate-400 hover:text-secondary">Instagram</a>
+              <a v-if="footer.facebook" :href="footer.facebook" target="_blank" class="text-slate-400 hover:text-secondary">Facebook</a>
+              <span v-if="!footer.instagram && !footer.facebook" class="text-slate-400 text-sm">Belum ada link</span>
             </div>
           </div>
         </div>
@@ -148,5 +149,34 @@ const mobileMenuOpen = ref(false)
 const route = useRoute()
 watch(() => route.path, () => {
   mobileMenuOpen.value = false
+})
+
+const { public: { apiBase } } = useRuntimeConfig()
+
+// Default Footer Data
+const defaultFooter = {
+  about: 'Sekolah Islam Terpadu yang mengedepankan pendidikan akademik dan karakter Islami.',
+  address: 'Batam, Kepulauan Riau',
+  phone: '(0778) xxx-xxxx',
+  email: 'info@asy-syuuraa.sch.id',
+  instagram: '',
+  facebook: ''
+}
+
+// Fetch Footer Data globally
+const { data: footerData } = await useAsyncData('layout-footer', async () => {
+  try {
+    const res = await $fetch<any>(`${apiBase}/public/content/settings_footer`)
+    if (res && res.content_json) {
+      return JSON.parse(res.content_json)
+    }
+  } catch (e) {
+    // Ignore error if not set yet
+  }
+  return defaultFooter
+})
+
+const footer = computed(() => {
+  return { ...defaultFooter, ...(footerData.value || {}) }
 })
 </script>
