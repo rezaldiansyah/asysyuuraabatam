@@ -17,7 +17,8 @@
           <DataTable :value="events" :loading="loading" paginator :rows="10">
             <Column field="date" header="Tanggal" sortable>
               <template #body="slotProps">
-                {{ formatDate(slotProps.data.date) }}
+                <span>{{ formatDate(slotProps.data.date) }}</span>
+                <span v-if="slotProps.data.end_date" class="text-slate-400"> — {{ formatDate(slotProps.data.end_date) }}</span>
               </template>
             </Column>
             <Column field="type" header="Tipe" sortable>
@@ -73,9 +74,15 @@
     <!-- Dialog Form -->
     <Dialog v-model:visible="dialogVisible" :header="isEditing ? 'Edit Kegiatan' : 'Tambah Kegiatan'" modal class="w-full max-w-lg">
       <div class="flex flex-col gap-4">
-        <div class="flex flex-col gap-2">
-          <label class="font-medium">Tanggal</label>
-          <Calendar v-model="form.date" dateFormat="dd/mm/yy" showIcon />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="flex flex-col gap-2">
+            <label class="font-medium">Tanggal Mulai</label>
+            <Calendar v-model="form.date" dateFormat="dd/mm/yy" showIcon />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="font-medium">Tanggal Selesai <span class="text-xs text-slate-400">(opsional, untuk rentang)</span></label>
+            <Calendar v-model="form.end_date" dateFormat="dd/mm/yy" showIcon :minDate="form.date" />
+          </div>
         </div>
         
         <div class="flex flex-col gap-2">
@@ -130,6 +137,7 @@ const currentYearLabel = ref('')
 const form = reactive({
   id: null,
   date: new Date(),
+  end_date: null as Date | null,
   type: 'EFFECTIVE',
   description: '',
   is_holiday: false,
@@ -165,6 +173,7 @@ function openDialog(data = null) {
   if (data) {
     form.id = data.id
     form.date = new Date(data.date)
+    form.end_date = data.end_date ? new Date(data.end_date) : null
     form.type = data.type
     form.description = data.description
     form.is_holiday = data.is_holiday
@@ -173,6 +182,7 @@ function openDialog(data = null) {
     // Reset form
     form.id = null
     form.date = new Date()
+    form.end_date = null
     form.type = 'EFFECTIVE'
     form.description = ''
     form.is_holiday = false

@@ -198,6 +198,7 @@ class PageContent(PageContentBase):
 
 class CalendarEventBase(BaseModel):
     date: datetime
+    end_date: Optional[datetime] = None
     type: "CalendarEventType" # Forward reference
     description: Optional[str] = None
     is_holiday: bool = False
@@ -208,6 +209,7 @@ class CalendarEventCreate(CalendarEventBase):
 
 class CalendarEventUpdate(BaseModel):
     date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
     type: Optional["CalendarEventType"] = None # Forward reference
     description: Optional[str] = None
     is_holiday: Optional[bool] = None
@@ -215,6 +217,7 @@ class CalendarEventUpdate(BaseModel):
 
 class CalendarEvent(CalendarEventBase):
     id: int
+    end_date: Optional[datetime] = None
     created_at: datetime
 
     class Config:

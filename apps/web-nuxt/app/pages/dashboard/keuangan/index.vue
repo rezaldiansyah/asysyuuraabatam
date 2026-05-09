@@ -1,5 +1,4 @@
 <template>
-  <NuxtLayout name="dashboard">
     <div class="space-y-6">
       <!-- Page Header -->
       <div>
@@ -290,13 +289,12 @@
 
       <ConfirmDialog />
     </div>
-  </NuxtLayout>
 </template>
 
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
 
-definePageMeta({ layout: false })
+definePageMeta({ layout: 'dashboard' })
 
 const api = useApi()
 const toast = useToast()

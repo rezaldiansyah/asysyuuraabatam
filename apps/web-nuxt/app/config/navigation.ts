@@ -53,12 +53,7 @@ export const navigation: MenuItem[] = [
         label: 'Keuangan',
         icon: 'pi pi-wallet',
         roles: ['admin', 'superadmin', 'bendahara', 'kepsek', 'yayasan'],
-        children: [
-            { label: 'Tagihan & SPP', to: '/dashboard/keuangan/tagihan' },
-            { label: 'Transaksi Pembayaran', to: '/dashboard/keuangan/transaksi' },
-            { label: 'Jenis Penerimaan', to: '/dashboard/keuangan/kategori' },
-            { label: 'Laporan Keuangan', to: '/dashboard/keuangan/laporan' },
-        ],
+        to: '/dashboard/keuangan',
     },
     {
         label: 'Kepegawaian',

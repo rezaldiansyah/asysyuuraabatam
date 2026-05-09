@@ -462,6 +462,7 @@ class AcademicCalendarEvent(Base):
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
     
     date = Column(DateTime, index=True)
+    end_date = Column(DateTime, nullable=True)  # Optional end date for date ranges
     type = Column(Enum(CalendarEventType), default=CalendarEventType.EFFECTIVE)
     description = Column(String, nullable=True) # "Libur Idul Fitri"
     is_holiday = Column(Boolean, default=False) # True = tidak wajib absen
