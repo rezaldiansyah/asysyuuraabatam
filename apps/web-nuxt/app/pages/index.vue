@@ -35,10 +35,36 @@
             </div>
           </div>
 
-          <!-- Image Placeholder -->
+          <!-- Image -->
           <div class="hidden lg:block">
-            <div class="w-full h-80 bg-white/10 rounded-2xl backdrop-blur-sm flex items-center justify-center">
+            <img v-if="hero.image_url" :src="hero.image_url" alt="Hero Image" class="w-full h-96 object-cover rounded-2xl shadow-2xl" />
+            <div v-else class="w-full h-80 bg-white/10 rounded-2xl backdrop-blur-sm flex items-center justify-center border border-white/20">
               <span class="text-white/50 text-lg">Foto Yayasan</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sambutan Section -->
+    <section v-if="sambutan.title" class="py-20 bg-slate-50 dark:bg-slate-900">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="bg-white dark:bg-slate-800 rounded-3xl shadow-lg overflow-hidden border border-slate-100 dark:border-slate-700">
+          <div class="grid md:grid-cols-5 gap-0">
+            <!-- Foto Pimpinan -->
+            <div class="md:col-span-2 h-64 md:h-auto bg-slate-100 dark:bg-slate-700 relative">
+              <img v-if="sambutan.image_url" :src="sambutan.image_url" :alt="sambutan.title" class="w-full h-full object-cover absolute inset-0" />
+              <div v-else class="w-full h-full flex items-center justify-center text-slate-400">
+                <i class="pi pi-user text-5xl"></i>
+              </div>
+            </div>
+            <!-- Teks Sambutan -->
+            <div class="md:col-span-3 p-8 lg:p-12 flex flex-col justify-center">
+              <h2 class="text-3xl font-bold text-slate-800 dark:text-white mb-2">{{ sambutan.title }}</h2>
+              <p class="text-primary font-medium mb-6">{{ sambutan.subtitle }}</p>
+              <div class="text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-line space-y-4">
+                {{ sambutan.body }}
+              </div>
             </div>
           </div>
         </div>
@@ -142,6 +168,13 @@ const defaultUnitsSection = {
   body: 'Asy-Syuuraa Batam memiliki tiga unit pendidikan Islam terpadu dari tingkat TK hingga SMP.',
 }
 
+const defaultSambutan = {
+  title: '',
+  subtitle: '',
+  body: '',
+  image_url: ''
+}
+
 const defaultUnitCards = [
   { icon: '🎨', title: 'RA (TK Islam)', description: 'Pendidikan anak usia dini dengan kurikulum bermain dan belajar berbasis Islam.', link: '/unit/ra' },
   { icon: '📚', title: 'SDIT', description: 'Sekolah Dasar Islam Terpadu dengan kurikulum nasional plus tahfidz Al-Quran.', link: '/unit/sdit' },
@@ -186,11 +219,12 @@ const iconMap: Record<string, string> = {
 // Fetch Data
 const { data: pageContent } = await useAsyncData('home-content', async () => {
   try {
-    const [heroRes, featuresRes, unitsRes, ppdbRes] = await Promise.all([
+    const [heroRes, featuresRes, unitsRes, ppdbRes, sambutanRes] = await Promise.all([
       $fetch<any>(`${apiBase}/public/content/home_hero`).catch(() => null),
       $fetch<any>(`${apiBase}/public/content/home_features`).catch(() => null),
       $fetch<any>(`${apiBase}/public/content/home_units`).catch(() => null),
-      $fetch<any>(`${apiBase}/public/content/home_ppdb`).catch(() => null)
+      $fetch<any>(`${apiBase}/public/content/home_ppdb`).catch(() => null),
+      $fetch<any>(`${apiBase}/public/content/home_sambutan`).catch(() => null)
     ])
 
     // Parse features
@@ -220,10 +254,11 @@ const { data: pageContent } = await useAsyncData('home-content', async () => {
       },
       unitCards,
       ppdb: ppdbRes || defaultPpdb,
+      sambutan: sambutanRes || defaultSambutan
     }
   } catch (e) {
     console.error('Failed to fetch home content', e)
-    return { hero: defaultHero, features: defaultFeatures, unitsSection: defaultUnitsSection, unitCards: defaultUnitCards, ppdb: defaultPpdb }
+    return { hero: defaultHero, features: defaultFeatures, unitsSection: defaultUnitsSection, unitCards: defaultUnitCards, ppdb: defaultPpdb, sambutan: defaultSambutan }
   }
 })
 
@@ -233,6 +268,7 @@ const features = computed(() => pageContent.value?.features || defaultFeatures)
 const unitsSection = computed(() => pageContent.value?.unitsSection || defaultUnitsSection)
 const unitCards = computed(() => pageContent.value?.unitCards || defaultUnitCards)
 const ppdb = computed(() => pageContent.value?.ppdb || defaultPpdb)
+const sambutan = computed(() => pageContent.value?.sambutan || defaultSambutan)
 
 useSeoMeta({
   title: 'Asy-Syuuraa Batam - Sekolah Islam Terpadu',
