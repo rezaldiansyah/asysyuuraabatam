@@ -7,7 +7,7 @@
     <div v-else>
       <!-- Stepper Header -->
       <div class="flex items-center justify-between mb-8 overflow-x-auto pb-4">
-        <div v-for="(step, index) in steps" :key="index" class="flex flex-col items-center min-w-[80px] cursor-pointer" @click="if(index < currentStep) currentStep = index">
+        <div v-for="(step, index) in steps" :key="index" class="flex flex-col items-center min-w-[80px] cursor-pointer" @click="goToStep(index)">
           <div :class="['w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm mb-2 transition-colors', currentStep === index ? 'bg-primary text-white' : currentStep > index ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-400']">
             <i v-if="currentStep > index" class="pi pi-check"></i>
             <span v-else>{{ index + 1 }}</span>
@@ -197,6 +197,12 @@ const form = reactive({
 function nextStep() {
   if (currentStep.value < steps.length - 1) {
     currentStep.value++
+  }
+}
+
+function goToStep(index) {
+  if (index < currentStep.value) {
+    currentStep.value = index
   }
 }
 
