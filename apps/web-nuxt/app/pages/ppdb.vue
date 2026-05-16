@@ -5,12 +5,15 @@
       <!-- CMS Poster / Hero -->
       <section class="relative bg-white dark:bg-slate-900 border-b">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col items-center">
-          <div v-if="content.posters && content.posters.length > 0" class="w-full max-w-4xl space-y-4">
-            <img v-for="(url, idx) in content.posters" :key="idx" 
-              :src="url.startsWith('http') ? url : `${config.public.apiBase}${url}`" 
-              alt="Poster PPDB" 
-              class="w-full rounded-2xl shadow-xl object-cover" 
-            />
+          <div v-if="content.posters && content.posters.length > 0" class="w-full max-w-4xl">
+            <Carousel :value="content.posters" :numVisible="1" :numScroll="1" :showNavigators="content.posters.length > 1" :showIndicators="content.posters.length > 1" circular :autoplayInterval="5000">
+              <template #item="slotProps">
+                <img :src="slotProps.data.startsWith('http') ? slotProps.data : `${config.public.apiBase}${slotProps.data}`" 
+                  alt="Poster PPDB" 
+                  class="w-full rounded-2xl shadow-xl object-cover" 
+                />
+              </template>
+            </Carousel>
           </div>
           <div v-else-if="content.poster_url" class="w-full max-w-4xl">
              <img :src="content.poster_url.startsWith('http') ? content.poster_url : `${config.public.apiBase}${content.poster_url}`" 
