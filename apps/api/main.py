@@ -13,6 +13,7 @@ from jose import JWTError, jwt
 import os
 import shutil
 import uuid
+from routers import ppdb
 
 # Create Upload Directory
 UPLOAD_DIR = "uploads"
@@ -38,6 +39,8 @@ app.add_middleware(
 
 # Mount Uploads Directory
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
+app.include_router(ppdb.router)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 

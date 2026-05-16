@@ -471,3 +471,35 @@ class AcademicCalendarEvent(Base):
     # Relationships
     academic_year = relationship("AcademicYear")
 
+# --- PPDB Models ---
+
+class PPDBRegistration(Base):
+    __tablename__ = "ppdb_registrations"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    registration_number = Column(String, unique=True, index=True)
+    unit = Column(String, index=True) # RA, SDIT, SMPIT
+    
+    # Key indexed fields for easy tabular display and search
+    student_name = Column(String, index=True)
+    nisn = Column(String, nullable=True, index=True)
+    gender = Column(String) # L/P
+    phone = Column(String) # WhatsApp number
+    email = Column(String, nullable=True)
+    
+    # Complex detailed data stored as JSON string
+    student_data = Column(String) # Contains everything else about student: birth, address, etc.
+    father_data = Column(String, nullable=True)
+    mother_data = Column(String, nullable=True)
+    guardian_data = Column(String, nullable=True)
+    periodic_data = Column(String, nullable=True) # height, weight, distance, etc.
+    achievements_data = Column(String, nullable=True) # Array of objects
+    other_data = Column(String, nullable=True) # Survey answers, previous school info
+    
+    status = Column(String, default="PENDING") # PENDING, REVIEWING, ACCEPTED, REJECTED
+    parent_user_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Linked Parent Account
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    parent_user = relationship("User")
