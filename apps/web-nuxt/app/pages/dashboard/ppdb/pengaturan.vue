@@ -44,6 +44,7 @@ definePageMeta({
 const toast = useToast()
 const config = useRuntimeConfig()
 const authStore = useAuthStore()
+const api = useApi()
 
 const loading = ref(false)
 const ppdbSettings = ref({
@@ -54,9 +55,9 @@ const ppdbSettings = ref({
 // Load existing
 async function loadSettings() {
   try {
-    const data = await $fetch(`${config.public.apiBase}/public/content/settings_ppdb`)
-    if (data && data.content) {
-      const parsed = JSON.parse(data.content)
+    const data = await api.get('/public/content/settings_ppdb')
+    if (data && data.content_json) {
+      const parsed = JSON.parse(data.content_json)
       ppdbSettings.value = { ...ppdbSettings.value, ...parsed }
     }
   } catch (e) {
@@ -67,15 +68,8 @@ async function loadSettings() {
 async function saveSettings() {
   loading.value = true
   try {
-    await $fetch(`${config.public.apiBase}/cms/content/settings_ppdb`, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      },
-      body: {
-        section_key: 'settings_ppdb',
-        content_json: JSON.stringify(ppdbSettings.value)
-      }
+    await api.put('/cms/content/settings_ppdb', {
+      content_json: JSON.stringify(ppdbSettings.value)
     })
     toast.add({ severity: 'success', summary: 'Tersimpan', detail: 'Pengaturan PPDB berhasil diperbarui', life: 3000 })
   } catch (e) {

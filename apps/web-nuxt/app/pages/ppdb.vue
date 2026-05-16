@@ -48,8 +48,8 @@ const content = ref({
 // Fetch settings from CMS
 try {
   const data = await $fetch(`${config.public.apiBase}/public/content/settings_ppdb`)
-  if (data && data.content) {
-    const parsed = JSON.parse(data.content)
+  if (data && data.content_json) {
+    const parsed = JSON.parse(data.content_json)
     content.value = { ...content.value, ...parsed }
   }
 } catch (e) {
