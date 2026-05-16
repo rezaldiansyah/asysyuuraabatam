@@ -38,7 +38,7 @@
 import { useToast } from 'primevue/usetoast'
 
 definePageMeta({
-  layout: 'admin'
+  layout: 'dashboard'
 })
 
 const toast = useToast()

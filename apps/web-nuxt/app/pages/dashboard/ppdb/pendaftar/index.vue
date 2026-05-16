@@ -72,7 +72,7 @@ import { FilterMatchMode } from '@primevue/core/api'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 
-definePageMeta({ layout: 'admin' })
+definePageMeta({ layout: 'dashboard' })
 
 const toast = useToast()
 const confirm = useConfirm()

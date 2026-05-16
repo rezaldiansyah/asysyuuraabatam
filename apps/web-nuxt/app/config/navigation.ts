@@ -65,6 +65,15 @@ export const navigation: MenuItem[] = [
         ],
     },
     {
+        label: 'Manajemen PPDB',
+        icon: 'pi pi-id-card',
+        roles: ['admin', 'superadmin', 'humas', 'yayasan'],
+        children: [
+            { label: 'Data Pendaftar', to: '/dashboard/ppdb/pendaftar' },
+            { label: 'Pengaturan PPDB', to: '/dashboard/ppdb/pengaturan' },
+        ],
+    },
+    {
         label: 'CMS Portal',
         icon: 'pi pi-globe',
         roles: ['admin', 'superadmin', 'humas'],

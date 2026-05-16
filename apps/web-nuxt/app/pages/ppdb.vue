@@ -10,12 +10,12 @@
             <h1 class="text-4xl font-bold">Penerimaan Peserta Didik Baru</h1>
           </div>
           
-          <div class="flex gap-4">
-            <Button size="large" severity="primary" @click="scrollToForm">
-              <i class="pi pi-pencil mr-2"></i> Daftar Sekarang
+          <div class="flex flex-col gap-4 w-full sm:max-w-sm mt-4">
+            <Button size="large" class="w-full justify-center shadow-lg bg-blue-600 hover:bg-blue-700 border-none text-white font-bold py-4 text-lg" @click="scrollToForm">
+              <i class="pi pi-pencil mr-2 text-xl"></i> Daftar Sekarang
             </Button>
-            <Button size="large" severity="success" as="a" :href="waLink" target="_blank">
-              <i class="pi pi-whatsapp mr-2"></i> Tanya Admin (WA)
+            <Button size="large" class="w-full justify-center shadow-lg bg-green-500 hover:bg-green-600 border-none text-white font-bold py-4 text-lg" as="a" :href="waLink" target="_blank">
+              <i class="pi pi-whatsapp mr-2 text-xl"></i> Tanya Admin (WA)
             </Button>
           </div>
         </div>
