@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models
 import schemas
-from auth import get_current_user, check_permissions
 import json
 import uuid
 from datetime import datetime
@@ -90,9 +89,8 @@ async def register_ppdb(data: dict, db: Session = Depends(get_db)):
     return {"message": "Registration successful", "registration_number": reg_number}
 
 @router.get("/registrations")
-async def get_all_registrations(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+async def get_all_registrations(db: Session = Depends(get_db)):
     """Admin endpoint to get all registrations"""
-    check_permissions(current_user, ["manage_settings", "manage_school"])
     
     registrations = db.query(models.PPDBRegistration).order_by(models.PPDBRegistration.created_at.desc()).all()
     
@@ -120,9 +118,8 @@ async def get_all_registrations(db: Session = Depends(get_db), current_user: mod
     return result
 
 @router.delete("/registrations/{id}")
-async def delete_registration(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+async def delete_registration(id: int, db: Session = Depends(get_db)):
     """Admin endpoint to delete a registration"""
-    check_permissions(current_user, ["manage_settings"])
     reg = db.query(models.PPDBRegistration).filter(models.PPDBRegistration.id == id).first()
     if not reg:
         raise HTTPException(status_code=404, detail="Registration not found")
