@@ -18,7 +18,7 @@
 
       <form @submit.prevent="nextStep">
         <!-- Step 1: Unit & Anak -->
-        <div v-show="currentStep === 0" class="space-y-6">
+        <div v-if="currentStep === 0" class="space-y-6">
           <h3 class="text-xl font-bold border-b pb-2">Identitas Calon Siswa</h3>
           
           <div class="flex flex-col gap-2">
@@ -54,7 +54,7 @@
         </div>
 
         <!-- Step 2: Data Ayah -->
-        <div v-show="currentStep === 1" class="space-y-6">
+        <div v-if="currentStep === 1" class="space-y-6">
           <h3 class="text-xl font-bold border-b pb-2">Data Ayah Kandung</h3>
           <div class="bg-blue-50 text-blue-800 p-3 rounded-md text-sm mb-4">
             <i class="pi pi-info-circle mr-2"></i> Data NIK Ayah akan digunakan sebagai Username untuk login ke sistem sekolah.
@@ -89,7 +89,7 @@
         </div>
 
         <!-- Step 3: Data Ibu -->
-        <div v-show="currentStep === 2" class="space-y-6">
+        <div v-if="currentStep === 2" class="space-y-6">
           <h3 class="text-xl font-bold border-b pb-2">Data Ibu Kandung</h3>
           
           <div class="grid md:grid-cols-2 gap-4">
@@ -121,7 +121,7 @@
         </div>
 
         <!-- Step 4: Data Fisik & Lainnya -->
-        <div v-show="currentStep === 3" class="space-y-6">
+        <div v-if="currentStep === 3" class="space-y-6">
           <h3 class="text-xl font-bold border-b pb-2">Data Periodik & Fisik</h3>
           
           <div class="grid md:grid-cols-2 gap-4">
@@ -145,7 +145,7 @@
         </div>
 
         <!-- Step 5: Review -->
-        <div v-show="currentStep === 4" class="space-y-6">
+        <div v-if="currentStep === 4" class="space-y-6">
           <h3 class="text-xl font-bold border-b pb-2">Konfirmasi Data</h3>
           <p class="text-slate-600">Dengan ini saya menyatakan bahwa data yang saya isikan adalah benar dan dapat dipertanggungjawabkan.</p>
           <div class="bg-yellow-50 p-4 border border-yellow-200 rounded-lg">
