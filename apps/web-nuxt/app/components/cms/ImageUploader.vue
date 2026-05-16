@@ -71,13 +71,14 @@
     <!-- Preview -->
     <div v-if="modelValue" class="relative group mt-2 w-full min-h-[100px] max-h-[400px] bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center">
       <img :src="modelValue" alt="Preview" class="max-w-full max-h-[400px] object-contain">
-      <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+      
+      <!-- Delete Action (Top Right) -->
+      <div class="absolute top-2 right-2 flex gap-1">
         <Button 
-          icon="pi pi-times" 
+          icon="pi pi-trash" 
           severity="danger" 
           rounded 
-          text 
-          style="background: white"
+          class="shadow-md"
           @click="$emit('update:modelValue', '')" 
           tooltip="Hapus Gambar"
         />
