@@ -572,3 +572,21 @@ class TeacherOfMonth(Base):
     month = Column(String)                       # "2026-05" format
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class Document(Base):
+    __tablename__ = "documents"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String)
+    description = Column(String, nullable=True)
+    category = Column(String)        # sk_yayasan, sop, kalender_akademik, juknis, lainnya
+    file_url = Column(String)
+    file_name = Column(String)       # Original filename
+    file_size = Column(Integer, nullable=True)  # Size in bytes
+    visibility = Column(String, default="internal")  # internal, public
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    uploader = relationship("User", foreign_keys=[uploaded_by])

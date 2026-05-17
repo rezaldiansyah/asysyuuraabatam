@@ -58,12 +58,12 @@
 **Prioritas:** Tinggi 📂 — **BELUM DIKERJAKAN**
 **Objektif:** Modul-modul internal yang diakses semua role kecuali Orangtua.
 
-### 5.1 Pusat Unduhan (Digital Repository)
-- [ ] **Model & API:** Tabel `documents` (judul, kategori, file_url, visibility, uploader).
-- [ ] **Kategori Dokumen:** SK Yayasan, SOP, Kalender Akademik, Juknis, Lain-lain.
-- [ ] **Visibility:** Internal (hanya pegawai) / Publik (bisa diakses semua).
-- [ ] **Admin CMS:** Upload, edit, hapus, filter dokumen.
-- [ ] **Halaman Unduhan:** Tampilan list/grid dokumen untuk pegawai.
+### 5.1 Pusat Unduhan (Digital Repository) ✅
+- [x] **Model & API:** Tabel `documents` (judul, kategori, file_url, visibility, uploader). ✅
+- [x] **Kategori Dokumen:** SK Yayasan, SOP, Kalender Akademik, Juknis, Surat Edaran, Lainnya. ✅
+- [x] **Visibility:** Internal (hanya pegawai) / Publik (bisa diakses semua). ✅
+- [x] **Admin CMS:** Upload, edit, hapus, filter + search dokumen. Drag & drop upload. ✅
+- [x] **Halaman Unduhan:** DataTable dengan ikon kategori, tag akses, aksi download/edit/hapus. ✅
 
 ### 5.2 Rekap Presensi
 - [ ] **Model & API:** Tabel `attendance_recap` (user_id, tanggal, status, keterangan).

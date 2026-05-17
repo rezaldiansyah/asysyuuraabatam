@@ -68,6 +68,14 @@ export const navigation: MenuItem[] = [
         ],
     },
     {
+        label: 'Manajemen Internal',
+        icon: 'pi pi-folder',
+        key: 'internal',
+        children: [
+            { label: 'Pusat Unduhan', to: '/dashboard/internal/dokumen' },
+        ],
+    },
+    {
         label: 'Manajemen PPDB',
         icon: 'pi pi-id-card',
         key: 'ppdb',
