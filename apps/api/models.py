@@ -508,3 +508,43 @@ class PPDBRegistration(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     parent_user = relationship("User")
+
+# --- Marketing / Branding Models ---
+
+class Testimonial(Base):
+    __tablename__ = "testimonials"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)             # Nama Orang Tua / Alumni
+    role = Column(String)              # "Orang Tua Siswa SDIT", "Alumni 2024", etc.
+    content = Column(String)           # Isi testimoni
+    photo_url = Column(String, nullable=True) # Foto profil
+    rating = Column(Integer, default=5) # Bintang 1-5
+    is_published = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class GalleryAlbum(Base):
+    __tablename__ = "gallery_albums"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String)
+    description = Column(String, nullable=True)
+    category = Column(String, default="kegiatan") # kegiatan, prestasi
+    cover_url = Column(String, nullable=True)
+    is_published = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    photos = relationship("GalleryPhoto", back_populates="album", cascade="all, delete-orphan")
+
+class GalleryPhoto(Base):
+    __tablename__ = "gallery_photos"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    album_id = Column(Integer, ForeignKey("gallery_albums.id"))
+    image_url = Column(String)
+    caption = Column(String, nullable=True)
+    sort_order = Column(Integer, default=0)
+    
+    album = relationship("GalleryAlbum", back_populates="photos")

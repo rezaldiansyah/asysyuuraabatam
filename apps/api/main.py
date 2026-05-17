@@ -14,6 +14,7 @@ import os
 import shutil
 import uuid
 from routers import ppdb
+from routers import marketing
 
 # Create Upload Directory
 UPLOAD_DIR = "uploads"
@@ -41,6 +42,7 @@ app.add_middleware(
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 app.include_router(ppdb.router)
+app.include_router(marketing.router)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 

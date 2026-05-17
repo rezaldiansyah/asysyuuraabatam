@@ -84,6 +84,8 @@ export const navigation: MenuItem[] = [
             { label: 'Konten Landing Page', to: '/dashboard/cms/konten' },
             { label: 'Berita & Artikel', to: '/dashboard/cms/berita' },
             { label: 'Pengumuman / Mading', to: '/dashboard/cms/pengumuman' },
+            { label: 'Testimoni', to: '/dashboard/cms/testimoni' },
+            { label: 'Galeri Foto', to: '/dashboard/cms/galeri' },
         ],
     },
     {

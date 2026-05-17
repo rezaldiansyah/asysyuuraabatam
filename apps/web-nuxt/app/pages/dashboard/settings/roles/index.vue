@@ -157,6 +157,8 @@ const menuDefinitions = [
       { key: 'cms.konten', label: 'Konten Landing Page' },
       { key: 'cms.berita', label: 'Berita & Artikel' },
       { key: 'cms.pengumuman', label: 'Pengumuman / Mading' },
+      { key: 'cms.testimoni', label: 'Testimoni' },
+      { key: 'cms.galeri', label: 'Galeri Foto' },
     ]
   },
   { 

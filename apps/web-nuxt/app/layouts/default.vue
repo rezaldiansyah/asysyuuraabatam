@@ -31,6 +31,9 @@
             <NuxtLink to="/berita" class="text-slate-600 dark:text-slate-300 hover:text-primary transition">
               Berita
             </NuxtLink>
+            <NuxtLink to="/galeri" class="text-slate-600 dark:text-slate-300 hover:text-primary transition">
+              Galeri
+            </NuxtLink>
           </div>
 
           <!-- Auth Button (Desktop) + Mobile Toggle -->
@@ -72,6 +75,9 @@
           </NuxtLink>
           <NuxtLink to="/berita" class="block text-slate-600 dark:text-slate-300 hover:text-primary transition py-2" @click="mobileMenuOpen = false">
             Berita
+          </NuxtLink>
+          <NuxtLink to="/galeri" class="block text-slate-600 dark:text-slate-300 hover:text-primary transition py-2" @click="mobileMenuOpen = false">
+            Galeri
           </NuxtLink>
           <div class="pt-2 border-t border-slate-200 dark:border-slate-700">
             <NuxtLink

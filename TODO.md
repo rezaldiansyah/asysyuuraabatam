@@ -1,7 +1,7 @@
 # Road Map & TODO List: Pengembangan Website Asy-Syuuraa Batam
 
 ## 1. Integrasi Google SSO (Login with Google)
-**Prioritas:** Tinggi ⏳ 
+**Prioritas:** Tinggi ⏳ — **BELUM DIKERJAKAN**
 **Objektif:** Memudahkan akses Guru/Karyawan dan keamanan verifikasi admin.
 
 - [ ] Konfigurasi Google Cloud Console (Client ID & Secret).
@@ -12,19 +12,37 @@
 ---
 
 ## 2. Fase 1: Penyempurnaan & Finalisasi PPDB
-**Prioritas:** Sangat Tinggi 🚀
+**Prioritas:** Sangat Tinggi 🚀 — **SEBAGIAN BESAR SELESAI ✅**
 **Objektif:** Menuntaskan alur pendaftaran sesuai standar dokumen saran perbaikan.
 
-- [ ] **Upload Berkas Wizard:** Tambahkan input file untuk mengunggah scan KK dan Akta Kelahiran pada step terakhir pendaftaran.
-- [ ] **Dashboard Admin (PPDB):**
-    - [ ] Fitur **Export to Excel/CSV** yang lengkap (semua kolom data pendaftar).
-    - [ ] Fitur **Cetak PDF Formulir** (Generasi otomatis file PDF pendaftaran).
-- [ ] **Sistem Pembayaran (Opsional/Next):** Penjajakan integrasi Payment Gateway (Xendit/Midtrans) untuk biaya pendaftaran.
+- [x] **Upload Berkas Wizard:** Input file KK dan Akta Kelahiran pada step Data Fisik & Berkas. ✅
+- [x] **Multi-Poster Carousel:** Admin bisa upload lebih dari 1 poster, ditampilkan sebagai slider. ✅
+- [x] **Pengaturan PPDB Dinamis:** Poster & No WA bisa dikelola lewat CMS, tersimpan ke DB. ✅
+- [x] **Tombol Navigasi PPDB:** Layout vertikal, warna kontras (Indigo + Hijau WA). ✅
+- [x] **Perbaikan Wizard:** Tombol "Selanjutnya" yang macet sudah diperbaiki (v-if). ✅
+- [x] **Export CSV Lengkap:** Data pendaftar termasuk nama ortu, link KK/Akta, tanggal daftar. ✅
+- [x] **Kolom Berkas Admin:** Admin bisa langsung lihat/download KK & Akta dari tabel. ✅
+- [ ] **Cetak PDF Formulir:** Generasi otomatis file PDF pendaftaran per siswa. ❌
+- [ ] **Sistem Pembayaran (Opsional/Next):** Ditunda — integrasi Payment Gateway.
 
 ---
 
-## 3. Fase 2: Content Marketing & Branding
-**Prioritas:** Sedang 📈
+## 3. Fase 1.5: Sistem Role & Permissions ✅ SELESAI
+**Prioritas:** Tinggi — **SELESAI ✅**
+**Objektif:** SuperAdmin bisa mengontrol akses menu setiap role secara fleksibel.
+
+- [x] **Kolom Permissions di Database:** JSON array menu keys per role. ✅
+- [x] **Halaman Role & Permissions:** Matriks interaktif checkbox (menu × role). ✅
+- [x] **Sidebar Dinamis:** Menu sidebar berubah berdasarkan permissions dari DB. ✅
+- [x] **API /auth/me:** Mengembalikan permissions bersama data role user. ✅
+- [x] **Fix Global: PrimeIcons CSS:** Semua ikon di seluruh aplikasi kini tampil. ✅
+- [x] **Fix Tombol Aksi User Management:** Ikon edit/hapus kini terlihat. ✅
+- [x] **Fix Tombol Hapus Gambar:** Ikon tong sampah di Image Uploader terlihat jelas. ✅
+
+---
+
+## 4. Fase 2: Content Marketing & Branding
+**Prioritas:** Sedang 📈 — **BELUM DIKERJAKAN**
 **Objektif:** Meningkatkan daya tarik sekolah bagi calon orang tua murid (Saran Perbaikan Poin 3).
 
 - [ ] **Modul Testimoni:** CMS khusus untuk mengelola testimoni Orang Tua & Alumni (Muncul di Landing Page).
@@ -34,8 +52,8 @@
 
 ---
 
-## 4. Fase 3: Sistem Manajemen Internal (Digital Repository)
-**Prioritas:** Sedang 📂
+## 5. Fase 3: Sistem Manajemen Internal (Digital Repository)
+**Prioritas:** Sedang 📂 — **BELUM DIKERJAKAN**
 **Objektif:** Pusat dokumentasi terpusat sesuai Saran Perbaikan Poin 1.
 
 - [ ] **Modul Pusat Unduhan:** Halaman untuk Admin mengunggah dokumen (SOP, SK Yayasan, Kalender Akademik).
@@ -44,8 +62,8 @@
 
 ---
 
-## 5. Fase 4: Optimasi UI/UX & Teknis
-**Prioritas:** Rendah 🛠️
+## 6. Fase 4: Optimasi UI/UX & Teknis
+**Prioritas:** Rendah 🛠️ — **BELUM DIKERJAKAN**
 **Objektif:** Kelancaran akses dan integritas media sosial (Saran Perbaikan Poin 5).
 
 - [ ] **Social Media Feed:** Menampilkan feed Instagram/Facebook terbaru di bagian footer atau sidebar.
@@ -53,4 +71,4 @@
 - [ ] **Dark Mode Polishing:** Memastikan semua halaman baru nyaman di mata saat mode gelap aktif.
 
 ---
-*Last Updated: 16 Mei 2026*
+*Last Updated: 17 Mei 2026*
