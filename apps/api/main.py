@@ -142,9 +142,34 @@ async def reset_password(request: schemas.ResetPasswordRequest, db: Session = De
     
     return {"message": "Password has been reset successfully"}
 
-@app.get("/auth/me", response_model=schemas.User)
+@app.get("/auth/me")
 async def read_users_me(current_user: models.User = Depends(get_current_active_user)):
-    return current_user
+    """Return user info with role permissions for sidebar filtering"""
+    role_data = None
+    if current_user.role:
+        perms = []
+        if current_user.role.permissions:
+            try:
+                perms = json.loads(current_user.role.permissions)
+            except:
+                perms = []
+        role_data = {
+            "id": current_user.role.id,
+            "code": current_user.role.code,
+            "name": current_user.role.name,
+            "scope": current_user.role.scope,
+            "permissions": perms
+        }
+    
+    return {
+        "id": current_user.id,
+        "nik": current_user.nik,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "is_active": current_user.is_active,
+        "role_id": current_user.role_id,
+        "role": role_data
+    }
 
 # --- User & Role Routes ---
 
@@ -203,6 +228,41 @@ async def delete_user(user_id: int, db: Session = Depends(get_db)):
 @app.get("/roles", response_model=List[schemas.Role])
 async def get_roles(db: Session = Depends(get_db)):
     return db.query(models.Role).all()
+
+@app.get("/roles/permissions")
+async def get_all_role_permissions(db: Session = Depends(get_db)):
+    """Get all roles with their permissions for the admin matrix"""
+    roles = db.query(models.Role).order_by(models.Role.priority).all()
+    result = []
+    for role in roles:
+        perms = []
+        if role.permissions:
+            try:
+                perms = json.loads(role.permissions)
+            except:
+                perms = []
+        result.append({
+            "id": role.id,
+            "code": role.code,
+            "name": role.name,
+            "scope": role.scope,
+            "priority": role.priority,
+            "permissions": perms
+        })
+    return result
+
+@app.put("/roles/{role_id}/permissions")
+async def update_role_permissions(role_id: int, data: dict, db: Session = Depends(get_db)):
+    """Update the permissions (allowed menu keys) for a specific role"""
+    role = db.query(models.Role).filter(models.Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    
+    permissions = data.get("permissions", [])
+    role.permissions = json.dumps(permissions)
+    db.commit()
+    db.refresh(role)
+    return {"message": f"Permissions updated for {role.name}", "permissions": permissions}
 
 # --- General Routes ---
 @app.get("/units", response_model=List[schemas.Unit])

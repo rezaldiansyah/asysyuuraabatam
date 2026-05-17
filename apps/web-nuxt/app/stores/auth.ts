@@ -4,8 +4,9 @@ interface User {
     id: number
     nik: string
     name: string
+    full_name?: string
     email: string | null
-    role: { code: string; name: string } | null
+    role: { code: string; name: string; permissions?: string[] } | null
     units: string[]
 }
 

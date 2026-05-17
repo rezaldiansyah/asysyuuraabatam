@@ -114,17 +114,29 @@ const router = useRouter()
 const sidebarOpen = ref(false)
 const openSubmenus = ref<string[]>(['Akademik', 'Keuangan'])
 
-// Filter menu based on user role
+// Filter menu based on user role permissions
 const menuItems = computed(() => {
   const role = authStore.user?.role
   const userRole = (role && typeof role === 'object' ? role.code : role) || 'guest'
   
-  const filtered = navigation.filter(item => {
-    if (!item.roles) return true
-    return item.roles.includes(userRole)
-  })
+  // Superadmin sees everything
+  if (userRole === 'superadmin') return navigation
   
-  return filtered
+  // Get permissions from role object (loaded at login)
+  const permissions: string[] = (role && typeof role === 'object' && (role as any).permissions) 
+    ? (role as any).permissions 
+    : []
+  
+  // If no permissions configured yet, show only Dashboard
+  if (!permissions.length) {
+    return navigation.filter(item => item.key === 'dashboard')
+  }
+  
+  // Filter by permissions
+  return navigation.filter(item => {
+    if (item.key === 'dashboard') return true // Dashboard always visible
+    return permissions.includes(item.key || '')
+  })
 })
 
 function toggleSubmenu(label: string) {

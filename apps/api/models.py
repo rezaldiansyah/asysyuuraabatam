@@ -49,6 +49,7 @@ class Role(Base):
     name = Column(String)
     scope = Column(String) # Stored as string to keep it simple, validated by Pydantic
     priority = Column(Integer, default=99)
+    permissions = Column(String, nullable=True) # JSON array of allowed menu keys e.g. ["akademik","tahfidz"]
     
     # Relationships
     users = relationship("User", back_populates="role")

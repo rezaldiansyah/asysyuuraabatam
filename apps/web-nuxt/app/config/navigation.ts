@@ -3,20 +3,23 @@ export interface MenuItem {
     icon: string
     to?: string
     children?: MenuItem[]
-    roles?: string[] // If undefined, accessible by all authenticated users
+    key?: string // Used for permission matching
     desc?: string
 }
 
+// Master navigation definition - all possible menus
+// Access is controlled by role permissions stored in database
 export const navigation: MenuItem[] = [
     {
         label: 'Dashboard',
         icon: 'pi pi-home',
-        to: '/dashboard'
+        to: '/dashboard',
+        key: 'dashboard'
     },
     {
         label: 'Akademik',
         icon: 'pi pi-book',
-        roles: ['admin', 'superadmin', 'guru', 'kepsek', 'tu'],
+        key: 'akademik',
         children: [
             { label: 'Data Siswa', to: '/dashboard/siswa' },
             { label: 'Data Guru', to: '/dashboard/guru' },
@@ -31,7 +34,7 @@ export const navigation: MenuItem[] = [
     {
         label: 'Tahfidz',
         icon: 'pi pi-bookmark',
-        roles: ['admin', 'superadmin', 'guru_tahfidz', 'guru', 'kepsek'],
+        key: 'tahfidz',
         children: [
             { label: 'Setoran Hafalan', to: '/dashboard/tahfidz' },
             { label: 'Ujian Tahfidz', to: '/dashboard/tahfidz/ujian' },
@@ -41,7 +44,7 @@ export const navigation: MenuItem[] = [
     {
         label: 'Kesiswaan',
         icon: 'pi pi-trophy',
-        roles: ['admin', 'superadmin', 'kesiswaan', 'kepsek'],
+        key: 'kesiswaan',
         children: [
             { label: 'Prestasi', to: '/dashboard/kesiswaan/prestasi', desc: 'Coming Soon' },
             { label: 'Pelanggaran', to: '/dashboard/kesiswaan/pelanggaran', desc: 'Coming Soon' },
@@ -52,13 +55,13 @@ export const navigation: MenuItem[] = [
     {
         label: 'Keuangan',
         icon: 'pi pi-wallet',
-        roles: ['admin', 'superadmin', 'bendahara', 'kepsek', 'yayasan'],
+        key: 'keuangan',
         to: '/dashboard/keuangan',
     },
     {
         label: 'Kepegawaian',
         icon: 'pi pi-users',
-        roles: ['admin', 'superadmin', 'hrd', 'kepsek', 'yayasan', 'tu'],
+        key: 'kepegawaian',
         children: [
             { label: 'Data Pegawai', to: '/dashboard/sdm/pegawai' },
             { label: 'Presensi Pegawai', to: '/dashboard/sdm/presensi' },
@@ -67,7 +70,7 @@ export const navigation: MenuItem[] = [
     {
         label: 'Manajemen PPDB',
         icon: 'pi pi-id-card',
-        roles: ['admin', 'superadmin', 'humas', 'yayasan'],
+        key: 'ppdb',
         children: [
             { label: 'Data Pendaftar', to: '/dashboard/ppdb/pendaftar' },
             { label: 'Pengaturan PPDB', to: '/dashboard/ppdb/pengaturan' },
@@ -76,7 +79,7 @@ export const navigation: MenuItem[] = [
     {
         label: 'CMS Portal',
         icon: 'pi pi-globe',
-        roles: ['admin', 'superadmin', 'humas'],
+        key: 'cms',
         children: [
             { label: 'Konten Landing Page', to: '/dashboard/cms/konten' },
             { label: 'Berita & Artikel', to: '/dashboard/cms/berita' },
@@ -86,7 +89,7 @@ export const navigation: MenuItem[] = [
     {
         label: 'Pengaturan',
         icon: 'pi pi-cog',
-        roles: ['admin', 'superadmin'],
+        key: 'pengaturan',
         children: [
             { label: 'Identitas Sekolah', to: '/dashboard/settings/sekolah' },
             { label: 'Manajemen User', to: '/dashboard/users' },
