@@ -5,6 +5,11 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
+  // Global CSS
+  css: [
+    'primeicons/primeicons.css',
+  ],
+
   // Modules
   modules: [
     '@nuxtjs/tailwindcss',
