@@ -29,12 +29,24 @@
       <h3 class="font-bold text-lg mt-6 mb-2">Media Sosial</h3>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="flex flex-col gap-2">
+          <label class="font-medium">Link Facebook</label>
+          <InputText v-model="form.facebook" placeholder="https://facebook.com/..." />
+        </div>
+        <div class="flex flex-col gap-2">
           <label class="font-medium">Link Instagram</label>
           <InputText v-model="form.instagram" placeholder="https://instagram.com/..." />
         </div>
         <div class="flex flex-col gap-2">
-          <label class="font-medium">Link Facebook</label>
-          <InputText v-model="form.facebook" placeholder="https://facebook.com/..." />
+          <label class="font-medium">Link YouTube</label>
+          <InputText v-model="form.youtube" placeholder="https://youtube.com/@..." />
+        </div>
+        <div class="flex flex-col gap-2">
+          <label class="font-medium">Link TikTok</label>
+          <InputText v-model="form.tiktok" placeholder="https://tiktok.com/@..." />
+        </div>
+        <div class="flex flex-col gap-2">
+          <label class="font-medium">No. WhatsApp (format: 628xxx)</label>
+          <InputText v-model="form.whatsapp" placeholder="628123456789" />
         </div>
       </div>
 
@@ -58,7 +70,10 @@ const form = reactive({
   phone: '',
   email: '',
   instagram: '',
-  facebook: ''
+  facebook: '',
+  youtube: '',
+  tiktok: '',
+  whatsapp: ''
 })
 
 async function fetchData() {

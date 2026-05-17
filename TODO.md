@@ -68,7 +68,7 @@
 **Prioritas:** Rendah 🛠️ — **BELUM DIKERJAKAN**
 **Objektif:** Kelancaran akses dan integritas media sosial (Saran Perbaikan Poin 5).
 
-- [ ] **Social Media Feed:** Menampilkan feed Instagram/Facebook terbaru di bagian footer atau sidebar.
+- [x] **Social Media Feed:** Section "Ikuti Kami" di landing page + Facebook Page Plugin (feed live) + link cards Instagram/YouTube/TikTok/WhatsApp. Admin kelola via CMS Pengaturan. ✅
 - [ ] **Optimasi Database:** Indexing pada tabel pendaftaran dan dokumen untuk kecepatan akses.
 - [ ] **Dark Mode Polishing:** Memastikan semua halaman baru nyaman di mata saat mode gelap aktif.
 

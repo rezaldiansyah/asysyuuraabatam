@@ -132,10 +132,23 @@
           <!-- Social -->
           <div>
             <h3 class="font-bold text-lg mb-4">Media Sosial</h3>
-            <div class="flex gap-4">
-              <a v-if="footer.instagram" :href="footer.instagram" target="_blank" class="text-slate-400 hover:text-secondary">Instagram</a>
-              <a v-if="footer.facebook" :href="footer.facebook" target="_blank" class="text-slate-400 hover:text-secondary">Facebook</a>
-              <span v-if="!footer.instagram && !footer.facebook" class="text-slate-400 text-sm">Belum ada link</span>
+            <div class="flex flex-wrap gap-3">
+              <a v-if="footer.facebook" :href="footer.facebook" target="_blank" class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center hover:opacity-80 transition" title="Facebook">
+                <i class="pi pi-facebook text-white"></i>
+              </a>
+              <a v-if="footer.instagram" :href="footer.instagram" target="_blank" class="w-10 h-10 bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 rounded-lg flex items-center justify-center hover:opacity-80 transition" title="Instagram">
+                <i class="pi pi-instagram text-white"></i>
+              </a>
+              <a v-if="footer.youtube" :href="footer.youtube" target="_blank" class="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center hover:opacity-80 transition" title="YouTube">
+                <i class="pi pi-youtube text-white"></i>
+              </a>
+              <a v-if="footer.tiktok" :href="footer.tiktok" target="_blank" class="w-10 h-10 bg-black rounded-lg flex items-center justify-center hover:opacity-80 transition" title="TikTok">
+                <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1 0-5.78 2.92 2.92 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.57 6.33 6.33 0 0 0 9.37 22a6.33 6.33 0 0 0 6.36-6.36V9.21a8.16 8.16 0 0 0 3.86.95V6.69Z"/></svg>
+              </a>
+              <a v-if="footer.whatsapp" :href="'https://wa.me/' + footer.whatsapp.replace(/[^0-9]/g, '')" target="_blank" class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center hover:opacity-80 transition" title="WhatsApp">
+                <i class="pi pi-whatsapp text-white"></i>
+              </a>
+              <span v-if="!footer.instagram && !footer.facebook && !footer.youtube" class="text-slate-400 text-sm">Belum ada link</span>
             </div>
           </div>
         </div>
@@ -166,7 +179,10 @@ const defaultFooter = {
   phone: '(0778) xxx-xxxx',
   email: 'info@asy-syuuraa.sch.id',
   instagram: '',
-  facebook: ''
+  facebook: 'https://www.facebook.com/yayasan.asysyuuraabatam/',
+  youtube: '',
+  tiktok: '',
+  whatsapp: ''
 }
 
 // Fetch Footer Data globally

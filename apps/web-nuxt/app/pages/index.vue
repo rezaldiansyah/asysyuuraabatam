@@ -208,6 +208,117 @@
       </div>
     </Dialog>
 
+    <!-- Social Media Section -->
+    <section class="py-20 bg-slate-50 dark:bg-slate-900">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl font-bold text-slate-800 dark:text-white mb-4">Ikuti Kami di Media Sosial</h2>
+          <p class="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Dapatkan info terbaru seputar kegiatan dan pengumuman Yayasan Asy-Syuuraa Batam</p>
+        </div>
+
+        <div class="grid lg:grid-cols-2 gap-8 items-start">
+          <!-- Facebook Page Plugin -->
+          <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-md overflow-hidden border border-slate-100 dark:border-slate-700">
+            <div class="p-4 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
+              <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white">
+                <i class="pi pi-facebook text-xl"></i>
+              </div>
+              <div>
+                <p class="font-bold text-slate-800 dark:text-white text-sm">Facebook</p>
+                <p class="text-xs text-slate-400">Feed terbaru dari halaman resmi kami</p>
+              </div>
+            </div>
+            <div class="flex justify-center p-2" style="min-height: 400px;">
+              <iframe 
+                src="https://www.facebook.com/plugins/page.php?href=https%3A%2F%2Fwww.facebook.com%2Fyayasan.asysyuuraabatam%2F&tabs=timeline&width=500&height=500&small_header=true&adapt_container_width=true&hide_cover=false&show_facepile=true&appId" 
+                width="500" 
+                height="500" 
+                style="border:none;overflow:hidden;max-width:100%;" 
+                scrolling="no" 
+                frameborder="0" 
+                allowfullscreen="true" 
+                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                loading="lazy"
+              ></iframe>
+            </div>
+          </div>
+
+          <!-- Social Links Cards -->
+          <div class="space-y-4">
+            <!-- Instagram -->
+            <a v-if="socialLinks.instagram" :href="socialLinks.instagram" target="_blank"
+              class="flex items-center gap-4 p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 hover:shadow-lg transition-shadow group"
+            >
+              <div class="w-14 h-14 rounded-xl flex items-center justify-center bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 text-white flex-shrink-0">
+                <i class="pi pi-instagram text-2xl"></i>
+              </div>
+              <div class="flex-1">
+                <p class="font-bold text-slate-800 dark:text-white">Instagram</p>
+                <p class="text-sm text-slate-400">Foto & video kegiatan terbaru</p>
+              </div>
+              <i class="pi pi-external-link text-slate-300 group-hover:text-primary transition"></i>
+            </a>
+
+            <!-- YouTube -->
+            <a v-if="socialLinks.youtube" :href="socialLinks.youtube" target="_blank"
+              class="flex items-center gap-4 p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 hover:shadow-lg transition-shadow group"
+            >
+              <div class="w-14 h-14 rounded-xl flex items-center justify-center bg-red-600 text-white flex-shrink-0">
+                <i class="pi pi-youtube text-2xl"></i>
+              </div>
+              <div class="flex-1">
+                <p class="font-bold text-slate-800 dark:text-white">YouTube</p>
+                <p class="text-sm text-slate-400">Video profil & dokumentasi kegiatan</p>
+              </div>
+              <i class="pi pi-external-link text-slate-300 group-hover:text-primary transition"></i>
+            </a>
+
+            <!-- TikTok -->
+            <a v-if="socialLinks.tiktok" :href="socialLinks.tiktok" target="_blank"
+              class="flex items-center gap-4 p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 hover:shadow-lg transition-shadow group"
+            >
+              <div class="w-14 h-14 rounded-xl flex items-center justify-center bg-black text-white flex-shrink-0">
+                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1 0-5.78 2.92 2.92 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.57 6.33 6.33 0 0 0 9.37 22a6.33 6.33 0 0 0 6.36-6.36V9.21a8.16 8.16 0 0 0 3.86.95V6.69Z"/></svg>
+              </div>
+              <div class="flex-1">
+                <p class="font-bold text-slate-800 dark:text-white">TikTok</p>
+                <p class="text-sm text-slate-400">Konten singkat & kreatif</p>
+              </div>
+              <i class="pi pi-external-link text-slate-300 group-hover:text-primary transition"></i>
+            </a>
+
+            <!-- WhatsApp -->
+            <a v-if="socialLinks.whatsapp" :href="'https://wa.me/' + socialLinks.whatsapp.replace(/[^0-9]/g, '')" target="_blank"
+              class="flex items-center gap-4 p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 hover:shadow-lg transition-shadow group"
+            >
+              <div class="w-14 h-14 rounded-xl flex items-center justify-center bg-green-500 text-white flex-shrink-0">
+                <i class="pi pi-whatsapp text-2xl"></i>
+              </div>
+              <div class="flex-1">
+                <p class="font-bold text-slate-800 dark:text-white">WhatsApp</p>
+                <p class="text-sm text-slate-400">Hubungi kami langsung</p>
+              </div>
+              <i class="pi pi-external-link text-slate-300 group-hover:text-primary transition"></i>
+            </a>
+
+            <!-- Facebook Link Card (if no other socials, at least show FB link) -->
+            <a href="https://www.facebook.com/yayasan.asysyuuraabatam/" target="_blank"
+              class="flex items-center gap-4 p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 hover:shadow-lg transition-shadow group"
+            >
+              <div class="w-14 h-14 rounded-xl flex items-center justify-center bg-blue-600 text-white flex-shrink-0">
+                <i class="pi pi-facebook text-2xl"></i>
+              </div>
+              <div class="flex-1">
+                <p class="font-bold text-slate-800 dark:text-white">Facebook</p>
+                <p class="text-sm text-slate-400">Like & follow halaman resmi kami</p>
+              </div>
+              <i class="pi pi-external-link text-slate-300 group-hover:text-primary transition"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- CTA / PPDB Section -->
     <section class="py-16 bg-primary">
       <div class="max-w-4xl mx-auto px-4 text-center">
@@ -359,6 +470,22 @@ const sambutan = computed(() => pageContent.value?.sambutan || defaultSambutan)
 const testimonials = computed(() => pageContent.value?.testimonials || [])
 const teacherOfMonth = computed(() => pageContent.value?.teacherOfMonth || null)
 const videoGallery = computed(() => pageContent.value?.videoGallery || [])
+
+// Social links from footer settings
+const { data: socialData } = await useAsyncData('social-links', async () => {
+  try {
+    const res = await $fetch<any>(`${apiBase}/public/content/settings_footer`)
+    if (res && res.content_json) return JSON.parse(res.content_json)
+  } catch {}
+  return {}
+})
+const socialLinks = computed(() => ({
+  instagram: socialData.value?.instagram || '',
+  facebook: socialData.value?.facebook || 'https://www.facebook.com/yayasan.asysyuuraabatam/',
+  youtube: socialData.value?.youtube || '',
+  tiktok: socialData.value?.tiktok || '',
+  whatsapp: socialData.value?.whatsapp || '',
+}))
 
 // Video helpers
 const videoPlayerVisible = ref(false)
