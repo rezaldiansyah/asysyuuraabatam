@@ -98,7 +98,7 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-slate-800 text-white py-12 mt-16">
+    <footer class="bg-slate-800 text-white py-12 md:mt-16">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="grid md:grid-cols-4 gap-8">
           <!-- About -->
@@ -158,6 +158,77 @@
         </div>
       </div>
     </footer>
+
+    <!-- Floating WhatsApp Button (Desktop Only) -->
+    <a 
+      v-if="waLink"
+      :href="waLink" 
+      target="_blank"
+      class="hidden md:flex fixed bottom-6 right-6 z-50 w-14 h-14 bg-green-500 rounded-full items-center justify-center text-white shadow-lg hover:bg-green-600 hover:scale-110 transition-all group"
+      title="Chat via WhatsApp"
+    >
+      <i class="pi pi-whatsapp text-2xl"></i>
+      <!-- Pulse ring -->
+      <span class="absolute inset-0 rounded-full bg-green-400 animate-ping opacity-30"></span>
+      <!-- Tooltip -->
+      <span class="absolute right-16 bg-slate-800 text-white text-xs px-3 py-2 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+        Chat via WhatsApp
+      </span>
+    </a>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-700 safe-area-bottom">
+      <div class="flex items-center justify-around h-16">
+        <NuxtLink 
+          to="/" 
+          class="flex flex-col items-center justify-center gap-1 w-full h-full transition-colors"
+          :class="route.path === '/' ? 'text-primary' : 'text-slate-400'"
+        >
+          <i class="pi pi-home text-lg"></i>
+          <span class="text-[10px] font-medium">Beranda</span>
+        </NuxtLink>
+
+        <NuxtLink 
+          to="/unit" 
+          class="flex flex-col items-center justify-center gap-1 w-full h-full transition-colors"
+          :class="route.path.startsWith('/unit') ? 'text-primary' : 'text-slate-400'"
+        >
+          <i class="pi pi-book text-lg"></i>
+          <span class="text-[10px] font-medium">Unit</span>
+        </NuxtLink>
+
+        <NuxtLink 
+          to="/ppdb" 
+          class="flex flex-col items-center justify-center gap-1 w-full h-full transition-colors"
+          :class="route.path === '/ppdb' ? 'text-primary' : 'text-slate-400'"
+        >
+          <div class="relative">
+            <i class="pi pi-file-edit text-lg"></i>
+            <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+          </div>
+          <span class="text-[10px] font-medium">PPDB</span>
+        </NuxtLink>
+
+        <a 
+          v-if="waLink"
+          :href="waLink" 
+          target="_blank"
+          class="flex flex-col items-center justify-center gap-1 w-full h-full text-green-500"
+        >
+          <i class="pi pi-whatsapp text-lg"></i>
+          <span class="text-[10px] font-medium">Chat</span>
+        </a>
+        <NuxtLink 
+          v-else
+          to="/berita" 
+          class="flex flex-col items-center justify-center gap-1 w-full h-full transition-colors"
+          :class="route.path.startsWith('/berita') ? 'text-primary' : 'text-slate-400'"
+        >
+          <i class="pi pi-megaphone text-lg"></i>
+          <span class="text-[10px] font-medium">Berita</span>
+        </NuxtLink>
+      </div>
+    </nav>
   </div>
 </template>
 
@@ -201,4 +272,25 @@ const { data: footerData } = await useAsyncData('layout-footer', async () => {
 const footer = computed(() => {
   return { ...defaultFooter, ...(footerData.value || {}) }
 })
+
+// WhatsApp link
+const waLink = computed(() => {
+  const num = footer.value.whatsapp
+  if (!num) return ''
+  return `https://wa.me/${num.replace(/[^0-9]/g, '')}`
+})
 </script>
+
+<style scoped>
+/* Safe area padding for iOS notch devices */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Add bottom padding to main content on mobile to prevent bottom nav overlap */
+@media (max-width: 767px) {
+  main {
+    padding-bottom: 4.5rem;
+  }
+}
+</style>
