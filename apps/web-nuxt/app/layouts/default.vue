@@ -161,9 +161,8 @@
 
     <!-- Floating WhatsApp Button (Desktop Only) -->
     <a 
-      v-if="waLink"
-      :href="waLink" 
-      target="_blank"
+      :href="waLink || '/profil'" 
+      :target="waLink ? '_blank' : '_self'"
       class="hidden md:flex fixed bottom-6 right-6 z-50 w-14 h-14 bg-green-500 rounded-full items-center justify-center text-white shadow-lg hover:bg-green-600 hover:scale-110 transition-all group"
       title="Chat via WhatsApp"
     >
@@ -210,23 +209,13 @@
         </NuxtLink>
 
         <a 
-          v-if="waLink"
-          :href="waLink" 
-          target="_blank"
+          :href="waLink || '/profil'" 
+          :target="waLink ? '_blank' : '_self'"
           class="flex flex-col items-center justify-center gap-1 w-full h-full text-green-500"
         >
           <i class="pi pi-whatsapp text-lg"></i>
           <span class="text-[10px] font-medium">Chat</span>
         </a>
-        <NuxtLink 
-          v-else
-          to="/berita" 
-          class="flex flex-col items-center justify-center gap-1 w-full h-full transition-colors"
-          :class="route.path.startsWith('/berita') ? 'text-primary' : 'text-slate-400'"
-        >
-          <i class="pi pi-megaphone text-lg"></i>
-          <span class="text-[10px] font-medium">Berita</span>
-        </NuxtLink>
       </div>
     </nav>
   </div>
