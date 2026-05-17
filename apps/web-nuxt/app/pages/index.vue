@@ -127,6 +127,87 @@
       </div>
     </section>
 
+    <!-- Teacher of the Month -->
+    <section v-if="teacherOfMonth" class="py-16 bg-white dark:bg-slate-800">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-8">
+          <span class="text-amber-500 text-sm font-bold uppercase tracking-wider">⭐ Apresiasi</span>
+          <h2 class="text-3xl font-bold text-slate-800 dark:text-white mt-2">Guru Terbaik Bulan Ini</h2>
+        </div>
+        <div class="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-2xl p-8 border border-amber-200 dark:border-amber-800 shadow-lg">
+          <div class="flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
+            <div class="w-32 h-32 rounded-full overflow-hidden shadow-xl border-4 border-amber-300 flex-shrink-0">
+              <img v-if="teacherOfMonth.photo_url" :src="teacherOfMonth.photo_url" :alt="teacherOfMonth.name" class="w-full h-full object-cover" />
+              <div v-else class="w-full h-full bg-amber-100 flex items-center justify-center text-amber-400 text-4xl font-bold">{{ teacherOfMonth.name?.charAt(0) }}</div>
+            </div>
+            <div>
+              <h3 class="text-2xl font-bold text-slate-800 dark:text-white">{{ teacherOfMonth.name }}</h3>
+              <p class="text-amber-600 dark:text-amber-400 font-medium mt-1">{{ teacherOfMonth.title }}</p>
+              <p v-if="teacherOfMonth.quote" class="text-slate-600 dark:text-slate-400 italic mt-4 text-lg">"{{ teacherOfMonth.quote }}"</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section v-if="testimonials.length" class="py-20 bg-slate-50 dark:bg-slate-900">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl font-bold text-slate-800 dark:text-white mb-4">Apa Kata Mereka?</h2>
+          <p class="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Testimoni dari orang tua murid dan alumni Asy-Syuuraa Batam</p>
+        </div>
+        <div class="grid md:grid-cols-3 gap-6">
+          <div v-for="t in testimonials" :key="t.id" class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-md border border-slate-100 dark:border-slate-700 hover:shadow-lg transition-shadow">
+            <div class="flex gap-0.5 mb-4">
+              <i v-for="s in 5" :key="s" class="pi pi-star-fill text-sm" :class="s <= t.rating ? 'text-yellow-400' : 'text-slate-200 dark:text-slate-600'"></i>
+            </div>
+            <p class="text-slate-600 dark:text-slate-300 italic mb-6 leading-relaxed">"{{ t.content }}"</p>
+            <div class="flex items-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+              <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                <img v-if="t.photo_url" :src="t.photo_url" :alt="t.name" class="w-full h-full object-cover" />
+                <span v-else class="text-primary font-bold">{{ t.name?.charAt(0) }}</span>
+              </div>
+              <div>
+                <p class="font-semibold text-sm text-slate-800 dark:text-white">{{ t.name }}</p>
+                <p class="text-xs text-slate-400">{{ t.role }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Video Gallery -->
+    <section v-if="videoGallery.length" class="py-20 bg-white dark:bg-slate-800">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl font-bold text-slate-800 dark:text-white mb-4">Video Profil</h2>
+          <p class="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Kenali lebih dekat Yayasan Asy-Syuuraa Batam melalui video</p>
+        </div>
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div v-for="v in videoGallery" :key="v.id" class="group cursor-pointer" @click="playVideo(v)">
+            <div class="relative aspect-video rounded-xl overflow-hidden shadow-md">
+              <img :src="getVideoThumb(v)" :alt="v.title" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              <div class="absolute inset-0 bg-black/30 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                <div class="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                  <i class="pi pi-play text-white text-2xl ml-1"></i>
+                </div>
+              </div>
+            </div>
+            <h3 class="font-semibold text-slate-800 dark:text-white mt-3">{{ v.title }}</h3>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Video Player Dialog -->
+    <Dialog v-model:visible="videoPlayerVisible" header="" modal class="w-full max-w-4xl" :closable="true">
+      <div v-if="activeVideoEmbed" class="aspect-video">
+        <iframe :src="activeVideoEmbed" class="w-full h-full rounded-lg" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+      </div>
+    </Dialog>
+
     <!-- CTA / PPDB Section -->
     <section class="py-16 bg-primary">
       <div class="max-w-4xl mx-auto px-4 text-center">
@@ -219,12 +300,15 @@ const iconMap: Record<string, string> = {
 // Fetch Data
 const { data: pageContent } = await useAsyncData('home-content', async () => {
   try {
-    const [heroRes, featuresRes, unitsRes, ppdbRes, sambutanRes] = await Promise.all([
+    const [heroRes, featuresRes, unitsRes, ppdbRes, sambutanRes, testimonialsRes, teacherRes, videosRes] = await Promise.all([
       $fetch<any>(`${apiBase}/public/content/home_hero`).catch(() => null),
       $fetch<any>(`${apiBase}/public/content/home_features`).catch(() => null),
       $fetch<any>(`${apiBase}/public/content/home_units`).catch(() => null),
       $fetch<any>(`${apiBase}/public/content/home_ppdb`).catch(() => null),
-      $fetch<any>(`${apiBase}/public/content/home_sambutan`).catch(() => null)
+      $fetch<any>(`${apiBase}/public/content/home_sambutan`).catch(() => null),
+      $fetch<any[]>(`${apiBase}/marketing/testimonials?published_only=true`).catch(() => []),
+      $fetch<any>(`${apiBase}/marketing/teacher-of-month/active`).catch(() => null),
+      $fetch<any[]>(`${apiBase}/marketing/videos?published_only=true`).catch(() => [])
     ])
 
     // Parse features
@@ -254,11 +338,14 @@ const { data: pageContent } = await useAsyncData('home-content', async () => {
       },
       unitCards,
       ppdb: ppdbRes || defaultPpdb,
-      sambutan: sambutanRes || defaultSambutan
+      sambutan: sambutanRes || defaultSambutan,
+      testimonials: testimonialsRes || [],
+      teacherOfMonth: teacherRes,
+      videoGallery: videosRes || []
     }
   } catch (e) {
     console.error('Failed to fetch home content', e)
-    return { hero: defaultHero, features: defaultFeatures, unitsSection: defaultUnitsSection, unitCards: defaultUnitCards, ppdb: defaultPpdb, sambutan: defaultSambutan }
+    return { hero: defaultHero, features: defaultFeatures, unitsSection: defaultUnitsSection, unitCards: defaultUnitCards, ppdb: defaultPpdb, sambutan: defaultSambutan, testimonials: [], teacherOfMonth: null, videoGallery: [] }
   }
 })
 
@@ -269,6 +356,35 @@ const unitsSection = computed(() => pageContent.value?.unitsSection || defaultUn
 const unitCards = computed(() => pageContent.value?.unitCards || defaultUnitCards)
 const ppdb = computed(() => pageContent.value?.ppdb || defaultPpdb)
 const sambutan = computed(() => pageContent.value?.sambutan || defaultSambutan)
+const testimonials = computed(() => pageContent.value?.testimonials || [])
+const teacherOfMonth = computed(() => pageContent.value?.teacherOfMonth || null)
+const videoGallery = computed(() => pageContent.value?.videoGallery || [])
+
+// Video helpers
+const videoPlayerVisible = ref(false)
+const activeVideoEmbed = ref('')
+
+function extractYoutubeId(url: string): string {
+  if (!url) return ''
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?\s]+)/)
+  return match ? match[1] : ''
+}
+
+function getVideoThumb(video: any): string {
+  if (video.thumbnail_url) return video.thumbnail_url
+  const id = extractYoutubeId(video.youtube_url)
+  return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : ''
+}
+
+function playVideo(video: any) {
+  const id = extractYoutubeId(video.youtube_url)
+  if (id) {
+    activeVideoEmbed.value = `https://www.youtube.com/embed/${id}?autoplay=1`
+    videoPlayerVisible.value = true
+  } else {
+    window.open(video.youtube_url, '_blank')
+  }
+}
 
 useSeoMeta({
   title: 'Asy-Syuuraa Batam - Sekolah Islam Terpadu',

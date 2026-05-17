@@ -198,3 +198,110 @@ async def delete_photo(photo_id: int, db: Session = Depends(get_db)):
     db.delete(photo)
     db.commit()
     return {"message": "Photo deleted"}
+
+# ============================================================
+# VIDEO GALLERY
+# ============================================================
+
+@router.get("/videos")
+async def get_videos(published_only: bool = False, db: Session = Depends(get_db)):
+    query = db.query(models.VideoGallery)
+    if published_only:
+        query = query.filter(models.VideoGallery.is_published == True)
+    return query.order_by(models.VideoGallery.sort_order, models.VideoGallery.created_at.desc()).all()
+
+@router.post("/videos")
+async def create_video(data: dict, db: Session = Depends(get_db)):
+    video = models.VideoGallery(
+        title=data.get("title", ""),
+        youtube_url=data.get("youtube_url", ""),
+        thumbnail_url=data.get("thumbnail_url"),
+        description=data.get("description"),
+        is_published=data.get("is_published", True),
+        sort_order=data.get("sort_order", 0)
+    )
+    db.add(video)
+    db.commit()
+    db.refresh(video)
+    return video
+
+@router.put("/videos/{id}")
+async def update_video(id: int, data: dict, db: Session = Depends(get_db)):
+    video = db.query(models.VideoGallery).filter(models.VideoGallery.id == id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    for key in ["title", "youtube_url", "thumbnail_url", "description", "is_published", "sort_order"]:
+        if key in data:
+            setattr(video, key, data[key])
+    db.commit()
+    db.refresh(video)
+    return video
+
+@router.delete("/videos/{id}")
+async def delete_video(id: int, db: Session = Depends(get_db)):
+    video = db.query(models.VideoGallery).filter(models.VideoGallery.id == id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    db.delete(video)
+    db.commit()
+    return {"message": "Video deleted"}
+
+# ============================================================
+# TEACHER OF THE MONTH
+# ============================================================
+
+@router.get("/teacher-of-month")
+async def get_teacher_of_month(db: Session = Depends(get_db)):
+    """Get all teacher of month entries"""
+    return db.query(models.TeacherOfMonth).order_by(models.TeacherOfMonth.created_at.desc()).all()
+
+@router.get("/teacher-of-month/active")
+async def get_active_teacher(db: Session = Depends(get_db)):
+    """Get the currently active teacher of the month"""
+    teacher = db.query(models.TeacherOfMonth).filter(models.TeacherOfMonth.is_active == True).first()
+    return teacher
+
+@router.post("/teacher-of-month")
+async def create_teacher_of_month(data: dict, db: Session = Depends(get_db)):
+    # Deactivate all others if this one is active
+    if data.get("is_active", True):
+        db.query(models.TeacherOfMonth).update({"is_active": False})
+    
+    teacher = models.TeacherOfMonth(
+        name=data.get("name", ""),
+        title=data.get("title"),
+        quote=data.get("quote"),
+        photo_url=data.get("photo_url"),
+        month=data.get("month", ""),
+        is_active=data.get("is_active", True)
+    )
+    db.add(teacher)
+    db.commit()
+    db.refresh(teacher)
+    return teacher
+
+@router.put("/teacher-of-month/{id}")
+async def update_teacher_of_month(id: int, data: dict, db: Session = Depends(get_db)):
+    teacher = db.query(models.TeacherOfMonth).filter(models.TeacherOfMonth.id == id).first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    
+    # Deactivate others if setting this one as active
+    if data.get("is_active", False):
+        db.query(models.TeacherOfMonth).filter(models.TeacherOfMonth.id != id).update({"is_active": False})
+    
+    for key in ["name", "title", "quote", "photo_url", "month", "is_active"]:
+        if key in data:
+            setattr(teacher, key, data[key])
+    db.commit()
+    db.refresh(teacher)
+    return teacher
+
+@router.delete("/teacher-of-month/{id}")
+async def delete_teacher_of_month(id: int, db: Session = Depends(get_db)):
+    teacher = db.query(models.TeacherOfMonth).filter(models.TeacherOfMonth.id == id).first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    db.delete(teacher)
+    db.commit()
+    return {"message": "Teacher of month deleted"}

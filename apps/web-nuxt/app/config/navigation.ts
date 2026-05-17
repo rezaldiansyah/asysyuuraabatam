@@ -86,6 +86,8 @@ export const navigation: MenuItem[] = [
             { label: 'Pengumuman / Mading', to: '/dashboard/cms/pengumuman' },
             { label: 'Testimoni', to: '/dashboard/cms/testimoni' },
             { label: 'Galeri Foto', to: '/dashboard/cms/galeri' },
+            { label: 'Galeri Video', to: '/dashboard/cms/video' },
+            { label: 'Teacher of the Month', to: '/dashboard/cms/teacher-of-month' },
         ],
     },
     {

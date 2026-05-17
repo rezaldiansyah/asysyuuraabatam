@@ -42,15 +42,15 @@
 ---
 
 ## 4. Fase 2: Content Marketing & Branding
-**Prioritas:** Sedang 📈 — **SEBAGIAN BESAR SELESAI ✅**
+**Prioritas:** Sedang 📈 — **SELESAI ✅**
 **Objektif:** Meningkatkan daya tarik sekolah bagi calon orang tua murid (Saran Perbaikan Poin 3).
 
 - [x] **Modul Testimoni:** CMS khusus untuk mengelola testimoni Orang Tua & Alumni (CRUD + rating bintang + foto). ✅
 - [x] **Galeri Foto (Kegiatan & Prestasi):** Album foto dengan tab kategori, lightbox viewer, thumbnail strip. ✅
 - [x] **Halaman Publik Galeri:** `/galeri` dengan navigasi tab + dialog viewer responsif. ✅
-- [ ] **Halaman "Mengapa Memilih Kami":** Layout khusus infografis keunggulan kurikulum & fasilitas.
-- [ ] **Teacher of the Month:** Fitur apresiasi guru berupa banner/carousel khusus di halaman utama.
-- [ ] **Galeri Video Profil:** Integrasi link YouTube sekolah ke dalam galeri video interaktif.
+- [x] **Halaman "Mengapa Memilih Kami":** Sudah ada sebagai section "Keunggulan Kami" di landing page (CMS-driven). ✅
+- [x] **Teacher of the Month:** CMS admin + banner di landing page (gold card + foto + quote). ✅
+- [x] **Galeri Video Profil:** CMS admin kelola link YouTube + custom thumbnail + embedded player di landing page. ✅
 
 ---
 

@@ -548,3 +548,27 @@ class GalleryPhoto(Base):
     sort_order = Column(Integer, default=0)
     
     album = relationship("GalleryAlbum", back_populates="photos")
+
+class VideoGallery(Base):
+    __tablename__ = "video_gallery"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String)
+    youtube_url = Column(String)             # Full YouTube URL
+    thumbnail_url = Column(String, nullable=True) # Custom thumbnail (override auto)
+    description = Column(String, nullable=True)
+    is_published = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class TeacherOfMonth(Base):
+    __tablename__ = "teacher_of_month"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    title = Column(String, nullable=True)       # "Guru Tahfidz SDIT", etc.
+    quote = Column(String, nullable=True)        # Motivational quote
+    photo_url = Column(String, nullable=True)
+    month = Column(String)                       # "2026-05" format
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
