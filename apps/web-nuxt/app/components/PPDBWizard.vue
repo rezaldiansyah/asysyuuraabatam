@@ -142,6 +142,26 @@
               <InputText v-model="form.periodic_data.anak_ke" type="number" />
             </div>
           </div>
+
+          <h3 class="text-xl font-bold border-b pb-2 pt-4">Unggah Berkas Pendukung</h3>
+          <div class="bg-blue-50 text-blue-800 p-3 rounded-md text-sm">
+            <i class="pi pi-info-circle mr-2"></i> Harap unggah foto atau scan dokumen asli (Format: JPG, PNG, atau PDF).
+          </div>
+          
+          <div class="grid md:grid-cols-2 gap-6">
+            <CmsImageUploader 
+              v-model="form.file_kk_url" 
+              label="Kartu Keluarga (KK) *" 
+              placeholder="Klik untuk upload KK"
+              accept="image/*,application/pdf"
+            />
+            <CmsImageUploader 
+              v-model="form.file_akta_url" 
+              label="Akta Kelahiran *" 
+              placeholder="Klik untuk upload Akta"
+              accept="image/*,application/pdf"
+            />
+          </div>
         </div>
 
         <!-- Step 5: Review -->
@@ -191,7 +211,9 @@ const form = reactive({
   student_data: { full_name: '', nik: '', nisn: '', gender: 'L' },
   father_data: { name: '', nik: '', phone: '', email: '', pekerjaan: '', penghasilan: '' },
   mother_data: { name: '', nik: '', phone: '', email: '', pekerjaan: '', penghasilan: '' },
-  periodic_data: { tinggi: '', berat: '', jarak: '', anak_ke: '' }
+  periodic_data: { tinggi: '', berat: '', jarak: '', anak_ke: '' },
+  file_kk_url: '',
+  file_akta_url: ''
 })
 
 function nextStep() {
@@ -207,6 +229,12 @@ function goToStep(index) {
 }
 
 async function submitForm() {
+  if (!form.file_kk_url || !form.file_akta_url) {
+    toast.add({ severity: 'warn', summary: 'Berkas Belum Lengkap', detail: 'Harap unggah Kartu Keluarga dan Akta Kelahiran.', life: 3000 })
+    currentStep.value = 3 // Go back to files step
+    return
+  }
+  
   loading.value = true
   try {
     const response = await $fetch(`${config.public.apiBase}/ppdb/register`, {

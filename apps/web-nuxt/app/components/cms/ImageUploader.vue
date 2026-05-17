@@ -46,7 +46,7 @@
           type="file" 
           ref="fileInput" 
           class="hidden" 
-          accept="image/*" 
+          :accept="accept || 'image/*'" 
           @change="handleFileSelect"
         />
         
@@ -57,31 +57,36 @@
 
         <div v-else class="flex flex-col items-center gap-2">
           <div class="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-slate-500">
-            <i class="pi pi-image text-xl"></i>
+            <i :class="modelValue?.toLowerCase().endsWith('.pdf') ? 'pi pi-file-pdf' : 'pi pi-image'" class="text-xl"></i>
           </div>
           <div class="text-sm">
             <span class="font-medium text-primary hover:underline">Klik untuk upload</span>
             <span class="text-slate-500"> atau drag & drop</span>
           </div>
-          <p class="text-xs text-slate-400">PNG, JPG, WEBP (Max 5MB)</p>
+          <p class="text-xs text-slate-400">{{ accept?.includes('pdf') ? 'PNG, JPG, PDF (Max 5MB)' : 'PNG, JPG, WEBP (Max 5MB)' }}</p>
         </div>
       </div>
     </div>
 
     <!-- Preview -->
     <div v-if="modelValue" class="relative group mt-2 w-full min-h-[100px] max-h-[400px] bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center">
-      <img :src="modelValue" alt="Preview" class="max-w-full max-h-[400px] object-contain">
+      <div v-if="modelValue.toLowerCase().endsWith('.pdf')" class="flex flex-col items-center gap-2 p-6">
+        <i class="pi pi-file-pdf text-5xl text-danger"></i>
+        <span class="text-sm font-medium">Dokumen PDF</span>
+      </div>
+      <img v-else :src="modelValue" alt="Preview" class="max-w-full max-h-[400px] object-contain">
       
       <!-- Delete Action (Top Right) -->
       <div class="absolute top-2 right-2 flex gap-1">
         <Button 
-          icon="pi pi-trash" 
           severity="danger" 
           rounded 
-          class="shadow-md"
+          class="shadow-md w-10 h-10 flex items-center justify-center !text-white"
           @click="$emit('update:modelValue', '')" 
-          tooltip="Hapus Gambar"
-        />
+          title="Hapus Gambar"
+        >
+          <i class="pi pi-trash text-lg"></i>
+        </Button>
       </div>
     </div>
   </div>
@@ -94,6 +99,7 @@ const props = defineProps<{
   modelValue: string
   label?: string
   placeholder?: string
+  accept?: string
 }>()
 
 const emit = defineEmits(['update:modelValue'])
@@ -126,8 +132,11 @@ function handleDrop(event: DragEvent) {
 
 async function uploadFile(file: File) {
   // Validate
-  if (!file.type.startsWith('image/')) {
-    toast.add({ severity: 'warn', summary: 'Format Salah', detail: 'Harap upload file gambar', life: 3000 })
+  const isImage = file.type.startsWith('image/')
+  const isPDF = file.type === 'application/pdf'
+  
+  if (!isImage && !isPDF) {
+    toast.add({ severity: 'warn', summary: 'Format Salah', detail: 'Harap upload file gambar atau PDF', life: 3000 })
     return
   }
   if (file.size > 5 * 1024 * 1024) { // 5MB

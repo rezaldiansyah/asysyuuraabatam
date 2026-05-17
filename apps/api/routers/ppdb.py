@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models
 import schemas
+import auth
 import json
 import uuid
 from datetime import datetime
@@ -79,7 +80,9 @@ async def register_ppdb(data: dict, db: Session = Depends(get_db)):
         achievements_data=json.dumps(data.get("achievements_data", [])),
         other_data=json.dumps(data.get("other_data", {})),
         status="PENDING",
-        parent_user_id=parent_user_id
+        parent_user_id=parent_user_id,
+        file_kk_url=data.get("file_kk_url"),
+        file_akta_url=data.get("file_akta_url")
     )
     
     db.add(new_registration)
@@ -113,6 +116,8 @@ async def get_all_registrations(db: Session = Depends(get_db)):
             "mother_data": json.loads(reg.mother_data) if reg.mother_data else {},
             "periodic_data": json.loads(reg.periodic_data) if reg.periodic_data else {},
             "achievements_data": json.loads(reg.achievements_data) if reg.achievements_data else [],
+            "file_kk_url": reg.file_kk_url,
+            "file_akta_url": reg.file_akta_url,
         })
         
     return result

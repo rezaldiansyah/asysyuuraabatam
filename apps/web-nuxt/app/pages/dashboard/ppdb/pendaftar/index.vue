@@ -54,6 +54,15 @@
                 <Badge :value="data.status" :severity="data.status === 'PENDING' ? 'warning' : 'success'" />
             </template>
         </Column>
+        <Column header="Berkas" style="min-width: 8rem">
+            <template #body="{ data }">
+                <div class="flex gap-1">
+                    <Button v-if="data.file_kk_url" icon="pi pi-id-card" rounded text severity="info" title="Lihat KK" @click="viewFile(data.file_kk_url)" />
+                    <Button v-if="data.file_akta_url" icon="pi pi-file" rounded text severity="info" title="Lihat Akta" @click="viewFile(data.file_akta_url)" />
+                    <span v-if="!data.file_kk_url && !data.file_akta_url" class="text-xs text-slate-400">Tidak ada berkas</span>
+                </div>
+            </template>
+        </Column>
         <Column header="Aksi" style="min-width: 10rem" alignFrozen="right" frozen>
             <template #body="{ data }">
                 <div class="flex gap-2">
@@ -67,7 +76,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { FilterMatchMode } from '@primevue/core/api'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
@@ -119,6 +128,11 @@ function confirmDelete(id) {
     })
 }
 
+function viewFile(url: string) {
+  if (!url) return
+  window.open(url, '_blank')
+}
+
 function downloadPDF(data) {
   // Mock PDF generation for now
   toast.add({ severity: 'info', summary: 'Info', detail: `Mencetak formulir untuk ${data.student_name}... (Dalam Pengembangan)`, life: 3000 })
@@ -127,7 +141,7 @@ function downloadPDF(data) {
 function exportCSV() {
     if(!registrations.value.length) return
     
-    const headers = ['No. Registrasi', 'Unit', 'Nama Siswa', 'NISN', 'L/P', 'Nama Ayah', 'No HP', 'Email', 'Status']
+    const headers = ['No. Registrasi', 'Unit', 'Nama Siswa', 'NISN', 'L/P', 'Nama Ayah', 'No HP', 'Email', 'Nama Ibu', 'KK URL', 'Akta URL', 'Status', 'Tanggal Daftar']
     const csvContent = "data:text/csv;charset=utf-8," 
         + headers.join(",") + "\n"
         + registrations.value.map(e => [
@@ -139,8 +153,12 @@ function exportCSV() {
             e.father_data?.name, 
             e.phone, 
             e.email, 
-            e.status
-        ].join(",")).join("\n")
+            e.mother_data?.name,
+            e.file_kk_url || '',
+            e.file_akta_url || '',
+            e.status,
+            e.created_at
+        ].map(val => `"${val || ''}"`).join(",")).join("\n")
         
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement("a")

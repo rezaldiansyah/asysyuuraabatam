@@ -499,6 +499,10 @@ class PPDBRegistration(Base):
     status = Column(String, default="PENDING") # PENDING, REVIEWING, ACCEPTED, REJECTED
     parent_user_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Linked Parent Account
     
+    # Uploaded Files
+    file_kk_url = Column(String, nullable=True)
+    file_akta_url = Column(String, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
