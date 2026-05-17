@@ -58,9 +58,11 @@
 </template>
 
 <script setup lang="ts">
+import { useToast } from 'primevue/usetoast'
+
 definePageMeta({ layout: 'dashboard' })
 
-const { $api } = useNuxtApp()
+const api = useApi()
 const toast = useToast()
 const loading = ref(false)
 
@@ -78,13 +80,14 @@ const form = reactive({
 
 async function fetchData() {
   try {
-    const res = await $api<{ content_json: string }>('/cms/content/settings_footer')
+    const res = await api.get<any>('/public/content/settings_footer')
     if (res && res.content_json) {
       const data = JSON.parse(res.content_json)
       Object.assign(form, data)
     }
   } catch (e: any) {
-    if (e.response?.status !== 404) {
+    // 404 is expected if settings haven't been saved yet
+    if (e?.statusCode !== 404 && e?.status !== 404) {
       console.error('Failed to load settings', e)
     }
   }
@@ -93,12 +96,9 @@ async function fetchData() {
 async function saveData() {
   loading.value = true
   try {
-    await $api('/cms/content/settings_footer', {
-      method: 'PUT',
-      body: {
-        title: 'Pengaturan Footer',
-        content_json: JSON.stringify(form)
-      }
+    await api.put('/cms/content/settings_footer', {
+      title: 'Pengaturan Footer',
+      content_json: JSON.stringify(form)
     })
     toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Pengaturan kontak berhasil disimpan', life: 3000 })
   } catch (e) {
