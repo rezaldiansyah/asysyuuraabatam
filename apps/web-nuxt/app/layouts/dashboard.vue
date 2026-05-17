@@ -1,5 +1,6 @@
 <template>
   <div class="min-h-screen flex">
+    <Toast />
     <!-- Sidebar -->
     <aside
       class="fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transform transition-transform duration-200 lg:translate-x-0 overflow-y-auto"

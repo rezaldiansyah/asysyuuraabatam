@@ -54,13 +54,41 @@
 
 ---
 
-## 5. Fase 3: Sistem Manajemen Internal (Digital Repository)
-**Prioritas:** Sedang 📂 — **BELUM DIKERJAKAN**
-**Objektif:** Pusat dokumentasi terpusat sesuai Saran Perbaikan Poin 1.
+## 5. Fase 3: Sistem Manajemen Internal
+**Prioritas:** Tinggi 📂 — **BELUM DIKERJAKAN**
+**Objektif:** Modul-modul internal yang diakses semua role kecuali Orangtua.
 
-- [ ] **Modul Pusat Unduhan:** Halaman untuk Admin mengunggah dokumen (SOP, SK Yayasan, Kalender Akademik).
-- [ ] **Kategori Dokumen:** Filter berdasarkan jenis dokumen (Internal/Publik).
-- [ ] **Slip Gaji Digital (Opsional):** Fitur bagi pegawai untuk melihat/unduh slip gaji bulanan secara mandiri.
+### 5.1 Pusat Unduhan (Digital Repository)
+- [ ] **Model & API:** Tabel `documents` (judul, kategori, file_url, visibility, uploader).
+- [ ] **Kategori Dokumen:** SK Yayasan, SOP, Kalender Akademik, Juknis, Lain-lain.
+- [ ] **Visibility:** Internal (hanya pegawai) / Publik (bisa diakses semua).
+- [ ] **Admin CMS:** Upload, edit, hapus, filter dokumen.
+- [ ] **Halaman Unduhan:** Tampilan list/grid dokumen untuk pegawai.
+
+### 5.2 Rekap Presensi
+- [ ] **Model & API:** Tabel `attendance_recap` (user_id, tanggal, status, keterangan).
+- [ ] **Dashboard Ringkasan:** Statistik kehadiran bulanan per pegawai (hadir, izin, sakit, alfa).
+- [ ] **Filter:** Per bulan, per unit, per pegawai.
+- [ ] **Export:** Download rekap ke Excel/PDF.
+- [ ] **Akses:** Kepala Sekolah, Admin HR, SuperAdmin.
+
+### 5.3 Rapor Pegawai (Penilaian Kinerja)
+- [ ] **Model & API:** Tabel `employee_report` (user_id, periode, aspek_penilaian, nilai, catatan).
+- [ ] **Form Penilaian:** Multi-aspek (Kedisiplinan, Kompetensi, Kerjasama, dll).
+- [ ] **Histori Rapor:** Riwayat penilaian per semester/tahun.
+- [ ] **Akses:** Kepala Sekolah, SuperAdmin (input). Pegawai (lihat milik sendiri).
+
+### 5.4 Mutabaah Harian Guru/Karyawan
+- [ ] **Model & API:** Tabel `mutabaah` (user_id, tanggal, checklist ibadah harian).
+- [ ] **Checklist Ibadah:** Sholat 5 waktu, Sholat Dhuha, Tilawah, Puasa Sunnah, Dzikir, dll.
+- [ ] **Self-Report:** Setiap pegawai mengisi sendiri setiap hari.
+- [ ] **Dashboard Rekap:** Ringkasan per minggu/bulan untuk atasan.
+- [ ] **Akses:** Semua pegawai (self-input), Kepala Sekolah/SuperAdmin (lihat semua).
+
+### 5.5 Navigasi Sidebar
+- [ ] **Menu Group Baru:** "Manajemen Internal" di sidebar dashboard.
+- [ ] **Sub-menu:** Pusat Unduhan, Rekap Presensi, Rapor Pegawai, Mutabaah Harian.
+- [ ] **Permission:** Integrasi dengan RBAC matrix yang sudah ada.
 
 ---
 

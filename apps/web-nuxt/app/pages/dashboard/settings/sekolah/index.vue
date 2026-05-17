@@ -97,6 +97,7 @@ async function saveData() {
   loading.value = true
   try {
     await api.put('/cms/content/settings_footer', {
+      section_key: 'settings_footer',
       title: 'Pengaturan Footer',
       content_json: JSON.stringify(form)
     })
