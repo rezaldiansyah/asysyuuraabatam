@@ -56,8 +56,8 @@
            <Column header="Aksi" style="width: 100px">
               <template #body="slotProps">
                  <div class="flex gap-1 justify-end">
-                    <Button icon="pi pi-pencil" text rounded size="small" @click="openDialog(slotProps.data)" v-tooltip.top="'Edit'" />
-                    <Button icon="pi pi-trash" text rounded severity="danger" size="small" @click="confirmDelete(slotProps.data)" v-tooltip.top="'Hapus'" />
+                    <Button icon="pi pi-pencil" text rounded size="small" @click="openDialog(slotProps.data)" title="Edit" />
+                    <Button icon="pi pi-trash" text rounded severity="danger" size="small" @click="confirmDelete(slotProps.data)" title="Hapus" />
                  </div>
               </template>
           </Column>
