@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any
 from enum import Enum
 from datetime import date, datetime
 
@@ -418,19 +418,75 @@ class AttendanceStatusEnum(str, Enum):
     ABSENT = "ABSENT"
 
 class EmployeeBase(BaseModel):
-    user_id: int
+    nik_kepegawaian: Optional[str] = None
     nip: Optional[str] = None
     nuptk: Optional[str] = None
+    nama_lengkap: str
+    no_ktp: Optional[str] = None
+    tempat_lahir: Optional[str] = None
+    tanggal_lahir: Optional[datetime] = None
+    jenis_kelamin: Optional[str] = None
+    status_pernikahan: Optional[str] = None
+    jumlah_anak: int = 0
+    alamat: Optional[str] = None
+    no_hp: Optional[str] = None
+    npwp: Optional[str] = None
+    no_bpjs_tk: Optional[str] = None
+    no_bpjs_kes: Optional[str] = None
+    no_rekening: Optional[str] = None
+    nama_bank: Optional[str] = None
     position: Optional[str] = None
-    join_date: Optional[date] = None
+    employee_type: str = "tetap"
+    unit_id: Optional[int] = None
+    join_date: Optional[datetime] = None
+    resign_date: Optional[datetime] = None
     is_active: bool = True
+    photo_url: Optional[str] = None
 
 class EmployeeCreate(EmployeeBase):
     pass
 
+class EducationHistoryBase(BaseModel):
+    tingkat: str
+    jurusan: Optional[str] = None
+    institusi: Optional[str] = None
+    tahun_lulus: Optional[int] = None
+
+class EducationHistoryCreate(EducationHistoryBase):
+    pass
+
+class EducationHistory(EducationHistoryBase):
+    id: int
+    employee_id: int
+    
+    class Config:
+        from_attributes = True
+
+class PositionHistoryBase(BaseModel):
+    jabatan: str
+    status_pegawai: Optional[str] = None
+    unit_id: Optional[int] = None
+    tmt_mulai: datetime
+    tmt_selesai: Optional[datetime] = None
+    sk_number: Optional[str] = None
+
+class PositionHistoryCreate(PositionHistoryBase):
+    pass
+
+class PositionHistory(PositionHistoryBase):
+    id: int
+    employee_id: int
+    
+    class Config:
+        from_attributes = True
+
 class Employee(EmployeeBase):
     id: int
+    user_id: int
     user: Optional[User] = None
+    unit: Optional[Any] = None # Or Unit schema if available
+    education_history: List[EducationHistory] = []
+    position_history: List[PositionHistory] = []
     
     class Config:
         from_attributes = True
@@ -482,6 +538,17 @@ class BulkStudentAttendanceCreate(BaseModel):
     date: date
     classroom_id: int
     items: List[BulkStudentAttendanceItem]
+
+class BulkEmployeeAttendanceItem(BaseModel):
+    employee_id: int
+    status: AttendanceStatusEnum
+    check_in: Optional[datetime] = None
+    check_out: Optional[datetime] = None
+    notes: Optional[str] = None
+
+class BulkEmployeeAttendanceCreate(BaseModel):
+    date: date
+    items: List[BulkEmployeeAttendanceItem]
 
 # --- Grade Schemas ---
 
@@ -633,3 +700,7 @@ class WeeklyMutabaah(WeeklyMutabaahBase):
     class Config:
         from_attributes = True
 
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str

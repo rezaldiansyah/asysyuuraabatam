@@ -65,6 +65,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     last_login = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    must_change_password = Column(Boolean, default=False)
     
     role_id = Column(Integer, ForeignKey("roles.id"))
     
@@ -327,16 +328,73 @@ class Employee(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True)
     
-    # Employee specific fields
-    nip = Column(String, unique=True, index=True, nullable=True)  # Nomor Induk Pegawai
-    nuptk = Column(String, unique=True, index=True, nullable=True)  # NUPTK for teachers
-    position = Column(String, nullable=True)  # Jabatan: Guru, Staff, etc.
-    join_date = Column(DateTime, nullable=True)
+    # --- Identitas Kepegawaian ---
+    nik_kepegawaian = Column(String, unique=True, index=True, nullable=True)  # NIK Yayasan (sama dgn users.nik)
+    nip = Column(String, unique=True, index=True, nullable=True)              # Nomor Induk Pegawai
+    nuptk = Column(String, unique=True, index=True, nullable=True)            # NUPTK (guru)
+    
+    # --- Data Pribadi ---
+    nama_lengkap = Column(String)
+    no_ktp = Column(String, nullable=True)          # NIK KTP Negara (16 digit)
+    tempat_lahir = Column(String, nullable=True)
+    tanggal_lahir = Column(DateTime, nullable=True)
+    jenis_kelamin = Column(String, nullable=True)    # LK / PR
+    status_pernikahan = Column(String, nullable=True) # Kawin / Blm Kawin
+    jumlah_anak = Column(Integer, default=0)
+    alamat = Column(String, nullable=True)
+    no_hp = Column(String, nullable=True)            # String, bukan Integer (0 di depan)
+    
+    # --- Administrasi ---
+    npwp = Column(String, nullable=True)
+    no_bpjs_tk = Column(String, nullable=True)       # BPJS Ketenagakerjaan
+    no_bpjs_kes = Column(String, nullable=True)      # BPJS Kesehatan
+    no_rekening = Column(String, nullable=True)
+    nama_bank = Column(String, nullable=True)
+    
+    # --- Status & Penempatan ---
+    position = Column(String, nullable=True)          # Jabatan saat ini (denormalized, dari riwayat)
+    employee_type = Column(String, default="tetap")   # tetap / kontrak / honorer
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=True)
+    join_date = Column(DateTime, nullable=True)       # TMT pertama kali masuk
+    resign_date = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
+    
+    # Foto
+    photo_url = Column(String, nullable=True)
     
     # Relationships
     user = relationship("User")
+    unit = relationship("Unit")
+    education_history = relationship("EducationHistory", back_populates="employee", cascade="all, delete-orphan")
+    position_history = relationship("PositionHistory", back_populates="employee", cascade="all, delete-orphan")
     attendances = relationship("EmployeeAttendance", back_populates="employee")
+
+class EducationHistory(Base):
+    __tablename__ = "education_history"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"))
+    tingkat = Column(String)           # SMA, D2, D3, S1, S2, S3
+    jurusan = Column(String, nullable=True)
+    institusi = Column(String, nullable=True)   # Nama universitas/sekolah
+    tahun_lulus = Column(Integer, nullable=True)
+    
+    employee = relationship("Employee", back_populates="education_history")
+
+class PositionHistory(Base):
+    __tablename__ = "position_history"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"))
+    jabatan = Column(String)                     # Nama jabatan
+    status_pegawai = Column(String, nullable=True) # Tetap, Kontrak, Honorer
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=True)
+    tmt_mulai = Column(DateTime)                 # Tanggal Mulai Tugas
+    tmt_selesai = Column(DateTime, nullable=True) # Null = masih menjabat
+    sk_number = Column(String, nullable=True)     # Nomor SK (opsional)
+    
+    employee = relationship("Employee", back_populates="position_history")
+    unit = relationship("Unit")
 
 class StudentAttendance(Base):
     __tablename__ = "student_attendances"

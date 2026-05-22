@@ -8,6 +8,7 @@ interface User {
     email: string | null
     role: { code: string; name: string; permissions?: string[] } | null
     units: string[]
+    must_change_password?: boolean
 }
 
 interface AuthState {

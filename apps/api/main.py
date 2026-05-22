@@ -44,8 +44,9 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.include_router(ppdb.router)
 app.include_router(marketing.router)
 
-from routers import internal
+from routers import internal, sdm
 app.include_router(internal.router)
+app.include_router(sdm.router)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
@@ -172,6 +173,7 @@ async def read_users_me(current_user: models.User = Depends(get_current_active_u
         "email": current_user.email,
         "full_name": current_user.full_name,
         "is_active": current_user.is_active,
+        "must_change_password": current_user.must_change_password,
         "role_id": current_user.role_id,
         "role": role_data
     }
@@ -797,53 +799,6 @@ def delete_calendar_event(event_id: int, db: Session = Depends(get_db), current_
     db.commit()
     return {"ok": True}
 
-# --- SDM / Employee Routes ---
-
-@app.get("/sdm/employees", response_model=List[schemas.Employee])
-async def get_employees(is_active: Optional[bool] = None, db: Session = Depends(get_db)):
-    query = db.query(models.Employee).options(joinedload(models.Employee.user))
-    if is_active is not None:
-        query = query.filter(models.Employee.is_active == is_active)
-    return query.all()
-
-@app.get("/sdm/employees/{employee_id}", response_model=schemas.Employee)
-async def get_employee(employee_id: int, db: Session = Depends(get_db)):
-    emp = db.query(models.Employee).options(joinedload(models.Employee.user)).filter(models.Employee.id == employee_id).first()
-    if not emp:
-        raise HTTPException(status_code=404, detail="Employee not found")
-    return emp
-
-@app.post("/sdm/employees", response_model=schemas.Employee)
-async def create_employee(employee: schemas.EmployeeCreate, db: Session = Depends(get_db)):
-    # Check if user exists
-    user = db.query(models.User).filter(models.User.id == employee.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Check if employee already exists for this user
-    existing = db.query(models.Employee).filter(models.Employee.user_id == employee.user_id).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Employee record already exists for this user")
-    
-    db_emp = models.Employee(**employee.dict())
-    db.add(db_emp)
-    db.commit()
-    db.refresh(db_emp)
-    return db_emp
-
-@app.put("/sdm/employees/{employee_id}", response_model=schemas.Employee)
-async def update_employee(employee_id: int, employee: schemas.EmployeeCreate, db: Session = Depends(get_db)):
-    db_emp = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
-    if not db_emp:
-        raise HTTPException(status_code=404, detail="Employee not found")
-    
-    for key, value in employee.dict().items():
-        setattr(db_emp, key, value)
-    
-    db.commit()
-    db.refresh(db_emp)
-    return db_emp
-
 # --- Attendance Routes ---
 
 @app.get("/attendance/students", response_model=List[schemas.StudentAttendance])
@@ -910,36 +865,7 @@ async def create_bulk_student_attendance(request: schemas.BulkStudentAttendanceC
     db.commit()
     return {"message": f"Created {count} attendance records, skipped {skipped} duplicates"}
 
-@app.get("/attendance/employees", response_model=List[schemas.EmployeeAttendance])
-async def get_employee_attendances(
-    date: Optional[str] = None,
-    db: Session = Depends(get_db)
-):
-    query = db.query(models.EmployeeAttendance).options(joinedload(models.EmployeeAttendance.employee))
-    
-    if date:
-        from datetime import datetime as dt
-        target_date = dt.strptime(date, "%Y-%m-%d").date()
-        query = query.filter(models.EmployeeAttendance.date == target_date)
-    
-    return query.order_by(models.EmployeeAttendance.date.desc()).all()
 
-@app.post("/attendance/employees", response_model=schemas.EmployeeAttendance)
-async def create_employee_attendance(attendance: schemas.EmployeeAttendanceCreate, db: Session = Depends(get_db)):
-    # Check for duplicate
-    existing = db.query(models.EmployeeAttendance).filter(
-        models.EmployeeAttendance.employee_id == attendance.employee_id,
-        models.EmployeeAttendance.date == attendance.date
-    ).first()
-    
-    if existing:
-        raise HTTPException(status_code=400, detail="Attendance already recorded for this employee on this date")
-    
-    db_att = models.EmployeeAttendance(**attendance.dict())
-    db.add(db_att)
-    db.commit()
-    db.refresh(db_att)
-    return db_att
 
 # --- Grade Routes ---
 
@@ -1186,3 +1112,13 @@ async def create_tahfidz_exam(exam: schemas.TahfidzExamCreate, db: Session = Dep
     db.commit()
     db.refresh(db_exam)
     return db_exam
+
+@app.post("/auth/change-password")
+async def change_password(request: schemas.ChangePasswordRequest, current_user: models.User = Depends(get_current_active_user), db: Session = Depends(get_db)):
+    if not auth.verify_password(request.old_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Password lama salah")
+        
+    current_user.password_hash = auth.get_password_hash(request.new_password)
+    current_user.must_change_password = False
+    db.commit()
+    return {"message": "Password berhasil diubah"}

@@ -11,6 +11,11 @@ export default defineNuxtRouteMiddleware((to) => {
         if (!authStore.isAuthenticated) {
             return navigateTo('/login')
         }
+        
+        // Force change password check
+        if (authStore.user?.must_change_password && to.path !== '/dashboard/force-change-password') {
+            return navigateTo('/dashboard/force-change-password')
+        }
     }
 
     // Redirect logged in users away from login page
