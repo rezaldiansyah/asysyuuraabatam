@@ -5,7 +5,10 @@
         <h1 class="text-2xl font-bold text-slate-800 dark:text-white">Data Pegawai</h1>
         <p class="text-slate-500 dark:text-slate-400">Kelola data kepegawaian dan riwayat karyawan.</p>
       </div>
-      <Button label="Tambah Pegawai" icon="pi pi-plus" @click="showAddDialog = true" />
+      <div class="flex gap-2">
+        <Button label="Import Data" icon="pi pi-upload" severity="secondary" outlined @click="showImportDialog = true" />
+        <Button label="Tambah Pegawai" icon="pi pi-plus" @click="showAddDialog = true" />
+      </div>
     </div>
 
     <!-- Filter Bar -->
@@ -255,7 +258,58 @@
         <Button label="Selesai" @click="closeSuccessDialog" class="w-full" />
       </template>
     </Dialog>
+    </Dialog>
     
+    <!-- Import Dialog -->
+    <Dialog v-model:visible="showImportDialog" modal header="Import Data Pegawai" :style="{ width: '600px' }">
+      <div class="space-y-4">
+        <Message severity="info" :closable="false">
+          <p class="font-bold">Panduan Import CSV:</p>
+          <ul class="list-disc pl-5 mt-2 space-y-1 text-sm">
+            <li>Download template CSV dan isi data sesuai format header.</li>
+            <li>Kolom <b>Nama Lengkap</b> dan <b>NIK Kepegawaian</b> wajib diisi.</li>
+            <li>Gunakan format tanggal lahir <b>YYYY-MM-DD</b> (Contoh: 1990-01-31).</li>
+            <li>Sistem akan otomatis membuatkan akun dengan password tanggal lahir (atau password123 jika kosong/salah format).</li>
+          </ul>
+        </Message>
+        
+        <div class="flex justify-center mt-4">
+          <Button label="Download Template CSV" icon="pi pi-download" outlined @click="downloadTemplate" />
+        </div>
+        
+        <div class="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-6 text-center mt-4">
+          <input type="file" ref="fileInput" accept=".csv" class="hidden" @change="onFileSelected" />
+          
+          <div v-if="!importFile">
+            <i class="pi pi-file-excel text-4xl text-slate-400 mb-2"></i>
+            <p class="mb-4 text-slate-600 dark:text-slate-400">Pilih file CSV yang sudah diisi</p>
+            <Button label="Pilih File" icon="pi pi-search" @click="$refs.fileInput.click()" />
+          </div>
+          <div v-else class="flex flex-col items-center">
+            <i class="pi pi-file text-4xl text-indigo-500 mb-2"></i>
+            <p class="font-bold text-slate-800 dark:text-white">{{ importFile.name }}</p>
+            <p class="text-xs text-slate-500 mb-4">{{ (importFile.size / 1024).toFixed(2) }} KB</p>
+            <div class="flex gap-2">
+              <Button label="Batal" severity="secondary" outlined @click="importFile = null" :disabled="importing" />
+              <Button label="Mulai Import" icon="pi pi-upload" @click="uploadImportFile" :loading="importing" />
+            </div>
+          </div>
+        </div>
+        
+        <div v-if="importResult" class="mt-4 p-4 rounded-lg" :class="importResult.errors?.length ? 'bg-orange-50 dark:bg-orange-900/20' : 'bg-green-50 dark:bg-green-900/20'">
+          <p class="font-bold mb-2">Hasil Import:</p>
+          <p class="text-sm">Berhasil diimpor: <b>{{ importResult.success_count }}</b> data</p>
+          
+          <div v-if="importResult.errors?.length" class="mt-3">
+            <p class="text-sm font-bold text-orange-700 dark:text-orange-400 mb-1">Daftar Error:</p>
+            <ul class="list-disc pl-5 text-xs text-orange-600 dark:text-orange-300 max-h-32 overflow-y-auto">
+              <li v-for="(err, i) in importResult.errors" :key="i">{{ err }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </Dialog>
+
   </div>
 </template>
 
@@ -280,6 +334,11 @@ const loading = ref(false)
 const showAddDialog = ref(false)
 const showSuccessDialog = ref(false)
 const successInfo = ref(null)
+const showImportDialog = ref(false)
+const importFile = ref<File | null>(null)
+const importing = ref(false)
+const importResult = ref<any>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
 const activeStep = ref(0)
 const saving = ref(false)
 const submitted = ref(false)
@@ -369,6 +428,55 @@ const fetchEmployees = async () => {
     toast.add({ severity: 'error', summary: 'Error', detail: 'Gagal mengambil data pegawai' })
   } finally {
     loading.value = false
+  }
+}
+
+// Import logic
+const downloadTemplate = () => {
+  window.open(`${config.public.apiBase}/sdm/employees/template`, '_blank')
+}
+
+const onFileSelected = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  if (target.files && target.files.length > 0) {
+    const file = target.files[0]
+    if (!file.name.endsWith('.csv')) {
+      toast.add({ severity: 'error', summary: 'Format Salah', detail: 'Harap unggah file CSV.' })
+      return
+    }
+    importFile.value = file
+    importResult.value = null
+  }
+}
+
+const uploadImportFile = async () => {
+  if (!importFile.value) return
+  
+  importing.value = true
+  importResult.value = null
+  
+  const formData = new FormData()
+  formData.append('file', importFile.value)
+  
+  try {
+    const data = await $fetch(`${config.public.apiBase}/sdm/employees/import`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiToken.value}` },
+      body: formData
+    })
+    
+    importResult.value = data
+    if (data.success_count > 0) {
+      toast.add({ severity: 'success', summary: 'Import Selesai', detail: `${data.success_count} data berhasil diimpor` })
+      fetchEmployees() // Refresh table
+    } else {
+      toast.add({ severity: 'warn', summary: 'Import Gagal', detail: 'Tidak ada data yang berhasil diimpor' })
+    }
+  } catch (error: any) {
+    toast.add({ severity: 'error', summary: 'Error', detail: error.data?.detail || 'Gagal mengimpor file' })
+  } finally {
+    importing.value = false
+    if (fileInput.value) fileInput.value.value = ''
   }
 }
 

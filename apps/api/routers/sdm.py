@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import Response
+import csv
+import io
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from typing import List, Optional
@@ -48,6 +51,156 @@ async def get_employees(
         )
         
     return query.all()
+
+@router.get("/employees/template")
+async def get_employee_template():
+    # Return a CSV template for bulk importing
+    csv_header = "Nama Lengkap,NIK KTP,NIK Kepegawaian,Tanggal Lahir (YYYY-MM-DD),No HP,Tempat Lahir,Jenis Kelamin (Laki-laki/Perempuan),Status Pernikahan (Kawin/Belum Kawin),Alamat,Jabatan,Jenis Pegawai (tetap/kontrak/honorer),Unit ID,NIP,NUPTK\n"
+    sample_row = "Fulan Bin Fulan,1234567890123456,YYS-100,1990-01-01,08123456789,Batam,Laki-laki,Kawin,Jl. Merdeka No 1,Guru Tetap,tetap,1,199001012020121001,1234567890123456\n"
+    csv_content = csv_header + sample_row
+    
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=template_pegawai.csv"}
+    )
+
+@router.post("/employees/import")
+async def import_employees(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Hanya format CSV yang diperbolehkan")
+        
+    contents = await file.read()
+    try:
+        decoded = contents.decode('utf-8')
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File CSV harus berupa UTF-8")
+        
+    csv_reader = csv.DictReader(io.StringIO(decoded))
+    
+    # Expected columns mappings
+    # Map CSV columns to field names
+    expected_cols = {
+        "Nama Lengkap": "nama_lengkap",
+        "NIK KTP": "no_ktp",
+        "NIK Kepegawaian": "nik_kepegawaian",
+        "Tanggal Lahir (YYYY-MM-DD)": "tanggal_lahir",
+        "No HP": "no_hp",
+        "Tempat Lahir": "tempat_lahir",
+        "Jenis Kelamin (Laki-laki/Perempuan)": "jenis_kelamin",
+        "Status Pernikahan (Kawin/Belum Kawin)": "status_pernikahan",
+        "Alamat": "alamat",
+        "Jabatan": "position",
+        "Jenis Pegawai (tetap/kontrak/honorer)": "employee_type",
+        "Unit ID": "unit_id",
+        "NIP": "nip",
+        "NUPTK": "nuptk"
+    }
+    
+    if not csv_reader.fieldnames or not all(k in csv_reader.fieldnames for k in expected_cols.keys()):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Format CSV tidak valid. Kolom yang dibutuhkan: {', '.join(expected_cols.keys())}"
+        )
+
+    success_count = 0
+    errors = []
+    
+    for row_idx, row in enumerate(csv_reader, start=1):
+        try:
+            nama_lengkap = row["Nama Lengkap"].strip()
+            nik_ktp = row["NIK KTP"].strip()
+            nik_kepegawaian = row["NIK Kepegawaian"].strip()
+            
+            if not nama_lengkap or not nik_kepegawaian:
+                errors.append(f"Baris {row_idx}: Nama Lengkap dan NIK Kepegawaian wajib diisi")
+                continue
+                
+            # Check duplication
+            if nik_ktp:
+                existing_ktp = db.query(models.Employee).filter(models.Employee.no_ktp == nik_ktp).first()
+                if existing_ktp:
+                    errors.append(f"Baris {row_idx}: NIK KTP {nik_ktp} sudah terdaftar")
+                    continue
+                    
+            existing_nik = db.query(models.Employee).filter(models.Employee.nik_kepegawaian == nik_kepegawaian).first()
+            if existing_nik:
+                errors.append(f"Baris {row_idx}: NIK Kepegawaian {nik_kepegawaian} sudah terdaftar")
+                continue
+                
+            # Parse Date
+            tgl_lahir = None
+            if row["Tanggal Lahir (YYYY-MM-DD)"].strip():
+                try:
+                    tgl_lahir = datetime.strptime(row["Tanggal Lahir (YYYY-MM-DD)"].strip(), "%Y-%m-%d").date()
+                except ValueError:
+                    errors.append(f"Baris {row_idx}: Format tanggal lahir salah, harus YYYY-MM-DD")
+                    continue
+                    
+            # User creation
+            generated_password = "password123"
+            if tgl_lahir:
+                generated_password = tgl_lahir.strftime("%d%m%Y")
+                
+            hashed_password = passlib.hash.bcrypt.hash(generated_password)
+            role_id = 3
+            if row["Jabatan"] and "guru" in row["Jabatan"].lower():
+                role_id = 2
+                
+            user = models.User(
+                nik=nik_kepegawaian,
+                full_name=nama_lengkap,
+                password_hash=hashed_password,
+                must_change_password=True,
+                role_id=role_id
+            )
+            db.add(user)
+            db.flush() # get user.id
+            
+            # Unit ID parsing
+            unit_id = None
+            if row["Unit ID"].strip():
+                try:
+                    unit_id = int(row["Unit ID"].strip())
+                except ValueError:
+                    pass
+            
+            # Employee creation
+            emp = models.Employee(
+                user_id=user.id,
+                nama_lengkap=nama_lengkap,
+                no_ktp=nik_ktp if nik_ktp else None,
+                nik_kepegawaian=nik_kepegawaian,
+                tempat_lahir=row["Tempat Lahir"].strip() if row["Tempat Lahir"] else None,
+                tanggal_lahir=tgl_lahir,
+                jenis_kelamin=row["Jenis Kelamin (Laki-laki/Perempuan)"].strip() if row["Jenis Kelamin (Laki-laki/Perempuan)"] else None,
+                status_pernikahan=row["Status Pernikahan (Kawin/Belum Kawin)"].strip() if row["Status Pernikahan (Kawin/Belum Kawin)"] else None,
+                alamat=row["Alamat"].strip() if row["Alamat"] else None,
+                no_hp=row["No HP"].strip() if row["No HP"] else None,
+                position=row["Jabatan"].strip() if row["Jabatan"] else None,
+                employee_type=row["Jenis Pegawai (tetap/kontrak/honorer)"].strip() if row["Jenis Pegawai (tetap/kontrak/honorer)"] else "tetap",
+                unit_id=unit_id,
+                nip=row["NIP"].strip() if row["NIP"] else None,
+                nuptk=row["NUPTK"].strip() if row["NUPTK"] else None
+            )
+            
+            db.add(emp)
+            success_count += 1
+            
+        except Exception as e:
+            errors.append(f"Baris {row_idx}: {str(e)}")
+            continue
+            
+    if success_count > 0:
+        db.commit()
+    else:
+        db.rollback()
+        
+    return {
+        "success_count": success_count,
+        "errors": errors,
+        "message": f"Berhasil impor {success_count} data." + (f" Terdapat {len(errors)} error." if errors else "")
+    }
 
 @router.get("/employees/{employee_id}", response_model=schemas.Employee)
 async def get_employee(employee_id: int, db: Session = Depends(get_db)):
