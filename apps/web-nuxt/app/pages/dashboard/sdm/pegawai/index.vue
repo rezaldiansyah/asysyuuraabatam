@@ -82,10 +82,15 @@
 
     <!-- Dialog Tambah Pegawai -->
     <Dialog v-model:visible="showAddDialog" modal header="Tambah Pegawai Baru" :style="{ width: '800px' }" class="p-fluid">
-      <Stepper v-model:activeStep="activeStep">
+      <Stepper value="1">
+        <StepList>
+          <Step value="1">Data Personal</Step>
+          <Step value="2">Kepegawaian</Step>
+          <Step value="3">Pendidikan</Step>
+        </StepList>
+        <StepPanels>
         <!-- STEP 1: DATA PERSONAL -->
-        <StepperPanel header="Data Personal">
-          <template #content="{ nextCallback }">
+        <StepPanel v-slot="{ activateCallback }" value="1">
             <div class="grid grid-cols-2 gap-4 my-4">
               <div class="col-span-2 md:col-span-1">
                 <label class="block mb-1 text-sm font-medium">Nama Lengkap *</label>
@@ -125,14 +130,12 @@
               </div>
             </div>
             <div class="flex justify-end mt-4">
-              <Button label="Selanjutnya" icon="pi pi-arrow-right" @click="handleNext(nextCallback, 1)" />
+              <Button label="Selanjutnya" icon="pi pi-arrow-right" @click="handleNext(() => activateCallback('2'), 1)" />
             </div>
-          </template>
-        </StepperPanel>
+        </StepPanel>
 
         <!-- STEP 2: KEPEGAWAIAN -->
-        <StepperPanel header="Kepegawaian">
-          <template #content="{ prevCallback, nextCallback }">
+        <StepPanel v-slot="{ activateCallback }" value="2">
             <div class="grid grid-cols-2 gap-4 my-4">
               <div class="col-span-2 md:col-span-1">
                 <label class="block mb-1 text-sm font-medium">Jabatan Saat Ini *</label>
@@ -187,15 +190,13 @@
               </div>
             </div>
             <div class="flex justify-between mt-4">
-              <Button label="Kembali" severity="secondary" icon="pi pi-arrow-left" @click="prevCallback" />
-              <Button label="Selanjutnya" icon="pi pi-arrow-right" @click="handleNext(nextCallback, 2)" />
+              <Button label="Kembali" severity="secondary" icon="pi pi-arrow-left" @click="activateCallback('1')" />
+              <Button label="Selanjutnya" icon="pi pi-arrow-right" @click="handleNext(() => activateCallback('3'), 2)" />
             </div>
-          </template>
-        </StepperPanel>
+        </StepPanel>
 
         <!-- STEP 3: RIWAYAT PENDIDIKAN -->
-        <StepperPanel header="Pendidikan">
-          <template #content="{ prevCallback }">
+        <StepPanel v-slot="{ activateCallback }" value="3">
             <div class="my-4">
               <p class="text-slate-500 mb-4">Tambahkan riwayat pendidikan (opsional, bisa ditambah nanti).</p>
               
@@ -224,11 +225,11 @@
               <Button label="Tambah Riwayat Pendidikan" icon="pi pi-plus" text @click="addEducation" size="small" />
             </div>
             <div class="flex justify-between mt-4">
-              <Button label="Kembali" severity="secondary" icon="pi pi-arrow-left" @click="prevCallback" />
+              <Button label="Kembali" severity="secondary" icon="pi pi-arrow-left" @click="activateCallback('2')" />
               <Button label="Simpan Pegawai" icon="pi pi-save" @click="submitForm" :loading="saving" />
             </div>
-          </template>
-        </StepperPanel>
+        </StepPanel>
+        </StepPanels>
       </Stepper>
     </Dialog>
     
