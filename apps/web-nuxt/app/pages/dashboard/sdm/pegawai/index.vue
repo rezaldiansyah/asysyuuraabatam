@@ -258,7 +258,6 @@
         <Button label="Selesai" @click="closeSuccessDialog" class="w-full" />
       </template>
     </Dialog>
-    </Dialog>
     
     <!-- Import Dialog -->
     <Dialog v-model:visible="showImportDialog" modal header="Import Data Pegawai" :style="{ width: '600px' }">
