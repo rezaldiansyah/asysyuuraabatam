@@ -73,6 +73,8 @@ export const navigation: MenuItem[] = [
         key: 'internal',
         children: [
             { label: 'Pusat Unduhan', to: '/dashboard/internal/dokumen' },
+            { label: 'Mutabaah Harian', to: '/dashboard/internal/mutabaah' },
+            { label: 'Rekap Mutabaah', to: '/dashboard/internal/mutabaah/rekap' },
         ],
     },
     {

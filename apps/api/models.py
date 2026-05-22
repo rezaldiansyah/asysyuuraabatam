@@ -497,12 +497,15 @@ class PPDBRegistration(Base):
     achievements_data = Column(String, nullable=True) # Array of objects
     other_data = Column(String, nullable=True) # Survey answers, previous school info
     
-    status = Column(String, default="PENDING") # PENDING, REVIEWING, ACCEPTED, REJECTED
+    status = Column(String, default="DRAFT") # DRAFT, PENDING, REVIEWING, ACCEPTED, REJECTED
     parent_user_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Linked Parent Account
     
     # Uploaded Files
     file_kk_url = Column(String, nullable=True)
     file_akta_url = Column(String, nullable=True)
+    file_foto_url = Column(String, nullable=True)
+    
+    last_completed_step = Column(Integer, default=0)  # Track wizard progress (0-8)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -590,3 +593,42 @@ class Document(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     uploader = relationship("User", foreign_keys=[uploaded_by])
+
+
+class DailyMutabaah(Base):
+    __tablename__ = "daily_mutabaah"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    date = Column(DateTime, index=True) # Tanggal mutabaah (YYYY-MM-DD 00:00:00)
+    
+    # JSON string containing daily checklists: {"subuh": true, "tilawah": 20, ...}
+    ibadah_data = Column(String) 
+    tilawah_pages = Column(Integer, default=0)
+    notes = Column(String, nullable=True) # Catatan refleksi diri
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("users.id")) # Siapa yang menginput (user sendiri atau TU)
+    
+    user = relationship("User", foreign_keys=[user_id])
+    creator = relationship("User", foreign_keys=[created_by])
+
+
+class WeeklyMutabaah(Base):
+    __tablename__ = "weekly_mutabaah"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    week_start_date = Column(DateTime, index=True) # Monday of the week
+    
+    # JSON string containing weekly checklists: {"halaqoh": true, "puasa": true, ...}
+    pekanan_data = Column(String) 
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("users.id")) # Siapa yang menginput (user sendiri atau TU)
+    
+    user = relationship("User", foreign_keys=[user_id])
+    creator = relationship("User", foreign_keys=[created_by])
+

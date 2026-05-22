@@ -591,3 +591,45 @@ class TahfidzExam(TahfidzExamBase):
     
     class Config:
         from_attributes = True
+
+
+# --- Mutabaah Schemas ---
+class DailyMutabaahBase(BaseModel):
+    user_id: int
+    date: datetime
+    ibadah_data: dict # Will be converted to/from JSON string in database
+    tilawah_pages: int = 0
+    notes: Optional[str] = None
+
+class DailyMutabaahCreate(DailyMutabaahBase):
+    pass
+
+class DailyMutabaah(DailyMutabaahBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    created_by: int
+    user: Optional[User] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class WeeklyMutabaahBase(BaseModel):
+    user_id: int
+    week_start_date: datetime
+    pekanan_data: dict # Will be converted to/from JSON string in database
+
+class WeeklyMutabaahCreate(WeeklyMutabaahBase):
+    pass
+
+class WeeklyMutabaah(WeeklyMutabaahBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    created_by: int
+    user: Optional[User] = None
+    
+    class Config:
+        from_attributes = True
+
