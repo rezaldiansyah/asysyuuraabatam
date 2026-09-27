@@ -649,6 +649,8 @@ class Document(Base):
     version = Column(String, default="1.0", nullable=True)
     replaces_id = Column(Integer, ForeignKey("documents.id"), nullable=True)
     effective_date = Column(DateTime, nullable=True)
+    target_units = Column(String, default="ALL", nullable=True)  # "ALL" or JSON array e.g. ["YYS","SDIT"]
+    is_confidential = Column(Boolean, default=False, nullable=True)  # True = Pimpinan & TU only
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

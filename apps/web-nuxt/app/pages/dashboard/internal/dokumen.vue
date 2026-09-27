@@ -50,9 +50,18 @@
             <Tag :value="getCategoryLabel(data.category)" :severity="getCategorySeverity(data.category)" />
           </template>
         </Column>
-        <Column header="Akses" style="min-width: 100px">
+        <Column header="Akses" style="min-width: 140px">
           <template #body="{ data }">
-            <Tag :value="data.visibility === 'public' ? 'Publik' : 'Internal'" :severity="data.visibility === 'public' ? 'success' : 'info'" />
+            <div class="space-y-1">
+              <Tag 
+                :value="data.visibility === 'public' ? 'Publik' : formatTargetUnits(data.target_units)" 
+                :severity="data.visibility === 'public' ? 'success' : 'info'" 
+                class="text-xs font-semibold"
+              />
+              <div v-if="data.is_confidential" class="text-[10px] text-red-600 dark:text-red-400 font-bold flex items-center gap-1">
+                <i class="pi pi-lock text-[9px]"></i> Pimpinan & TU
+              </div>
+            </div>
           </template>
         </Column>
         <Column header="Diupload" style="min-width: 150px">
@@ -101,14 +110,74 @@
           <label class="font-medium">Deskripsi (opsional)</label>
           <Textarea v-model="form.description" rows="2" placeholder="Keterangan singkat tentang dokumen ini..." />
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="flex flex-col gap-2">
-            <label class="font-medium">Kategori *</label>
-            <Select v-model="form.category" :options="categoryOptions" optionLabel="label" optionValue="value" placeholder="Pilih kategori" />
+        <div class="flex flex-col gap-2">
+          <label class="font-medium">Kategori *</label>
+          <Select v-model="form.category" :options="categoryOptions" optionLabel="label" optionValue="value" placeholder="Pilih kategori" class="w-full" />
+        </div>
+
+        <!-- 2-Level Visibility & Target Unit Controls -->
+        <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 space-y-3">
+          <label class="font-bold text-sm text-slate-800 dark:text-white block">Tingkat Akses & Visibilitas Dokumen *</label>
+          
+          <!-- Radio Pilihan Utama: Publik vs Internal -->
+          <div class="grid grid-cols-2 gap-3">
+            <div 
+              @click="form.visibility = 'public'"
+              class="p-3 rounded-lg border cursor-pointer transition-all flex items-center gap-2"
+              :class="form.visibility === 'public' ? 'border-green-500 bg-green-50 dark:bg-green-950/20 ring-1 ring-green-500 text-green-700 dark:text-green-300 font-medium' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-600 dark:text-slate-300'"
+            >
+              <i class="pi pi-globe text-base text-green-500"></i>
+              <div>
+                <div class="text-xs font-bold">Publik (Terbuka)</div>
+                <div class="text-[10px] opacity-75">Bisa diakses publik & ortu</div>
+              </div>
+            </div>
+
+            <div 
+              @click="form.visibility = 'internal'"
+              class="p-3 rounded-lg border cursor-pointer transition-all flex items-center gap-2"
+              :class="form.visibility === 'internal' ? 'border-primary bg-primary/5 ring-1 ring-primary text-primary font-medium' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-600 dark:text-slate-300'"
+            >
+              <i class="pi pi-shield text-base text-primary"></i>
+              <div>
+                <div class="text-xs font-bold">Internal Yayasan</div>
+                <div class="text-[10px] opacity-75">Hanya staf & guru login</div>
+              </div>
+            </div>
           </div>
-          <div class="flex flex-col gap-2">
-            <label class="font-medium">Visibilitas</label>
-            <Select v-model="form.visibility" :options="visibilityOptions" optionLabel="label" optionValue="value" />
+
+          <!-- Opsi Tambahan jika Internal -->
+          <div v-if="form.visibility === 'internal'" class="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-3">
+            <div>
+              <div class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Cakupan Unit Target:</div>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                <div class="flex items-center gap-2">
+                  <Checkbox v-model="allUnitsSelected" :binary="true" inputId="unit-all" @change="toggleAllUnits" />
+                  <label for="unit-all" class="cursor-pointer font-medium">Semua Unit (Global)</label>
+                </div>
+                <div v-for="u in unitCheckboxOptions" :key="u.code" class="flex items-center gap-2">
+                  <Checkbox v-model="selectedUnits" :value="u.code" :inputId="'unit-' + u.code" :disabled="allUnitsSelected" />
+                  <label :for="'unit-' + u.code" class="cursor-pointer text-slate-600 dark:text-slate-300" :class="{ 'opacity-50': allUnitsSelected }">
+                    {{ u.name }}
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Batasan Kerahasiaan (Konfidensial) -->
+            <div class="pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+              <div class="flex items-start gap-2">
+                <Checkbox v-model="form.is_confidential" :binary="true" inputId="confidential-check" />
+                <label for="confidential-check" class="cursor-pointer">
+                  <div class="text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-1">
+                    <i class="pi pi-lock text-[10px]"></i> Dokumen Rahasia (Hanya Pimpinan & TU)
+                  </div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">
+                    Guru dan staf biasa di unit terkait tidak akan dapat melihat atau mengunduh dokumen ini.
+                  </div>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -285,6 +354,34 @@ const visibilityOptions = [
 const fileSourceMode = ref<'upload' | 'gdrive'>('upload')
 const gdriveInputUrl = ref('')
 
+const allUnitsSelected = ref(true)
+const selectedUnits = ref<string[]>(['YYS', 'RA', 'SDIT', 'SMPIT'])
+
+const unitCheckboxOptions = [
+  { code: 'YYS', name: 'Yayasan (Pusat)' },
+  { code: 'RA', name: 'RA Asy-Syuuraa' },
+  { code: 'SDIT', name: 'SDIT Asy-Syuuraa' },
+  { code: 'SMPIT', name: 'SMPIT Asy-Syuuraa' },
+]
+
+function toggleAllUnits() {
+  if (allUnitsSelected.value) {
+    selectedUnits.value = ['YYS', 'RA', 'SDIT', 'SMPIT']
+  } else {
+    selectedUnits.value = []
+  }
+}
+
+function formatTargetUnits(val?: string): string {
+  if (!val || val === 'ALL') return 'Semua Unit'
+  try {
+    const parsed = val.startsWith('[') ? JSON.parse(val) : [val]
+    return parsed.join(', ')
+  } catch (e) {
+    return val
+  }
+}
+
 function isGdriveLink(url?: string): boolean {
   if (!url) return false
   return url.includes('drive.google.com') || url.includes('docs.google.com')
@@ -317,6 +414,8 @@ const form = reactive({
   version: '1.0',
   replaces_id: null as number | null,
   effective_date: '',
+  target_units: 'ALL',
+  is_confidential: false,
 })
 
 function resetForm() {
@@ -330,6 +429,10 @@ function resetForm() {
   form.version = '1.0'
   form.replaces_id = null
   form.effective_date = ''
+  form.target_units = 'ALL'
+  form.is_confidential = false
+  allUnitsSelected.value = true
+  selectedUnits.value = ['YYS', 'RA', 'SDIT', 'SMPIT']
   fileSourceMode.value = 'upload'
   gdriveInputUrl.value = ''
   uploadProgress.value = 0
@@ -342,14 +445,29 @@ function openDialog(doc?: any) {
       title: doc.title,
       description: doc.description || '',
       category: doc.category,
-      visibility: doc.visibility,
+      visibility: doc.visibility || 'internal',
       file_url: doc.file_url,
       file_name: doc.file_name,
       file_size: doc.file_size,
       version: doc.version || '1.0',
       replaces_id: doc.replaces_id || null,
       effective_date: doc.effective_date ? doc.effective_date.substring(0, 10) : '',
+      target_units: doc.target_units || 'ALL',
+      is_confidential: !!doc.is_confidential,
     })
+
+    if (!doc.target_units || doc.target_units === 'ALL') {
+      allUnitsSelected.value = true
+      selectedUnits.value = ['YYS', 'RA', 'SDIT', 'SMPIT']
+    } else {
+      allUnitsSelected.value = false
+      try {
+        selectedUnits.value = doc.target_units.startsWith('[') ? JSON.parse(doc.target_units) : [doc.target_units]
+      } catch (e) {
+        selectedUnits.value = [doc.target_units]
+      }
+    }
+
     if (isGdriveLink(doc.file_url)) {
       fileSourceMode.value = 'gdrive'
       gdriveInputUrl.value = doc.file_url
@@ -443,11 +561,23 @@ function clearFile() {
 async function saveDocument() {
   saving.value = true
   try {
+    const payload = { ...form }
+    if (payload.visibility === 'public') {
+      payload.target_units = 'ALL'
+      payload.is_confidential = false
+    } else {
+      if (allUnitsSelected.value || selectedUnits.value.length === 4 || selectedUnits.value.length === 0) {
+        payload.target_units = 'ALL'
+      } else {
+        payload.target_units = JSON.stringify(selectedUnits.value)
+      }
+    }
+
     if (editingDoc.value) {
-      await api.put(`/internal/documents/${editingDoc.value.id}`, { ...form })
+      await api.put(`/internal/documents/${editingDoc.value.id}`, payload)
       toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Dokumen berhasil diperbarui', life: 3000 })
     } else {
-      await api.post('/internal/documents', { ...form })
+      await api.post('/internal/documents', payload)
       toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Dokumen berhasil ditambahkan', life: 3000 })
     }
     dialogVisible.value = false

@@ -26,6 +26,8 @@ async def get_document_categories():
     """Get available document categories."""
     return DOCUMENT_CATEGORIES
 
+import json
+
 @router.get("/documents")
 async def get_documents(
     category: Optional[str] = None,
@@ -34,7 +36,7 @@ async def get_documents(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all documents (authenticated users only)."""
+    """Get all documents (authenticated users only) with role & unit visibility filtering."""
     query = db.query(models.Document).filter(models.Document.is_active == True)
     
     if category:
@@ -46,8 +48,34 @@ async def get_documents(
     
     docs = query.options(joinedload(models.Document.uploader)).order_by(models.Document.created_at.desc()).all()
     
+    user_role = current_user.role.code if current_user.role else "guest"
+    is_pimpinan_or_tu = user_role in ["superadmin", "kabid_umum", "kabid_keuangan", "tu_yayasan", "kepala_unit", "wakil_kepala", "tu_unit"]
+    
+    # User's assigned units (e.g. RA, SDIT, SMPIT, YYS)
+    user_units = set()
+    if hasattr(current_user, 'unit_assignments') and current_user.unit_assignments:
+        for ua in current_user.unit_assignments:
+            if ua.unit and ua.unit.code:
+                user_units.add(ua.unit.code.upper())
+    
     result = []
     for doc in docs:
+        # Visibility Check
+        if not is_pimpinan_or_tu:
+            # 1. Dokumen konfidensial hanya bisa dilihat pimpinan & TU
+            if doc.is_confidential:
+                continue
+            
+            # 2. Cek filter target unit jika tidak "ALL" dan bukan dokumen publik
+            if doc.visibility != "public" and doc.target_units and doc.target_units != "ALL":
+                try:
+                    targets = json.loads(doc.target_units) if doc.target_units.startswith("[") else [doc.target_units]
+                    targets_upper = [t.upper() for t in targets]
+                    if "ALL" not in targets_upper and user_units and not any(u in targets_upper for u in user_units):
+                        continue
+                except Exception:
+                    pass
+
         result.append({
             "id": doc.id,
             "title": doc.title,
@@ -62,6 +90,8 @@ async def get_documents(
             "version": doc.version or "1.0",
             "replaces_id": doc.replaces_id,
             "effective_date": doc.effective_date.isoformat() if doc.effective_date else None,
+            "target_units": doc.target_units or "ALL",
+            "is_confidential": bool(doc.is_confidential),
             "is_active": doc.is_active,
             "created_at": doc.created_at.isoformat() if doc.created_at else None,
             "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
@@ -82,13 +112,20 @@ def _parse_doc_date(val):
         except Exception:
             return None
 
+def _format_target_units(val):
+    if not val or val == "ALL":
+        return "ALL"
+    if isinstance(val, list):
+        return json.dumps(val)
+    return str(val)
+
 @router.post("/documents")
 async def create_document(
     data: dict,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new document entry."""
+    """Create a new document entry with target units and confidentiality."""
     doc = models.Document(
         title=data.get("title"),
         description=data.get("description"),
@@ -100,6 +137,8 @@ async def create_document(
         version=data.get("version", "1.0") or "1.0",
         replaces_id=data.get("replaces_id"),
         effective_date=_parse_doc_date(data.get("effective_date")),
+        target_units=_format_target_units(data.get("target_units")),
+        is_confidential=bool(data.get("is_confidential", False)),
         uploaded_by=current_user.id,
     )
     db.add(doc)
@@ -125,6 +164,12 @@ async def update_document(
     
     if "effective_date" in data:
         doc.effective_date = _parse_doc_date(data["effective_date"])
+
+    if "target_units" in data:
+        doc.target_units = _format_target_units(data["target_units"])
+
+    if "is_confidential" in data:
+        doc.is_confidential = bool(data["is_confidential"])
     
     doc.updated_at = datetime.utcnow()
     db.commit()
