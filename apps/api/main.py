@@ -44,9 +44,10 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.include_router(ppdb.router)
 app.include_router(marketing.router)
 
-from routers import internal, sdm
+from routers import internal, sdm, schedule_import
 app.include_router(internal.router)
 app.include_router(sdm.router)
+app.include_router(schedule_import.router)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
@@ -757,6 +758,56 @@ async def upload_file(file: UploadFile = File(...), current_user: models.User = 
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+@app.post("/cms/upload/batch")
+async def upload_files_batch(files: List[UploadFile] = File(...), current_user: models.User = Depends(get_current_user)):
+    try:
+        from storage import upload_to_r2, is_r2_configured
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        if len(files) > 10:
+            raise HTTPException(status_code=400, detail="Maksimal 10 file dalam satu request.")
+
+        urls = []
+        r2_configured = is_r2_configured()
+        max_size = 10 * 1024 * 1024  # 10MB
+        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+
+        for file in files:
+            file_bytes = await file.read()
+            if len(file_bytes) > max_size:
+                raise HTTPException(status_code=413, detail=f"File {file.filename} terlalu besar. Maksimal 10MB.")
+            
+            if not file.filename:
+                raise HTTPException(status_code=400, detail="Nama file tidak valid")
+            
+            logger.info(f"Batch upload request: filename={file.filename}, size={len(file_bytes)}, r2_configured={r2_configured}")
+            
+            if r2_configured:
+                # Upload to Cloudflare R2
+                url = upload_to_r2(file_bytes, file.filename, folder="uploads")
+                logger.info(f"Batch upload to R2 successful: {url}")
+                urls.append(url)
+            else:
+                # Fallback: save locally
+                logger.warning("R2 not configured, falling back to local storage.")
+                file_extension = os.path.splitext(file.filename)[1]
+                unique_filename = f"{uuid.uuid4()}{file_extension}"
+                file_path = os.path.join(UPLOAD_DIR, unique_filename)
+                
+                with open(file_path, "wb") as buffer:
+                    buffer.write(file_bytes)
+                    
+                urls.append(f"{base_url.rstrip('/')}/uploads/{unique_filename}")
+                
+        return {"urls": urls}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Batch upload failed: {str(e)}")
 
 # --- Academic Calendar Routes ---
 

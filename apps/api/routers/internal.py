@@ -59,12 +59,28 @@ async def get_documents(
             "visibility": doc.visibility,
             "uploaded_by": doc.uploaded_by,
             "uploader_name": doc.uploader.full_name if doc.uploader else None,
+            "version": doc.version or "1.0",
+            "replaces_id": doc.replaces_id,
+            "effective_date": doc.effective_date.isoformat() if doc.effective_date else None,
             "is_active": doc.is_active,
             "created_at": doc.created_at.isoformat() if doc.created_at else None,
             "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
         })
     
     return result
+
+def _parse_doc_date(val):
+    if not val:
+        return None
+    if isinstance(val, datetime):
+        return val
+    try:
+        return datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+    except Exception:
+        try:
+            return datetime.strptime(str(val)[:10], "%Y-%m-%d")
+        except Exception:
+            return None
 
 @router.post("/documents")
 async def create_document(
@@ -81,6 +97,9 @@ async def create_document(
         file_name=data.get("file_name"),
         file_size=data.get("file_size"),
         visibility=data.get("visibility", "internal"),
+        version=data.get("version", "1.0") or "1.0",
+        replaces_id=data.get("replaces_id"),
+        effective_date=_parse_doc_date(data.get("effective_date")),
         uploaded_by=current_user.id,
     )
     db.add(doc)
@@ -100,14 +119,70 @@ async def update_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    for field in ["title", "description", "category", "file_url", "file_name", "file_size", "visibility"]:
+    for field in ["title", "description", "category", "file_url", "file_name", "file_size", "visibility", "version", "replaces_id"]:
         if field in data:
             setattr(doc, field, data[field])
+    
+    if "effective_date" in data:
+        doc.effective_date = _parse_doc_date(data["effective_date"])
     
     doc.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(doc)
     return {"id": doc.id, "message": "Document updated successfully"}
+
+@router.get("/documents/{doc_id}/history")
+async def get_document_history(
+    doc_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get revision history of a document."""
+    doc = db.query(models.Document).filter(models.Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Trace back to root
+    root = doc
+    visited = {root.id}
+    while root.replaces_id and root.replaces_id not in visited:
+        parent = db.query(models.Document).filter(models.Document.id == root.replaces_id).first()
+        if not parent:
+            break
+        root = parent
+        visited.add(root.id)
+    
+    # Collect all documents in revision chain
+    history = []
+    to_visit = [root]
+    seen = {root.id}
+    while to_visit:
+        curr = to_visit.pop(0)
+        history.append(curr)
+        children = db.query(models.Document).filter(models.Document.replaces_id == curr.id).all()
+        for child in children:
+            if child.id not in seen:
+                seen.add(child.id)
+                to_visit.append(child)
+                
+    history.sort(key=lambda d: d.created_at or datetime.min)
+    
+    return [
+        {
+            "id": d.id,
+            "title": d.title,
+            "version": d.version or "1.0",
+            "file_url": d.file_url,
+            "file_name": d.file_name,
+            "file_size": d.file_size,
+            "effective_date": d.effective_date.isoformat() if d.effective_date else None,
+            "is_current": d.id == doc_id,
+            "is_active": d.is_active,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+            "uploader_name": d.uploader.full_name if d.uploader else None,
+        }
+        for d in history
+    ]
 
 @router.delete("/documents/{doc_id}")
 async def delete_document(
@@ -123,6 +198,7 @@ async def delete_document(
     doc.is_active = False
     db.commit()
     return {"message": "Document deleted successfully"}
+
 
 
 # ============================================================

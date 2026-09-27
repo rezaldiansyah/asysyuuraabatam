@@ -21,9 +21,16 @@
           <div class="space-y-4">
             <div class="flex justify-between items-center">
               <h3 class="text-lg font-medium">Jadwal Aktif</h3>
-              <Button severity="success" size="small" @click="showScheduleDialog = true">
-                <i class="pi pi-plus mr-2"></i>Tambah Jadwal
-              </Button>
+              <div class="flex items-center gap-2">
+                <NuxtLink to="/dashboard/jadwal/upload">
+                  <Button severity="secondary" size="small" outlined>
+                    <i class="pi pi-file-excel mr-2 text-green-600"></i>Import dari Excel
+                  </Button>
+                </NuxtLink>
+                <Button severity="success" size="small" @click="showScheduleDialog = true">
+                  <i class="pi pi-plus mr-2"></i>Tambah Jadwal
+                </Button>
+              </div>
             </div>
 
             <DataTable :value="schedules" :loading="loadingSchedules" stripedRows class="p-datatable-sm">

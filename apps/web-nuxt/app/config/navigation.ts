@@ -83,6 +83,7 @@ export const navigation: MenuItem[] = [
         key: 'ppdb',
         children: [
             { label: 'Data Pendaftar', to: '/dashboard/ppdb/pendaftar' },
+            { label: 'Setup Landing Page', to: '/dashboard/ppdb/pengaturan-lp' },
             { label: 'Pengaturan PPDB', to: '/dashboard/ppdb/pengaturan' },
         ],
     },

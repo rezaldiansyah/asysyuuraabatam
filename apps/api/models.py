@@ -646,11 +646,15 @@ class Document(Base):
     file_size = Column(Integer, nullable=True)  # Size in bytes
     visibility = Column(String, default="internal")  # internal, public
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    version = Column(String, default="1.0", nullable=True)
+    replaces_id = Column(Integer, ForeignKey("documents.id"), nullable=True)
+    effective_date = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     uploader = relationship("User", foreign_keys=[uploaded_by])
+    replaces = relationship("Document", remote_side=[id], backref="revisions", foreign_keys=[replaces_id])
 
 
 class DailyMutabaah(Base):

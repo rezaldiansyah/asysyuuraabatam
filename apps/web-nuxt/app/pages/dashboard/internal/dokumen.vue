@@ -29,9 +29,15 @@
                 <i :class="getCategoryIcon(data.category)" class="text-lg"></i>
               </div>
               <div>
-                <p class="font-semibold text-slate-800 dark:text-white">{{ data.title }}</p>
+                <div class="flex items-center gap-2">
+                  <p class="font-semibold text-slate-800 dark:text-white">{{ data.title }}</p>
+                  <Tag :value="'v' + (data.version || '1.0')" severity="secondary" class="text-[10px] px-1.5 py-0.5" />
+                </div>
                 <p v-if="data.description" class="text-xs text-slate-400 mt-0.5 line-clamp-1">{{ data.description }}</p>
-                <p class="text-xs text-slate-400 mt-0.5">{{ data.file_name }} · {{ formatSize(data.file_size) }}</p>
+                <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+                  <span>{{ data.file_name }} · {{ formatSize(data.file_size) }}</span>
+                  <span v-if="data.effective_date" class="text-primary font-medium">· Berlaku: {{ formatDate(data.effective_date) }}</span>
+                </div>
               </div>
             </div>
           </template>
@@ -54,12 +60,15 @@
             </div>
           </template>
         </Column>
-        <Column header="Aksi" style="min-width: 150px">
+        <Column header="Aksi" style="min-width: 180px">
           <template #body="{ data }">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1">
               <a :href="data.file_url" target="_blank" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition" title="Download">
                 <i class="pi pi-download"></i>
               </a>
+              <button @click="openHistoryDialog(data)" class="p-2 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition" title="Riwayat Versi">
+                <i class="pi pi-history"></i>
+              </button>
               <button @click="openDialog(data)" class="p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition" title="Edit">
                 <i class="pi pi-pencil"></i>
               </button>
@@ -100,6 +109,23 @@
           </div>
         </div>
 
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="flex flex-col gap-2">
+            <label class="font-medium">Versi Dokumen</label>
+            <InputText v-model="form.version" placeholder="Contoh: 1.0 atau 2026.1" />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="font-medium">Tanggal Berlaku (opsional)</label>
+            <InputText v-model="form.effective_date" type="date" class="w-full" />
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2" v-if="!editingDoc && documents.length > 0">
+          <label class="font-medium">Revisi dari Dokumen Sebelumnya (opsional)</label>
+          <Select v-model="form.replaces_id" :options="replacesOptions" optionLabel="title" optionValue="id" placeholder="Pilih jika merupakan revisi/update dokumen lama" showClear class="w-full" />
+          <p class="text-xs text-slate-400">Pilih dokumen lama jika upload ini adalah revisi atau versi baru.</p>
+        </div>
+
         <!-- File Upload -->
         <div class="flex flex-col gap-2">
           <label class="font-medium">File Dokumen *</label>
@@ -131,6 +157,37 @@
         <Button :label="editingDoc ? 'Simpan' : 'Upload'" icon="pi pi-save" :loading="saving" @click="saveDocument" :disabled="!form.title || !form.file_url || !form.category" />
       </template>
     </Dialog>
+
+    <!-- History Dialog -->
+    <Dialog v-model:visible="historyDialogVisible" header="Riwayat Versi Dokumen" modal class="w-full max-w-lg">
+      <div v-if="loadingHistory" class="text-center py-6 text-slate-400">
+        <i class="pi pi-spin pi-spinner text-2xl mb-2"></i>
+        <p>Memuat riwayat versi...</p>
+      </div>
+      <div v-else-if="documentHistory.length === 0" class="text-center py-6 text-slate-400">
+        Belum ada riwayat versi untuk dokumen ini.
+      </div>
+      <div v-else class="space-y-3 py-2 max-h-96 overflow-y-auto">
+        <div v-for="item in documentHistory" :key="item.id" class="p-3 rounded-lg border flex items-center justify-between"
+          :class="item.is_current ? 'border-primary bg-primary/5 dark:bg-primary/10' : 'border-slate-200 dark:border-slate-700'">
+          <div class="flex-1 pr-3">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-sm text-slate-800 dark:text-white">{{ item.title }}</span>
+              <Tag :value="'v' + item.version" :severity="item.is_current ? 'success' : 'secondary'" class="text-xs" />
+              <span v-if="item.is_current" class="text-[10px] text-primary font-semibold">(Versi Ini)</span>
+            </div>
+            <div class="text-xs text-slate-400 mt-1 flex flex-wrap gap-2">
+              <span v-if="item.effective_date">Berlaku: {{ formatDate(item.effective_date) }}</span>
+              <span>Diupload: {{ formatDate(item.created_at) }}</span>
+              <span v-if="item.uploader_name">Oleh: {{ item.uploader_name }}</span>
+            </div>
+          </div>
+          <a :href="item.file_url" target="_blank" class="p-2 text-primary hover:bg-primary/10 rounded-lg flex-shrink-0" title="Unduh Versi Ini">
+            <i class="pi pi-download"></i>
+          </a>
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>
 
@@ -145,6 +202,9 @@ const toast = useToast()
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
+const historyDialogVisible = ref(false)
+const documentHistory = ref<any[]>([])
+const loadingHistory = ref(false)
 const editingDoc = ref<any>(null)
 const documents = ref<any[]>([])
 const searchQuery = ref('')
@@ -152,6 +212,13 @@ const filterCategory = ref('')
 const filterVisibility = ref('')
 const uploadProgress = ref(0)
 const fileInputRef = ref<HTMLInputElement>()
+
+const replacesOptions = computed(() => {
+  return documents.value.map(d => ({
+    id: d.id,
+    title: `${d.title} (v${d.version || '1.0'})`
+  }))
+})
 
 const categoryOptions = [
   { value: 'sk_yayasan', label: 'SK Yayasan' },
@@ -177,6 +244,9 @@ const form = reactive({
   file_url: '',
   file_name: '',
   file_size: 0,
+  version: '1.0',
+  replaces_id: null as number | null,
+  effective_date: '',
 })
 
 function resetForm() {
@@ -187,6 +257,9 @@ function resetForm() {
   form.file_url = ''
   form.file_name = ''
   form.file_size = 0
+  form.version = '1.0'
+  form.replaces_id = null
+  form.effective_date = ''
   uploadProgress.value = 0
 }
 
@@ -201,12 +274,28 @@ function openDialog(doc?: any) {
       file_url: doc.file_url,
       file_name: doc.file_name,
       file_size: doc.file_size,
+      version: doc.version || '1.0',
+      replaces_id: doc.replaces_id || null,
+      effective_date: doc.effective_date ? doc.effective_date.substring(0, 10) : '',
     })
   } else {
     editingDoc.value = null
     resetForm()
   }
   dialogVisible.value = true
+}
+
+async function openHistoryDialog(doc: any) {
+  historyDialogVisible.value = true
+  loadingHistory.value = true
+  try {
+    documentHistory.value = await api.get<any[]>(`/internal/documents/${doc.id}/history`)
+  } catch (e) {
+    console.error('Failed to fetch document history', e)
+    documentHistory.value = []
+  } finally {
+    loadingHistory.value = false
+  }
 }
 
 async function fetchDocuments() {
