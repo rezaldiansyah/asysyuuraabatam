@@ -44,10 +44,11 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.include_router(ppdb.router)
 app.include_router(marketing.router)
 
-from routers import internal, sdm, schedule_import
+from routers import internal, sdm, schedule_import, meeting
 app.include_router(internal.router)
 app.include_router(sdm.router)
 app.include_router(schedule_import.router)
+app.include_router(meeting.router)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 

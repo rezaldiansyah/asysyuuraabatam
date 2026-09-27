@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, DateTime, Enum
+from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, DateTime, Enum, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -696,4 +696,69 @@ class WeeklyMutabaah(Base):
     
     user = relationship("User", foreign_keys=[user_id])
     creator = relationship("User", foreign_keys=[created_by])
+
+
+class MeetingMinutes(Base):
+    __tablename__ = "meeting_minutes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    nomor_notulen = Column(String, nullable=True, index=True)  # e.g. "NOT/YYS/2026/09/001"
+    title = Column(String, nullable=False, index=True)
+    meeting_date = Column(DateTime, nullable=False, index=True)
+    start_time = Column(String, nullable=True)  # "08:30"
+    end_time = Column(String, nullable=True)    # "11:45"
+    location = Column(String, nullable=True)    # "Ruang Rapat Utama Yayasan" / "Zoom Meeting"
+    
+    # Scope: 'unit' (spesifik 1 unit) atau 'yayasan_global' (lintas/seluruh unit)
+    scope = Column(String, default="unit", nullable=False)
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=True)
+    
+    # meeting_type: rapat_yayasan, rapat_unit, rapat_guru, rapat_koordinasi, lainnya
+    meeting_type = Column(String, default="rapat_unit", nullable=False)
+    
+    agenda = Column(Text, nullable=True)        # JSON list string e.g. ["Pembahasan RAPBS", "Evaluasi KBM"]
+    content = Column(Text, nullable=True)       # HTML / Markdown rich text notulensi
+    decisions = Column(Text, nullable=True)     # JSON list string e.g. ["Disepakati penambahan jam KBM"]
+    attendees = Column(Text, nullable=True)     # JSON list of user_ids e.g. [1, 2, 5]
+    absent_members = Column(Text, nullable=True)# JSON list of user_ids e.g. [8, 9]
+    attachment_urls = Column(Text, nullable=True) # JSON list of URLs e.g. ["https://...", "https://drive..."]
+    
+    notulis_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # Approval fields
+    # Status: 'draft', 'submitted', 'approved', 'rejected', 'archived'
+    status = Column(String, default="draft", nullable=False, index=True)
+    approver_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    approval_notes = Column(Text, nullable=True)  # Catatan perbaikan dari approver jika direvisi/ditolak
+    
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    unit = relationship("Unit", foreign_keys=[unit_id])
+    notulis = relationship("User", foreign_keys=[notulis_id])
+    approver = relationship("User", foreign_keys=[approver_id])
+    action_items = relationship("MeetingActionItem", back_populates="meeting", cascade="all, delete-orphan")
+
+
+class MeetingActionItem(Base):
+    __tablename__ = "meeting_action_items"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    meeting_id = Column(Integer, ForeignKey("meeting_minutes.id"), nullable=False, index=True)
+    task_description = Column(String, nullable=False)
+    pic_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    deadline = Column(DateTime, nullable=True)
+    
+    # Status: 'pending', 'in_progress', 'done'
+    status = Column(String, default="pending", nullable=False, index=True)
+    completion_date = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    meeting = relationship("MeetingMinutes", back_populates="action_items")
+    pic = relationship("User", foreign_keys=[pic_user_id])
 

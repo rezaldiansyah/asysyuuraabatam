@@ -24,10 +24,12 @@ def seed_data():
         # 2. Seed Roles
         roles_data = [
             {"code": "superadmin", "name": "Superadmin", "scope": "sistem", "priority": 1},
-            {"code": "kabid_umum", "name": "Kepala Bidang Umum", "scope": "yayasan", "priority": 2},
-            {"code": "kabid_keuangan", "name": "Kepala Bidang Keuangan", "scope": "yayasan", "priority": 2},
-            {"code": "tu_yayasan", "name": "Tata Usaha Yayasan", "scope": "yayasan", "priority": 3},
-            {"code": "staf_keuangan", "name": "Staf Keuangan", "scope": "yayasan", "priority": 3},
+            {"code": "ketua_yayasan", "name": "Ketua Yayasan", "scope": "yayasan", "priority": 2},
+            {"code": "wakil_ketua_yayasan", "name": "Wakil Ketua Yayasan", "scope": "yayasan", "priority": 3},
+            {"code": "kabid_umum", "name": "Kepala Bidang Umum", "scope": "yayasan", "priority": 4},
+            {"code": "kabid_keuangan", "name": "Kepala Bidang Keuangan", "scope": "yayasan", "priority": 4},
+            {"code": "tu_yayasan", "name": "Tata Usaha Yayasan", "scope": "yayasan", "priority": 5},
+            {"code": "staf_keuangan", "name": "Staf Keuangan", "scope": "yayasan", "priority": 5},
             {"code": "kepala_unit", "name": "Kepala Unit", "scope": "unit", "priority": 4},
             {"code": "wakil_kepala", "name": "Wakil Kepala Unit", "scope": "unit", "priority": 5},
             {"code": "tu_unit", "name": "Tata Usaha Unit", "scope": "unit", "priority": 6},
