@@ -35,7 +35,10 @@
                 </div>
                 <p v-if="data.description" class="text-xs text-slate-400 mt-0.5 line-clamp-1">{{ data.description }}</p>
                 <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-                  <span>{{ data.file_name }} · {{ formatSize(data.file_size) }}</span>
+                  <span v-if="isGdriveLink(data.file_url)" class="text-blue-600 dark:text-blue-400 font-semibold inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded">
+                    <i class="pi pi-external-link text-[10px]"></i> Google Drive
+                  </span>
+                  <span v-else>{{ data.file_name }} · {{ formatSize(data.file_size) }}</span>
                   <span v-if="data.effective_date" class="text-primary font-medium">· Berlaku: {{ formatDate(data.effective_date) }}</span>
                 </div>
               </div>
@@ -126,25 +129,68 @@
           <p class="text-xs text-slate-400">Pilih dokumen lama jika upload ini adalah revisi atau versi baru.</p>
         </div>
 
-        <!-- File Upload -->
+        <!-- File Source Switcher: Upload Berkas vs Link Google Drive -->
         <div class="flex flex-col gap-2">
-          <label class="font-medium">File Dokumen *</label>
-          <div v-if="form.file_url" class="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-            <i class="pi pi-file text-green-500 text-xl"></i>
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-green-700 dark:text-green-400 truncate">{{ form.file_name }}</p>
-              <p class="text-xs text-green-500">{{ formatSize(form.file_size) }}</p>
+          <div class="flex items-center justify-between">
+            <label class="font-medium text-sm">Sumber Dokumen *</label>
+            <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs">
+              <button
+                type="button"
+                @click="fileSourceMode = 'upload'"
+                class="px-2.5 py-1 rounded-md transition font-medium"
+                :class="fileSourceMode === 'upload' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+              >
+                <i class="pi pi-upload mr-1"></i> Upload File
+              </button>
+              <button
+                type="button"
+                @click="fileSourceMode = 'gdrive'"
+                class="px-2.5 py-1 rounded-md transition font-medium"
+                :class="fileSourceMode === 'gdrive' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+              >
+                <i class="pi pi-external-link mr-1"></i> Link GDrive
+              </button>
             </div>
-            <button @click="clearFile" class="text-red-500 hover:text-red-700 p-1">
-              <i class="pi pi-times"></i>
-            </button>
           </div>
-          <div v-else class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-6 text-center hover:border-primary transition cursor-pointer" @click="triggerFileInput" @drop.prevent="handleDrop" @dragover.prevent>
-            <i class="pi pi-cloud-upload text-3xl text-slate-400 mb-2"></i>
-            <p class="text-sm text-slate-500">Klik untuk upload atau drag & drop</p>
-            <p class="text-xs text-slate-400 mt-1">PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, ZIP (maks 10MB)</p>
+
+          <!-- Mode 1: Upload File Fisik -->
+          <div v-if="fileSourceMode === 'upload'">
+            <div v-if="form.file_url && !isGdriveLink(form.file_url)" class="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+              <i class="pi pi-file text-green-500 text-xl"></i>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-green-700 dark:text-green-400 truncate">{{ form.file_name }}</p>
+                <p class="text-xs text-green-500">{{ formatSize(form.file_size) }}</p>
+              </div>
+              <button @click="clearFile" class="text-red-500 hover:text-red-700 p-1">
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
+            <div v-else class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-6 text-center hover:border-primary transition cursor-pointer" @click="triggerFileInput" @drop.prevent="handleDrop" @dragover.prevent>
+              <i class="pi pi-cloud-upload text-3xl text-slate-400 mb-2"></i>
+              <p class="text-sm text-slate-500">Klik untuk upload atau drag & drop</p>
+              <p class="text-xs text-slate-400 mt-1">PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, ZIP (maks 10MB)</p>
+            </div>
+            <input ref="fileInputRef" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.jpg,.jpeg,.png" class="hidden" @change="handleFileSelect" />
           </div>
-          <input ref="fileInputRef" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.jpg,.jpeg,.png" class="hidden" @change="handleFileSelect" />
+
+          <!-- Mode 2: Link Google Drive -->
+          <div v-else class="space-y-2">
+            <div class="relative w-full">
+              <i class="pi pi-link absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <InputText 
+                v-model="gdriveInputUrl" 
+                placeholder="https://drive.google.com/file/d/.../view" 
+                class="w-full !pl-9"
+                @input="handleGdriveInput"
+              />
+            </div>
+            <div class="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
+              <i class="pi pi-info-circle text-blue-500 mt-0.5 shrink-0"></i>
+              <div>
+                <strong>Hemat Storage:</strong> Dokumen tidak diunggah ke server, melainkan langsung ditautkan ke Google Drive Yayasan. Pastikan setelan berbagi di Drive adalah <em>"Siapa saja yang memiliki link dapat melihat"</em>.
+              </div>
+            </div>
+          </div>
         </div>
 
         <div v-if="uploadProgress > 0 && uploadProgress < 100" class="w-full bg-slate-200 rounded-full h-2">
@@ -236,6 +282,30 @@ const visibilityOptions = [
   { value: 'public', label: 'Publik' },
 ]
 
+const fileSourceMode = ref<'upload' | 'gdrive'>('upload')
+const gdriveInputUrl = ref('')
+
+function isGdriveLink(url?: string): boolean {
+  if (!url) return false
+  return url.includes('drive.google.com') || url.includes('docs.google.com')
+}
+
+function handleGdriveInput() {
+  const url = gdriveInputUrl.value.trim()
+  if (url) {
+    form.file_url = url
+    form.file_name = 'Google Drive Document'
+    form.file_size = 0
+    if (!form.title) {
+      form.title = 'Dokumen Google Drive'
+    }
+  } else {
+    form.file_url = ''
+    form.file_name = ''
+    form.file_size = 0
+  }
+}
+
 const form = reactive({
   title: '',
   description: '',
@@ -260,6 +330,8 @@ function resetForm() {
   form.version = '1.0'
   form.replaces_id = null
   form.effective_date = ''
+  fileSourceMode.value = 'upload'
+  gdriveInputUrl.value = ''
   uploadProgress.value = 0
 }
 
@@ -278,6 +350,13 @@ function openDialog(doc?: any) {
       replaces_id: doc.replaces_id || null,
       effective_date: doc.effective_date ? doc.effective_date.substring(0, 10) : '',
     })
+    if (isGdriveLink(doc.file_url)) {
+      fileSourceMode.value = 'gdrive'
+      gdriveInputUrl.value = doc.file_url
+    } else {
+      fileSourceMode.value = 'upload'
+      gdriveInputUrl.value = ''
+    }
   } else {
     editingDoc.value = null
     resetForm()

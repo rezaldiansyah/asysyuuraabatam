@@ -12,26 +12,21 @@
     </div>
 
     <!-- Filter Bar -->
-    <Card>
-      <template #content>
-        <div class="flex flex-wrap gap-4">
-          <div class="flex-1 min-w-[200px]">
-            <span class="p-input-icon-left w-full">
-              <i class="pi pi-search" />
-              <InputText v-model="filters.search" placeholder="Cari nama atau NIK..." class="w-full" @input="debouncedFetch" />
-            </span>
-          </div>
-          <Dropdown v-model="filters.unit_id" :options="units" optionLabel="name" optionValue="id" placeholder="Semua Unit" showClear class="w-48" @change="fetchEmployees" />
-          <Dropdown v-model="filters.employee_type" :options="['tetap', 'kontrak', 'honorer']" placeholder="Semua Jenis" showClear class="w-48" @change="fetchEmployees" />
-          <Dropdown v-model="filters.is_active" :options="[{label: 'Aktif', value: true}, {label: 'Nonaktif', value: false}]" optionLabel="label" optionValue="value" placeholder="Status Aktif" showClear class="w-48" @change="fetchEmployees" />
+    <div class="card bg-white dark:bg-slate-900 shadow-sm rounded-xl p-4 border border-slate-200 dark:border-slate-800">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="relative w-full">
+          <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <InputText v-model="filters.search" placeholder="Cari nama atau NIK..." class="w-full !pl-9" @input="debouncedFetch" />
         </div>
-      </template>
-    </Card>
+        <Select v-model="filters.unit_id" :options="units" optionLabel="name" optionValue="id" placeholder="Semua Unit" showClear class="w-full" @change="fetchEmployees" />
+        <Select v-model="filters.employee_type" :options="['tetap', 'kontrak', 'honorer']" placeholder="Semua Jenis" showClear class="w-full" @change="fetchEmployees" />
+        <Select v-model="filters.is_active" :options="[{label: 'Aktif', value: true}, {label: 'Nonaktif', value: false}]" optionLabel="label" optionValue="value" placeholder="Status Aktif" showClear class="w-full" @change="fetchEmployees" />
+      </div>
+    </div>
 
     <!-- Data Table -->
-    <Card>
-      <template #content>
-        <DataTable :value="employees" :loading="loading" paginator :rows="10" dataKey="id" class="p-datatable-sm" stripedRows responsiveLayout="scroll">
+    <div class="card bg-white dark:bg-slate-900 shadow-sm rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden p-1">
+      <DataTable :value="employees" :loading="loading" paginator :rows="10" dataKey="id" class="p-datatable-sm" stripedRows responsiveLayout="scroll">
           <Column field="nama_lengkap" header="Nama Pegawai" sortable>
             <template #body="{ data }">
               <div class="flex items-center gap-3">
@@ -80,8 +75,7 @@
             </div>
           </template>
         </DataTable>
-      </template>
-    </Card>
+    </div>
 
     <!-- Dialog Tambah Pegawai -->
     <Dialog v-model:visible="showAddDialog" modal header="Tambah Pegawai Baru" :style="{ width: '800px' }" class="p-fluid">
