@@ -29,7 +29,10 @@
                 <i :class="getCategoryIcon(data.category)" class="text-lg"></i>
               </div>
               <div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span v-if="data.document_number" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                    <i class="pi pi-hashtag text-[9px] text-slate-400"></i>{{ data.document_number }}
+                  </span>
                   <p class="font-semibold text-slate-800 dark:text-white">{{ data.title }}</p>
                   <Tag :value="'v' + (data.version || '1.0')" severity="secondary" class="text-[10px] px-1.5 py-0.5" />
                 </div>
@@ -102,17 +105,25 @@
     <!-- Upload/Edit Dialog -->
     <Dialog v-model:visible="dialogVisible" :header="editingDoc ? 'Edit Dokumen' : 'Upload Dokumen Baru'" modal class="w-full max-w-xl">
       <div class="space-y-4 pt-2">
-        <div class="flex flex-col gap-2">
-          <label class="font-medium">Judul Dokumen *</label>
-          <InputText v-model="form.title" placeholder="SK Penetapan Kurikulum 2026" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="flex flex-col gap-2">
+            <label class="font-medium text-sm">Nomor Surat / SK (opsional)</label>
+            <InputText v-model="form.document_number" placeholder="Contoh: 18/SK/Y-AS/V/2025" />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="font-medium text-sm">Kategori *</label>
+            <Select v-model="form.category" :options="categoryOptions" optionLabel="label" optionValue="value" placeholder="Pilih kategori" class="w-full" />
+          </div>
         </div>
+
         <div class="flex flex-col gap-2">
-          <label class="font-medium">Deskripsi (opsional)</label>
+          <label class="font-medium text-sm">Judul Dokumen *</label>
+          <InputText v-model="form.title" placeholder="Contoh: Ketentuan Jumlah Jam Pelajaran (JP)" />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label class="font-medium text-sm">Deskripsi (opsional)</label>
           <Textarea v-model="form.description" rows="2" placeholder="Keterangan singkat tentang dokumen ini..." />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label class="font-medium">Kategori *</label>
-          <Select v-model="form.category" :options="categoryOptions" optionLabel="label" optionValue="value" placeholder="Pilih kategori" class="w-full" />
         </div>
 
         <!-- 2-Level Visibility & Target Unit Controls -->
@@ -286,7 +297,10 @@
         <div v-for="item in documentHistory" :key="item.id" class="p-3 rounded-lg border flex items-center justify-between"
           :class="item.is_current ? 'border-primary bg-primary/5 dark:bg-primary/10' : 'border-slate-200 dark:border-slate-700'">
           <div class="flex-1 pr-3">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span v-if="item.document_number" class="text-[11px] font-mono text-slate-500 bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                #{{ item.document_number }}
+              </span>
               <span class="font-bold text-sm text-slate-800 dark:text-white">{{ item.title }}</span>
               <Tag :value="'v' + item.version" :severity="item.is_current ? 'success' : 'secondary'" class="text-xs" />
               <span v-if="item.is_current" class="text-[10px] text-primary font-semibold">(Versi Ini)</span>
@@ -404,6 +418,7 @@ function handleGdriveInput() {
 }
 
 const form = reactive({
+  document_number: '',
   title: '',
   description: '',
   category: 'lainnya',
@@ -419,6 +434,7 @@ const form = reactive({
 })
 
 function resetForm() {
+  form.document_number = ''
   form.title = ''
   form.description = ''
   form.category = 'lainnya'
@@ -442,6 +458,7 @@ function openDialog(doc?: any) {
   if (doc) {
     editingDoc.value = doc
     Object.assign(form, {
+      document_number: doc.document_number || '',
       title: doc.title,
       description: doc.description || '',
       category: doc.category,

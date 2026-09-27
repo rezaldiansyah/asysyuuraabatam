@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 import models
@@ -44,7 +45,13 @@ async def get_documents(
     if visibility:
         query = query.filter(models.Document.visibility == visibility)
     if search:
-        query = query.filter(models.Document.title.ilike(f"%{search}%"))
+        query = query.filter(
+            or_(
+                models.Document.title.ilike(f"%{search}%"),
+                models.Document.document_number.ilike(f"%{search}%"),
+                models.Document.description.ilike(f"%{search}%"),
+            )
+        )
     
     docs = query.options(joinedload(models.Document.uploader)).order_by(models.Document.created_at.desc()).all()
     
@@ -78,6 +85,7 @@ async def get_documents(
 
         result.append({
             "id": doc.id,
+            "document_number": doc.document_number,
             "title": doc.title,
             "description": doc.description,
             "category": doc.category,
@@ -127,6 +135,7 @@ async def create_document(
 ):
     """Create a new document entry with target units and confidentiality."""
     doc = models.Document(
+        document_number=data.get("document_number"),
         title=data.get("title"),
         description=data.get("description"),
         category=data.get("category", "lainnya"),
@@ -158,7 +167,7 @@ async def update_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    for field in ["title", "description", "category", "file_url", "file_name", "file_size", "visibility", "version", "replaces_id"]:
+    for field in ["title", "document_number", "description", "category", "file_url", "file_name", "file_size", "visibility", "version", "replaces_id"]:
         if field in data:
             setattr(doc, field, data[field])
     
@@ -215,6 +224,7 @@ async def get_document_history(
     return [
         {
             "id": d.id,
+            "document_number": d.document_number,
             "title": d.title,
             "version": d.version or "1.0",
             "file_url": d.file_url,

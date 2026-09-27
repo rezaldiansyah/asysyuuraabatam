@@ -638,6 +638,7 @@ class Document(Base):
     __tablename__ = "documents"
     
     id = Column(Integer, primary_key=True, index=True)
+    document_number = Column(String, nullable=True, index=True)  # Nomor Surat / SK, misal "18/SK/Y-AS/V/2025"
     title = Column(String)
     description = Column(String, nullable=True)
     category = Column(String)        # sk_yayasan, sop, kalender_akademik, juknis, lainnya
