@@ -33,7 +33,7 @@
                   <span v-if="data.document_number" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                     <i class="pi pi-hashtag text-[9px] text-slate-400"></i>{{ data.document_number }}
                   </span>
-                  <p class="font-semibold text-slate-800 dark:text-white">{{ data.title }}</p>
+                  <p @click="openPreviewDialog(data)" class="font-semibold text-slate-800 dark:text-white hover:text-primary cursor-pointer transition" title="Klik untuk lihat pratinjau">{{ data.title }}</p>
                   <Tag :value="'v' + (data.version || '1.0')" severity="secondary" class="text-[10px] px-1.5 py-0.5" />
                 </div>
                 <p v-if="data.description" class="text-xs text-slate-400 mt-0.5 line-clamp-1">{{ data.description }}</p>
@@ -75,10 +75,13 @@
             </div>
           </template>
         </Column>
-        <Column header="Aksi" style="min-width: 180px">
+        <Column header="Aksi" style="min-width: 200px">
           <template #body="{ data }">
             <div class="flex items-center gap-1">
-              <a :href="data.file_url" target="_blank" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition" title="Download">
+              <button @click="openPreviewDialog(data)" class="p-2 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition" title="Lihat Dokumen">
+                <i class="pi pi-eye"></i>
+              </button>
+              <a :href="data.file_url" target="_blank" download class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition" title="Download">
                 <i class="pi pi-download"></i>
               </a>
               <button @click="openHistoryDialog(data)" class="p-2 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition" title="Riwayat Versi">
@@ -311,11 +314,79 @@
               <span v-if="item.uploader_name">Oleh: {{ item.uploader_name }}</span>
             </div>
           </div>
-          <a :href="item.file_url" target="_blank" class="p-2 text-primary hover:bg-primary/10 rounded-lg flex-shrink-0" title="Unduh Versi Ini">
-            <i class="pi pi-download"></i>
-          </a>
+          <div class="flex items-center gap-1 flex-shrink-0">
+            <button @click="openPreviewDialog(item)" class="p-2 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition" title="Lihat Versi Ini">
+              <i class="pi pi-eye"></i>
+            </button>
+            <a :href="item.file_url" target="_blank" download class="p-2 text-primary hover:bg-primary/10 rounded-lg" title="Unduh Versi Ini">
+              <i class="pi pi-download"></i>
+            </a>
+          </div>
         </div>
       </div>
+    </Dialog>
+
+    <!-- Preview Document Dialog -->
+    <Dialog v-model:visible="previewDialogVisible" :header="previewDoc?.title || 'Pratinjau Dokumen'" modal class="w-full max-w-5xl" :breakpoints="{ '960px': '90vw', '640px': '98vw' }">
+      <div v-if="previewDoc" class="space-y-3">
+        <!-- Info Bar -->
+        <div class="flex items-center justify-between flex-wrap gap-2 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span v-if="previewDoc.document_number" class="font-mono font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 px-2 py-1 rounded border border-slate-200 dark:border-slate-600">
+              #{{ previewDoc.document_number }}
+            </span>
+            <Tag :value="'v' + (previewDoc.version || '1.0')" severity="secondary" />
+            <Tag :value="getCategoryLabel(previewDoc.category)" :severity="getCategorySeverity(previewDoc.category)" />
+            <span v-if="previewDoc.effective_date" class="text-slate-500">Berlaku: {{ formatDate(previewDoc.effective_date) }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <a :href="previewDoc.file_url" target="_blank" class="px-2.5 py-1 text-xs rounded-md bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-primary font-medium inline-flex items-center gap-1.5 transition">
+              <i class="pi pi-external-link"></i> Buka di Tab Baru
+            </a>
+          </div>
+        </div>
+
+        <!-- Embedded Viewer Container -->
+        <div class="bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 min-h-[65vh] flex items-center justify-center">
+          <!-- Mode 1: Google Drive Link -->
+          <iframe 
+            v-if="isGdriveLink(previewDoc.file_url)" 
+            :src="getGdrivePreviewUrl(previewDoc.file_url)" 
+            class="w-full h-[72vh] border-0" 
+            allow="autoplay"
+          ></iframe>
+
+          <!-- Mode 2: Image File -->
+          <div v-else-if="isImageFile(previewDoc.file_url)" class="p-4 text-center max-h-[72vh] overflow-auto w-full">
+            <img :src="previewDoc.file_url" :alt="previewDoc.title" class="max-h-[70vh] max-w-full mx-auto object-contain rounded-lg shadow-sm" />
+          </div>
+
+          <!-- Mode 3: PDF File -->
+          <iframe 
+            v-else-if="isPdfFile(previewDoc.file_url)" 
+            :src="previewDoc.file_url" 
+            class="w-full h-[72vh] border-0"
+          ></iframe>
+
+          <!-- Mode 4: Other Docs (Word/Excel/dll) via Google Docs Viewer -->
+          <iframe 
+            v-else 
+            :src="'https://docs.google.com/viewer?url=' + encodeURIComponent(previewDoc.file_url) + '&embedded=true'" 
+            class="w-full h-[72vh] border-0"
+          ></iframe>
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex items-center justify-between w-full">
+          <p class="text-xs text-slate-400">Tekan ESC atau tombol Tutup untuk kembali.</p>
+          <div class="flex items-center gap-2">
+            <Button label="Tutup" severity="secondary" @click="previewDialogVisible = false" />
+            <a v-if="previewDoc?.file_url" :href="previewDoc.file_url" target="_blank" download class="p-button p-component p-button-primary inline-flex items-center gap-1 text-sm px-3 py-2 rounded-lg">
+              <i class="pi pi-download"></i> Unduh File
+            </a>
+          </div>
+        </div>
+      </template>
     </Dialog>
   </div>
 </template>
@@ -335,6 +406,39 @@ const historyDialogVisible = ref(false)
 const documentHistory = ref<any[]>([])
 const loadingHistory = ref(false)
 const editingDoc = ref<any>(null)
+const previewDialogVisible = ref(false)
+const previewDoc = ref<any>(null)
+
+function openPreviewDialog(doc: any) {
+  previewDoc.value = doc
+  previewDialogVisible.value = true
+}
+
+function getGdrivePreviewUrl(url?: string): string {
+  if (!url) return ''
+  if (url.includes('/view')) {
+    return url.replace(/\/view.*/, '/preview')
+  }
+  if (url.includes('drive.google.com/file/d/')) {
+    return url.replace(/\/?$/, '/preview')
+  }
+  return url
+}
+
+function isImageFile(url?: string): boolean {
+  if (!url) return false
+  const cleanUrl = url.split('?')[0].split('#')[0]
+  const ext = cleanUrl.split('.').pop()?.toLowerCase() || ''
+  return ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'bmp'].includes(ext)
+}
+
+function isPdfFile(url?: string): boolean {
+  if (!url) return false
+  const cleanUrl = url.split('?')[0].split('#')[0]
+  const ext = cleanUrl.split('.').pop()?.toLowerCase() || ''
+  return ext === 'pdf'
+}
+
 const documents = ref<any[]>([])
 const searchQuery = ref('')
 const filterCategory = ref('')
