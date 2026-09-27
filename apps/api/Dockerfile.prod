@@ -11,9 +11,9 @@ RUN apt-get update && apt-get install -y \
 COPY apps/api/requirements.txt .
 
 # Install dependencies including production server and postgres driver
-# Explicitly installing gunicorn and psycopg2-binary for production
+# Explicitly installing gunicorn and postgres drivers (both psycopg v3 and psycopg2) for production
 RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir gunicorn psycopg2-binary
+    pip install --no-cache-dir gunicorn "psycopg[binary]" psycopg2-binary
 
 COPY apps/api .
 
