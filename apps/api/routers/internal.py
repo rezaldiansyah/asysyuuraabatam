@@ -260,6 +260,266 @@ async def delete_document(
     db.commit()
     return {"message": "Document deleted successfully"}
 
+# ------------------------------------------------------------
+# DUPLICATE DETECTION & RESOLUTION
+# ------------------------------------------------------------
+import difflib
+import re
+
+def _clean_str(s: str) -> str:
+    if not s:
+        return ""
+    s = s.lower()
+    s = re.sub(r'[^a-z0-9\s]', ' ', s)
+    return " ".join(s.split())
+
+def _clean_doc_number(s: str) -> str:
+    if not s:
+        return ""
+    return re.sub(r'[^a-z0-9]', '', s.lower())
+
+def _calculate_similarity(doc_a, doc_b) -> dict:
+    # 1. Cek nomor surat sama persis
+    num_a = _clean_doc_number(getattr(doc_a, 'document_number', None))
+    num_b = _clean_doc_number(getattr(doc_b, 'document_number', None))
+    if num_a and num_b and num_a == num_b:
+        doc_num = getattr(doc_a, 'document_number', '')
+        return {
+            "is_duplicate": True,
+            "score": 98,
+            "reason": f"Nomor SK/Surat Sama Persis (#{doc_num})"
+        }
+
+    # 2. Cek kesamaan nama file berkas
+    same_file_name = False
+    fn_a = (getattr(doc_a, 'file_name', None) or '').strip().lower()
+    fn_b = (getattr(doc_b, 'file_name', None) or '').strip().lower()
+    if fn_a and fn_b and fn_a == fn_b and fn_a != "google drive document":
+        same_file_name = True
+
+    # 3. Cek kemiripan teks judul
+    title_a = _clean_str(getattr(doc_a, 'title', ''))
+    title_b = _clean_str(getattr(doc_b, 'title', ''))
+
+    words_a = set(title_a.split())
+    words_b = set(title_b.split())
+    intersection = words_a.intersection(words_b)
+    union = words_a.union(words_b)
+    jaccard = len(intersection) / len(union) if union else 0.0
+    seq_ratio = difflib.SequenceMatcher(None, title_a, title_b).ratio()
+
+    base_score = int(max(jaccard, seq_ratio) * 100)
+    cat_a = getattr(doc_a, 'category', '')
+    cat_b = getattr(doc_b, 'category', '')
+    same_category = (cat_a and cat_b and cat_a == cat_b)
+
+    score = base_score
+    if same_category and score >= 60:
+        score = min(100, score + 10)
+
+    if same_file_name:
+        score = max(score, 92)
+        return {
+            "is_duplicate": True,
+            "score": score,
+            "reason": "Nama Berkas File Identik" + (" & Kategori Sama" if same_category else "")
+        }
+
+    if score >= 70:
+        reason_parts = [f"Kemiripan Judul ({score}%)"]
+        if same_category:
+            reason_parts.append("Kategori Sama")
+        return {
+            "is_duplicate": True,
+            "score": score,
+            "reason": " & ".join(reason_parts)
+        }
+
+    return {
+        "is_duplicate": False,
+        "score": score,
+        "reason": "Kemiripan rendah"
+    }
+
+def _serialize_doc_summary(doc):
+    return {
+        "id": doc.id,
+        "document_number": doc.document_number,
+        "title": doc.title,
+        "description": doc.description,
+        "category": doc.category,
+        "file_url": doc.file_url,
+        "file_name": doc.file_name,
+        "file_size": doc.file_size,
+        "version": doc.version or "1.0",
+        "replaces_id": doc.replaces_id,
+        "effective_date": doc.effective_date.isoformat() if doc.effective_date else None,
+        "expired_date": doc.expired_date.isoformat() if doc.expired_date else None,
+        "uploader_name": doc.uploader.full_name if doc.uploader else None,
+        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+    }
+
+@router.get("/documents/duplicates")
+async def get_duplicate_candidates(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Find and return all potential duplicate document pairs."""
+    docs = db.query(models.Document).filter(models.Document.is_active == True).options(joinedload(models.Document.uploader)).all()
+    
+    # Load all resolved pairs
+    resolutions = db.query(models.DocumentDuplicateResolution).all()
+    resolved_pairs = set()
+    for r in resolutions:
+        resolved_pairs.add((min(r.doc_a_id, r.doc_b_id), max(r.doc_a_id, r.doc_b_id)))
+        
+    candidates = []
+    n = len(docs)
+    for i in range(n):
+        for j in range(i + 1, n):
+            doc_a = docs[i]
+            doc_b = docs[j]
+            pair_key = (min(doc_a.id, doc_b.id), max(doc_a.id, doc_b.id))
+            
+            # Skip if already marked distinct or resolved
+            if pair_key in resolved_pairs:
+                continue
+                
+            # Skip if already linked in revision chain
+            if doc_a.replaces_id == doc_b.id or doc_b.replaces_id == doc_a.id:
+                continue
+                
+            sim = _calculate_similarity(doc_a, doc_b)
+            if sim["is_duplicate"]:
+                candidates.append({
+                    "pair_id": f"{pair_key[0]}_{pair_key[1]}",
+                    "doc_a_id": doc_a.id,
+                    "doc_b_id": doc_b.id,
+                    "score": sim["score"],
+                    "reason": sim["reason"],
+                    "doc_a": _serialize_doc_summary(doc_a),
+                    "doc_b": _serialize_doc_summary(doc_b),
+                })
+                
+    candidates.sort(key=lambda x: x["score"], reverse=True)
+    return {
+        "count": len(candidates),
+        "pairs": candidates
+    }
+
+@router.get("/documents/check-duplicate")
+async def check_single_duplicate(
+    title: str = Query(..., min_length=2),
+    document_number: Optional[str] = None,
+    category: Optional[str] = None,
+    exclude_id: Optional[int] = None,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Real-time duplicate check while creating or editing a document."""
+    query = db.query(models.Document).filter(models.Document.is_active == True)
+    if exclude_id:
+        query = query.filter(models.Document.id != exclude_id)
+    docs = query.all()
+    
+    class MockDoc:
+        pass
+    mock = MockDoc()
+    mock.title = title
+    mock.document_number = document_number
+    mock.category = category or ""
+    mock.file_name = None
+    
+    best_match = None
+    highest_score = 0
+    
+    for doc in docs:
+        sim = _calculate_similarity(mock, doc)
+        if sim["is_duplicate"] and sim["score"] > highest_score:
+            highest_score = sim["score"]
+            best_match = {
+                "id": doc.id,
+                "title": doc.title,
+                "document_number": doc.document_number,
+                "version": doc.version or "1.0",
+                "category": doc.category,
+                "score": sim["score"],
+                "reason": sim["reason"],
+            }
+            
+    if best_match:
+        return {"has_match": True, "match": best_match}
+    return {"has_match": False, "match": None}
+
+@router.post("/documents/resolve-duplicate")
+async def resolve_duplicate_pair(
+    data: dict,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Resolve a potential duplicate pair (merge_as_revision, delete_doc, or mark_distinct)."""
+    doc_a_id = data.get("doc_a_id")
+    doc_b_id = data.get("doc_b_id")
+    action = data.get("action")  # "merge_as_revision", "delete_doc", "mark_distinct"
+    
+    if not doc_a_id or not doc_b_id or not action:
+        raise HTTPException(status_code=400, detail="Parameter doc_a_id, doc_b_id, dan action wajib diisi.")
+        
+    doc_a = db.query(models.Document).filter(models.Document.id == doc_a_id).first()
+    doc_b = db.query(models.Document).filter(models.Document.id == doc_b_id).first()
+    if not doc_a or not doc_b:
+        raise HTTPException(status_code=404, detail="Satu atau kedua dokumen tidak ditemukan.")
+        
+    pair_a = min(doc_a_id, doc_b_id)
+    pair_b = max(doc_a_id, doc_b_id)
+    
+    if action == "merge_as_revision":
+        parent_id = data.get("parent_doc_id", doc_a_id)
+        child_id = data.get("child_doc_id", doc_b_id)
+        child_doc = doc_a if child_id == doc_a.id else doc_b
+        child_doc.replaces_id = parent_id
+        
+        resolution = models.DocumentDuplicateResolution(
+            doc_a_id=pair_a,
+            doc_b_id=pair_b,
+            resolution="merged",
+            resolved_by=current_user.id
+        )
+        db.add(resolution)
+        db.commit()
+        return {"message": "Dokumen berhasil dihubungkan sebagai revisi resmi."}
+        
+    elif action == "delete_doc":
+        delete_id = data.get("delete_doc_id")
+        if not delete_id or delete_id not in (doc_a_id, doc_b_id):
+            raise HTTPException(status_code=400, detail="delete_doc_id tidak valid")
+        target_doc = doc_a if delete_id == doc_a.id else doc_b
+        target_doc.is_active = False
+        
+        resolution = models.DocumentDuplicateResolution(
+            doc_a_id=pair_a,
+            doc_b_id=pair_b,
+            resolution="deleted",
+            resolved_by=current_user.id
+        )
+        db.add(resolution)
+        db.commit()
+        return {"message": f"Dokumen '{target_doc.title}' berhasil dihapus."}
+        
+    elif action == "mark_distinct":
+        resolution = models.DocumentDuplicateResolution(
+            doc_a_id=pair_a,
+            doc_b_id=pair_b,
+            resolution="distinct",
+            resolved_by=current_user.id
+        )
+        db.add(resolution)
+        db.commit()
+        return {"message": "Pasangan dokumen ditandai sah sebagai dokumen terpisah."}
+        
+    else:
+        raise HTTPException(status_code=400, detail=f"Aksi '{action}' tidak dikenal")
+
 
 
 # ============================================================

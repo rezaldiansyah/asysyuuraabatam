@@ -8,9 +8,9 @@
       <Button label="Upload Dokumen" icon="pi pi-upload" @click="openDialog()" />
     </div>
 
-    <!-- Quick Stats Cards -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+    <!-- Quick Stats Cards (5 Indikator Kunci) -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+      <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
         <div class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
           <i class="pi pi-folder text-lg"></i>
         </div>
@@ -20,7 +20,7 @@
         </div>
       </div>
 
-      <div class="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+      <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
         <div class="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
           <i class="pi pi-check-circle text-lg"></i>
         </div>
@@ -30,7 +30,7 @@
         </div>
       </div>
 
-      <div class="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+      <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
         <div class="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
           <i class="pi pi-clock text-lg"></i>
         </div>
@@ -40,13 +40,36 @@
         </div>
       </div>
 
-      <div class="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+      <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
         <div class="w-10 h-10 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center font-bold">
           <i class="pi pi-exclamation-triangle text-lg"></i>
         </div>
         <div>
           <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Kedaluwarsa</div>
           <div class="text-xl font-bold text-red-600 dark:text-red-400">{{ expiredDocCount }}</div>
+        </div>
+      </div>
+
+      <!-- Card Potensi Duplikasi (Interaktif) -->
+      <div 
+        @click="openDuplicateDialog"
+        class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border shadow-sm flex items-center gap-3 cursor-pointer transition group"
+        :class="duplicateCount > 0 ? 'border-purple-300 dark:border-purple-700 bg-purple-50/30 dark:bg-purple-950/20 hover:border-purple-400' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'"
+      >
+        <div 
+          class="w-10 h-10 rounded-lg flex items-center justify-center font-bold transition"
+          :class="duplicateCount > 0 ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'"
+        >
+          <i class="pi pi-copy text-lg"></i>
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center justify-between">
+            <span>Potensi Duplikat</span>
+            <span v-if="duplicateCount > 0" class="text-[10px] text-purple-600 dark:text-purple-400 font-bold group-hover:underline">Tinjau &rarr;</span>
+          </div>
+          <div class="text-xl font-bold" :class="duplicateCount > 0 ? 'text-purple-600 dark:text-purple-400' : 'text-slate-700 dark:text-slate-300'">
+            {{ duplicateCount }}
+          </div>
         </div>
       </div>
     </div>
@@ -252,17 +275,51 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="flex flex-col gap-2">
             <label class="font-medium text-sm">Nomor Surat / SK (opsional)</label>
-            <InputText v-model="form.document_number" placeholder="Contoh: 18/SK/Y-AS/V/2025" />
+            <InputText v-model="form.document_number" placeholder="Contoh: 18/SK/Y-AS/V/2025" @input="onTitleOrNumberInput" />
           </div>
           <div class="flex flex-col gap-2">
             <label class="font-medium text-sm">Kategori *</label>
-            <Select v-model="form.category" :options="categoryOptions" optionLabel="label" optionValue="value" placeholder="Pilih kategori" class="w-full" />
+            <Select v-model="form.category" :options="categoryOptions" optionLabel="label" optionValue="value" placeholder="Pilih kategori" class="w-full" @change="onTitleOrNumberInput" />
           </div>
         </div>
 
         <div class="flex flex-col gap-2">
           <label class="font-medium text-sm">Judul Dokumen *</label>
-          <InputText v-model="form.title" placeholder="Contoh: Ketentuan Jumlah Jam Pelajaran (JP)" />
+          <InputText v-model="form.title" placeholder="Contoh: Ketentuan Jumlah Jam Pelajaran (JP)" @input="onTitleOrNumberInput" />
+        </div>
+
+        <!-- Banner Deteksi Kemiripan Real-time saat Upload -->
+        <div v-if="duplicateWarning" class="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-xl text-xs space-y-2">
+          <div class="flex items-start gap-2 text-amber-800 dark:text-amber-200">
+            <i class="pi pi-exclamation-triangle text-base text-amber-500 mt-0.5 shrink-0"></i>
+            <div>
+              <strong class="font-bold">Perhatian — Terdeteksi Dokumen Serupa:</strong>
+              <div class="mt-0.5 font-medium">
+                "{{ duplicateWarning.match.title }}"
+                <span v-if="duplicateWarning.match.document_number">({{ duplicateWarning.match.document_number }})</span>
+                — Versi {{ duplicateWarning.match.version }}
+              </div>
+              <div class="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                Pemicu: {{ duplicateWarning.match.reason }}
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 pt-1 border-t border-amber-200 dark:border-amber-800">
+            <button 
+              type="button" 
+              @click="applyAsRevision(duplicateWarning.match)"
+              class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-xs font-semibold inline-flex items-center gap-1 transition"
+            >
+              <i class="pi pi-history"></i> Jadikan Revisi dari Dokumen Ini
+            </button>
+            <button 
+              type="button" 
+              @click="duplicateWarning = null"
+              class="text-amber-700 dark:text-amber-300 hover:underline text-xs"
+            >
+              Bukan, ini dokumen baru
+            </button>
+          </div>
         </div>
 
         <div class="flex flex-col gap-2">
@@ -559,6 +616,157 @@
               <i class="pi pi-download"></i> Unduh File
             </a>
           </div>
+        </div>
+    </Dialog>
+
+    <!-- Dialog Audit & Resolusi Potensi Duplikasi Dokumen (Side-by-Side Comparison) -->
+    <Dialog v-model:visible="duplicateDialogVisible" header="Audit & Resolusi Potensi Duplikasi Dokumen" modal class="w-full max-w-4xl" :breakpoints="{ '960px': '90vw', '640px': '98vw' }">
+      <div v-if="loadingDuplicates" class="text-center py-12 text-slate-400">
+        <i class="pi pi-spin pi-spinner text-3xl mb-3 text-primary"></i>
+        <p class="font-medium">Memindai dan menganalisis kemiripan seluruh dokumen...</p>
+      </div>
+
+      <div v-else-if="duplicatePairs.length === 0" class="text-center py-12 text-slate-500 dark:text-slate-400">
+        <div class="w-14 h-14 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-3">
+          <i class="pi pi-check text-2xl"></i>
+        </div>
+        <h3 class="text-base font-bold text-slate-800 dark:text-white">Tidak Ada Potensi Duplikasi</h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+          Seluruh SK, SOP, dan Juknis tertata rapi. Tidak ditemukan dokumen dengan nomor surat ganda atau kemiripan judul yang mencurigakan.
+        </p>
+      </div>
+
+      <div v-else class="space-y-6 py-2 max-h-[72vh] overflow-y-auto pr-1">
+        <!-- Banner Penjelasan -->
+        <div class="p-3.5 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl text-xs text-purple-900 dark:text-purple-200 flex items-start gap-2.5">
+          <i class="pi pi-info-circle text-purple-600 text-base mt-0.5 shrink-0"></i>
+          <div class="leading-relaxed">
+            <strong>Terdeteksi {{ duplicatePairs.length }} pasangan dokumen yang memiliki kemiripan tinggi.</strong><br/>
+            Anda dapat menautkan salah satu dokumen sebagai <em>riwayat versi (revisi)</em>, menghapus dokumen yang keliru/ganda, atau menandainya sah sebagai dokumen terpisah.
+          </div>
+        </div>
+
+        <!-- Daftar Pasangan Komparasi Berdampingan -->
+        <div v-for="(pair, idx) in duplicatePairs" :key="pair.pair_id" class="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-800 shadow-sm">
+          <!-- Header Bar Pasangan: Skor & Alasan -->
+          <div class="bg-slate-50 dark:bg-slate-800/80 p-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-full bg-purple-600 text-white text-xs font-bold flex items-center justify-center">
+                {{ idx + 1 }}
+              </span>
+              <span class="text-xs font-bold text-slate-800 dark:text-white">Pemicu: {{ pair.reason }}</span>
+            </div>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+              Skor: {{ pair.score }}%
+            </span>
+          </div>
+
+          <!-- Komparasi Berdampingan Side-by-Side Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-700 p-4 gap-4">
+            <!-- Dokumen A -->
+            <div class="space-y-2 pr-0 md:pr-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Dokumen A (ID: #{{ pair.doc_a.id }})</span>
+                <Tag :value="'v' + (pair.doc_a.version || '1.0')" severity="secondary" class="text-[10px]" />
+              </div>
+              <h4 class="font-bold text-sm text-slate-800 dark:text-white leading-snug">{{ pair.doc_a.title }}</h4>
+              
+              <div class="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                <div v-if="pair.doc_a.document_number" class="font-mono text-[11px] text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/60 px-1.5 py-0.5 rounded inline-block">
+                  #{{ pair.doc_a.document_number }}
+                </div>
+                <div><span class="text-slate-400">Kategori:</span> {{ getCategoryLabel(pair.doc_a.category) }}</div>
+                <div v-if="pair.doc_a.effective_date"><span class="text-slate-400">Berlaku:</span> {{ formatDate(pair.doc_a.effective_date) }}</div>
+                <div><span class="text-slate-400">Berkas:</span> {{ pair.doc_a.file_name }}</div>
+                <div><span class="text-slate-400">Diupload:</span> {{ pair.doc_a.uploader_name || '-' }} ({{ formatDate(pair.doc_a.created_at) }})</div>
+              </div>
+
+              <div class="pt-2">
+                <button @click="openPreviewDialog(pair.doc_a)" type="button" class="text-xs px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium inline-flex items-center gap-1.5 transition">
+                  <i class="pi pi-eye text-emerald-600"></i> Pratinjau Berkas A
+                </button>
+              </div>
+            </div>
+
+            <!-- Dokumen B -->
+            <div class="space-y-2 pt-4 md:pt-0 pl-0 md:pl-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Dokumen B (ID: #{{ pair.doc_b.id }})</span>
+                <Tag :value="'v' + (pair.doc_b.version || '1.0')" severity="secondary" class="text-[10px]" />
+              </div>
+              <h4 class="font-bold text-sm text-slate-800 dark:text-white leading-snug">{{ pair.doc_b.title }}</h4>
+              
+              <div class="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                <div v-if="pair.doc_b.document_number" class="font-mono text-[11px] text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/60 px-1.5 py-0.5 rounded inline-block">
+                  #{{ pair.doc_b.document_number }}
+                </div>
+                <div><span class="text-slate-400">Kategori:</span> {{ getCategoryLabel(pair.doc_b.category) }}</div>
+                <div v-if="pair.doc_b.effective_date"><span class="text-slate-400">Berlaku:</span> {{ formatDate(pair.doc_b.effective_date) }}</div>
+                <div><span class="text-slate-400">Berkas:</span> {{ pair.doc_b.file_name }}</div>
+                <div><span class="text-slate-400">Diupload:</span> {{ pair.doc_b.uploader_name || '-' }} ({{ formatDate(pair.doc_b.created_at) }})</div>
+              </div>
+
+              <div class="pt-2">
+                <button @click="openPreviewDialog(pair.doc_b)" type="button" class="text-xs px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium inline-flex items-center gap-1.5 transition">
+                  <i class="pi pi-eye text-emerald-600"></i> Pratinjau Berkas B
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bar Aksi Keputusan per Pasangan -->
+          <div class="bg-slate-50 dark:bg-slate-800/60 p-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between flex-wrap gap-2">
+            <!-- Aksi 1: Jadikan Revisi (Merge) -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-xs font-semibold text-slate-600 dark:text-slate-400">Rantai Versi:</span>
+              <button 
+                @click="resolveDuplicate(pair, 'merge_as_revision', pair.doc_a.id, pair.doc_b.id)" 
+                class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-medium transition inline-flex items-center gap-1"
+                title="Jadikan Dokumen B sebagai versi pembaruan dari Dokumen A"
+              >
+                <i class="pi pi-sync text-[11px]"></i> Jadikan B Revisi dari A
+              </button>
+              <button 
+                @click="resolveDuplicate(pair, 'merge_as_revision', pair.doc_b.id, pair.doc_a.id)" 
+                class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-medium transition inline-flex items-center gap-1"
+                title="Jadikan Dokumen A sebagai versi pembaruan dari Dokumen B"
+              >
+                <i class="pi pi-sync text-[11px]"></i> Jadikan A Revisi dari B
+              </button>
+            </div>
+
+            <!-- Aksi 2 & 3: Hapus Salah Satu atau Tandai Sah / Terpisah -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <button 
+                @click="resolveDuplicate(pair, 'delete_doc', undefined, undefined, pair.doc_a.id)"
+                class="px-2 py-1 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg text-xs font-medium transition inline-flex items-center gap-1"
+                title="Hapus Dokumen A"
+              >
+                <i class="pi pi-trash text-[11px]"></i> Hapus A
+              </button>
+              <button 
+                @click="resolveDuplicate(pair, 'delete_doc', undefined, undefined, pair.doc_b.id)"
+                class="px-2 py-1 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg text-xs font-medium transition inline-flex items-center gap-1"
+                title="Hapus Dokumen B"
+              >
+                <i class="pi pi-trash text-[11px]"></i> Hapus B
+              </button>
+              <button 
+                @click="resolveDuplicate(pair, 'mark_distinct')" 
+                class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-medium transition inline-flex items-center gap-1"
+                title="Kedua dokumen ini sah dan sengaja dibuat terpisah"
+              >
+                <i class="pi pi-shield text-[11px]"></i> Dokumen Terpisah (Abaikan)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex items-center justify-between w-full">
+          <span class="text-xs text-slate-400">Keputusan resolusi akan langsung tersimpan di database.</span>
+          <Button label="Tutup" severity="secondary" @click="duplicateDialogVisible = false" />
         </div>
       </template>
     </Dialog>
@@ -1134,5 +1342,117 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-onMounted(() => fetchDocuments())
+// ------------------------------------------------------------
+// DUPLICATE DETECTION & RESOLUTION
+// ------------------------------------------------------------
+const duplicateCount = ref(0)
+const duplicatePairs = ref<any[]>([])
+const duplicateDialogVisible = ref(false)
+const loadingDuplicates = ref(false)
+const duplicateWarning = ref<any>(null)
+let checkDuplicateTimer: any = null
+
+async function fetchDuplicateCount() {
+  try {
+    const res = await api.get<{ count: number, pairs: any[] }>('/internal/documents/duplicates')
+    duplicateCount.value = res.count || 0
+    duplicatePairs.value = res.pairs || []
+  } catch (e) {
+    console.error('Failed to fetch duplicate count', e)
+  }
+}
+
+async function openDuplicateDialog() {
+  duplicateDialogVisible.value = true
+  loadingDuplicates.value = true
+  try {
+    const res = await api.get<{ count: number, pairs: any[] }>('/internal/documents/duplicates')
+    duplicateCount.value = res.count || 0
+    duplicatePairs.value = res.pairs || []
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Gagal', detail: 'Gagal memuat daftar potensi duplikasi', life: 3000 })
+  } finally {
+    loadingDuplicates.value = false
+  }
+}
+
+async function resolveDuplicate(pair: any, action: string, parentId?: number, childId?: number, deleteId?: number) {
+  try {
+    const payload: any = {
+      doc_a_id: pair.doc_a.id,
+      doc_b_id: pair.doc_b.id,
+      action,
+    }
+    if (action === 'merge_as_revision') {
+      payload.parent_doc_id = parentId
+      payload.child_doc_id = childId
+    } else if (action === 'delete_doc') {
+      if (!confirm('Apakah Anda yakin ingin menghapus berkas dokumen ini?')) return
+      payload.delete_doc_id = deleteId
+    }
+
+    const res = await api.post<{ message: string }>('/internal/documents/resolve-duplicate', payload)
+    toast.add({ severity: 'success', summary: 'Berhasil', detail: res.message, life: 3000 })
+    
+    // Refresh duplicates and documents table
+    await fetchDuplicateCount()
+    await fetchDocuments()
+    
+    if (duplicatePairs.value.length === 0) {
+      setTimeout(() => {
+        duplicateDialogVisible.value = false
+      }, 800)
+    }
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Gagal', detail: e.message || 'Gagal mengeksekusi resolusi duplikasi', life: 3000 })
+  }
+}
+
+function onTitleOrNumberInput() {
+  duplicateWarning.value = null
+  const titleText = (form.title || '').trim()
+  if (titleText.length < 3) return
+
+  if (checkDuplicateTimer) clearTimeout(checkDuplicateTimer)
+  checkDuplicateTimer = setTimeout(async () => {
+    try {
+      let q = `/internal/documents/check-duplicate?title=${encodeURIComponent(titleText)}`
+      if (form.document_number) q += `&document_number=${encodeURIComponent(form.document_number)}`
+      if (form.category) q += `&category=${encodeURIComponent(form.category)}`
+      if (editingDoc.value) q += `&exclude_id=${editingDoc.value.id}`
+      
+      const res = await api.get<{ has_match: boolean, match: any }>(q)
+      if (res.has_match && res.match) {
+        duplicateWarning.value = res
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, 400)
+}
+
+function applyAsRevision(matchedDoc: any) {
+  form.replaces_id = matchedDoc.id
+  // Auto suggest next version
+  try {
+    const v = parseFloat(matchedDoc.version || '1.0')
+    if (!isNaN(v)) {
+      form.version = (v + 1.0).toFixed(1)
+    }
+  } catch (e) {
+    form.version = '2.0'
+  }
+  toast.add({ 
+    severity: 'info', 
+    summary: 'Rantai Revisi Ditautkan', 
+    detail: `Dokumen ini diatur sebagai revisi versi baru dari "${matchedDoc.title}"`, 
+    life: 3000 
+  })
+  duplicateWarning.value = null
+}
+
+onMounted(() => {
+  fetchDocuments()
+  fetchDuplicateCount()
+})
 </script>

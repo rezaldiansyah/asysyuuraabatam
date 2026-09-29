@@ -661,6 +661,22 @@ class Document(Base):
     replaces = relationship("Document", remote_side=[id], backref="revisions", foreign_keys=[replaces_id])
 
 
+class DocumentDuplicateResolution(Base):
+    __tablename__ = "document_duplicate_resolutions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    doc_a_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), index=True)
+    doc_b_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), index=True)
+    resolution = Column(String, default="distinct")  # "distinct", "merged"
+    resolved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    doc_a = relationship("Document", foreign_keys=[doc_a_id])
+    doc_b = relationship("Document", foreign_keys=[doc_b_id])
+    resolver = relationship("User", foreign_keys=[resolved_by])
+
+
+
 class DailyMutabaah(Base):
     __tablename__ = "daily_mutabaah"
     
