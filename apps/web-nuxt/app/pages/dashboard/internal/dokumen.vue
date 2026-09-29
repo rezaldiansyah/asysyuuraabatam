@@ -8,11 +8,54 @@
       <Button label="Upload Dokumen" icon="pi pi-upload" @click="openDialog()" />
     </div>
 
+    <!-- Quick Stats Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+          <i class="pi pi-folder text-lg"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Dokumen</div>
+          <div class="text-xl font-bold text-slate-800 dark:text-white">{{ documents.length }}</div>
+        </div>
+      </div>
+
+      <div class="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+          <i class="pi pi-check-circle text-lg"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Aktif & Tetap</div>
+          <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400">{{ activeDocCount }}</div>
+        </div>
+      </div>
+
+      <div class="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+          <i class="pi pi-clock text-lg"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Segera Berakhir</div>
+          <div class="text-xl font-bold text-amber-600 dark:text-amber-400">{{ expiringDocCount }}</div>
+        </div>
+      </div>
+
+      <div class="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center font-bold">
+          <i class="pi pi-exclamation-triangle text-lg"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Kedaluwarsa</div>
+          <div class="text-xl font-bold text-red-600 dark:text-red-400">{{ expiredDocCount }}</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Filters -->
     <div class="card">
       <div class="flex flex-col md:flex-row gap-4">
         <div class="flex-1">
-          <InputText v-model="searchQuery" placeholder="Cari dokumen..." class="w-full" @input="fetchDocuments" />
+          <InputText v-model="searchQuery" placeholder="Cari nomor surat, judul, atau kata kunci..." class="w-full" @input="fetchDocuments" />
         </div>
         <Select v-model="filterCategory" :options="allCategoryOptions" optionLabel="label" optionValue="value" placeholder="Semua Kategori" class="w-full md:w-48" @change="fetchDocuments" />
         <Select v-model="filterVisibility" :options="visibilityOptions" optionLabel="label" optionValue="value" placeholder="Semua Akses" class="w-full md:w-48" @change="fetchDocuments" />
@@ -20,42 +63,111 @@
     </div>
 
     <!-- Documents Table -->
-    <div class="card">
-      <DataTable :value="documents" :loading="loading" stripedRows responsiveLayout="scroll" class="text-sm">
-        <Column header="Dokumen" style="min-width: 300px">
+    <div class="card !p-0 overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm">
+      <DataTable 
+        :value="documents" 
+        :loading="loading" 
+        stripedRows 
+        :rowHover="true" 
+        responsiveLayout="scroll" 
+        class="text-sm"
+        sortMode="single"
+        removableSort
+      >
+        <!-- Kolom Dokumen (Judul, Nomor, Versi, Tipe Berkas, dan Hint Deskripsi) -->
+        <Column field="title" header="Dokumen" sortable style="min-width: 290px">
           <template #body="{ data }">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" :class="getCategoryColor(data.category)">
-                <i :class="getCategoryIcon(data.category)" class="text-lg"></i>
+            <div class="flex items-center gap-3 py-1">
+              <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" :class="getCategoryColor(data.category)">
+                <i :class="getCategoryIcon(data.category)" class="text-base"></i>
               </div>
-              <div>
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span v-if="data.document_number" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+              <div class="min-w-0 flex-1">
+                <!-- Baris 1: Judul, Versi, dan Hint Deskripsi Hover -->
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span 
+                    @click="openPreviewDialog(data)" 
+                    class="font-semibold text-slate-800 dark:text-white hover:text-primary cursor-pointer transition line-clamp-1" 
+                    :title="data.title + (data.description ? ' — ' + data.description : '')"
+                  >
+                    {{ data.title }}
+                  </span>
+                  
+                  <Tag :value="'v' + (data.version || '1.0')" severity="secondary" class="text-[10px] px-1 py-0" />
+
+                  <!-- Kotak Hint Deskripsi Melayang saat Cursor Mengarah ke Icon Info -->
+                  <div v-if="data.description" class="relative group/hint inline-flex items-center ml-0.5">
+                    <button type="button" class="text-slate-400 hover:text-primary transition p-0.5 rounded cursor-help" aria-label="Lihat ringkasan deskripsi">
+                      <i class="pi pi-info-circle text-xs"></i>
+                    </button>
+                    <!-- Floating Hint Box -->
+                    <div class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover/hint:block z-50 w-72 p-3 bg-slate-900/95 backdrop-blur-sm text-white text-xs rounded-xl shadow-2xl border border-slate-700 pointer-events-none transition-all duration-200">
+                      <div class="font-semibold text-[11px] text-slate-300 mb-1 flex items-center gap-1.5 border-b border-slate-700/60 pb-1">
+                        <i class="pi pi-align-left text-[10px] text-primary"></i> Ringkasan / Deskripsi
+                      </div>
+                      <p class="text-slate-200 text-xs leading-relaxed whitespace-pre-line">{{ data.description }}</p>
+                      <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Baris 2: Nomor Surat dan Info File -->
+                <div class="flex items-center gap-2 text-xs text-slate-400 mt-1 flex-wrap">
+                  <span v-if="data.document_number" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
                     <i class="pi pi-hashtag text-[9px] text-slate-400"></i>{{ data.document_number }}
                   </span>
-                  <p @click="openPreviewDialog(data)" class="font-semibold text-slate-800 dark:text-white hover:text-primary cursor-pointer transition" title="Klik untuk lihat pratinjau">{{ data.title }}</p>
-                  <Tag :value="'v' + (data.version || '1.0')" severity="secondary" class="text-[10px] px-1.5 py-0.5" />
-                </div>
-                <p v-if="data.description" class="text-xs text-slate-400 mt-0.5 line-clamp-1">{{ data.description }}</p>
-                <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-                  <span v-if="isGdriveLink(data.file_url)" class="text-blue-600 dark:text-blue-400 font-semibold inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded">
+                  
+                  <span v-if="isGdriveLink(data.file_url)" class="text-blue-600 dark:text-blue-400 font-semibold inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded text-[11px]">
                     <i class="pi pi-external-link text-[10px]"></i> Google Drive
                   </span>
-                  <span v-else>{{ data.file_name }} · {{ formatSize(data.file_size) }}</span>
-                  <span v-if="data.effective_date" class="text-primary font-medium">· Berlaku: {{ formatDate(data.effective_date) }}</span>
+                  <span v-else class="text-[11px] text-slate-400 truncate max-w-[180px]" :title="data.file_name">
+                    {{ data.file_name }} · {{ formatSize(data.file_size) }}
+                  </span>
                 </div>
               </div>
             </div>
           </template>
         </Column>
-        <Column header="Kategori" style="min-width: 150px">
+
+        <!-- Kolom Kategori -->
+        <Column field="category" header="Kategori" sortable style="min-width: 140px">
           <template #body="{ data }">
-            <Tag :value="getCategoryLabel(data.category)" :severity="getCategorySeverity(data.category)" />
+            <Tag :value="getCategoryLabel(data.category)" :severity="getCategorySeverity(data.category)" class="text-xs font-medium" />
           </template>
         </Column>
-        <Column header="Akses" style="min-width: 140px">
+
+        <!-- Kolom Masa Berlaku, Umur Dokumen, dan Status Kadaluarsa -->
+        <Column field="effective_timestamp" header="Masa Berlaku & Umur" sortable style="min-width: 200px">
           <template #body="{ data }">
-            <div class="space-y-1">
+            <div class="space-y-1 py-1">
+              <!-- Status Masa Berlaku (Aktif, Segera Berakhir, Kedaluwarsa, Berlaku Tetap) -->
+              <div>
+                <span 
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold"
+                  :class="data.expiry_info.badgeClass"
+                >
+                  <i :class="data.expiry_info.icon" class="text-[10px]"></i>
+                  {{ data.expiry_info.label }}
+                </span>
+              </div>
+
+              <!-- Umur Dokumen Dinamis -->
+              <div class="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 font-medium">
+                <i class="pi pi-hourglass text-[10px] text-primary"></i>
+                <span>Umur: <strong>{{ data.age_info.text }}</strong></span>
+              </div>
+
+              <!-- Sub-informasi Tanggal Mulai / Berakhir -->
+              <div class="text-[11px] text-slate-400">
+                {{ data.expiry_info.subtext }}
+              </div>
+            </div>
+          </template>
+        </Column>
+
+        <!-- Kolom Akses & Visibilitas -->
+        <Column field="visibility" header="Akses" sortable style="min-width: 130px">
+          <template #body="{ data }">
+            <div class="space-y-1 py-1">
               <Tag 
                 :value="data.visibility === 'public' ? 'Publik' : formatTargetUnits(data.target_units)" 
                 :severity="data.visibility === 'public' ? 'success' : 'info'" 
@@ -67,39 +179,47 @@
             </div>
           </template>
         </Column>
-        <Column header="Diupload" style="min-width: 150px">
+
+        <!-- Kolom Diupload -->
+        <Column field="created_timestamp" header="Diupload" sortable style="min-width: 140px">
           <template #body="{ data }">
-            <div>
-              <p class="text-xs text-slate-500">{{ data.uploader_name || '-' }}</p>
+            <div class="py-1">
+              <p class="text-xs text-slate-600 dark:text-slate-300 font-medium truncate max-w-[130px]" :title="data.uploader_name || '-'">
+                {{ data.uploader_name || '-' }}
+              </p>
               <p class="text-xs text-slate-400">{{ formatDate(data.created_at) }}</p>
             </div>
           </template>
         </Column>
-        <Column header="Aksi" style="min-width: 200px">
+
+        <!-- Kolom Aksi -->
+        <Column header="Aksi" style="min-width: 190px">
           <template #body="{ data }">
             <div class="flex items-center gap-1">
-              <button @click="openPreviewDialog(data)" class="p-2 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition" title="Lihat Dokumen">
-                <i class="pi pi-eye"></i>
+              <button @click="openPreviewDialog(data)" class="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition" title="Lihat Pratinjau">
+                <i class="pi pi-eye text-sm"></i>
               </button>
-              <a :href="data.file_url" target="_blank" download class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition" title="Download">
-                <i class="pi pi-download"></i>
+              <a :href="data.file_url" target="_blank" download class="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition" title="Unduh File">
+                <i class="pi pi-download text-sm"></i>
               </a>
-              <button @click="openHistoryDialog(data)" class="p-2 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition" title="Riwayat Versi">
-                <i class="pi pi-history"></i>
+              <button @click="openHistoryDialog(data)" class="p-1.5 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition" title="Riwayat Versi">
+                <i class="pi pi-history text-sm"></i>
               </button>
-              <button @click="openDialog(data)" class="p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition" title="Edit">
-                <i class="pi pi-pencil"></i>
+              <button @click="openDialog(data)" class="p-1.5 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition" title="Edit">
+                <i class="pi pi-pencil text-sm"></i>
               </button>
-              <button @click="deleteDoc(data)" class="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition" title="Hapus">
-                <i class="pi pi-trash"></i>
+              <button @click="deleteDoc(data)" class="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition" title="Hapus">
+                <i class="pi pi-trash text-sm"></i>
               </button>
             </div>
           </template>
         </Column>
+
         <template #empty>
-          <div class="text-center py-8 text-slate-400">
-            <i class="pi pi-folder-open text-4xl mb-3 block"></i>
-            <p>Belum ada dokumen. Klik "Upload Dokumen" untuk menambahkan.</p>
+          <div class="text-center py-12 text-slate-400">
+            <i class="pi pi-folder-open text-4xl mb-3 block opacity-50"></i>
+            <p class="font-medium">Belum ada dokumen yang sesuai kriteria.</p>
+            <p class="text-xs text-slate-400 mt-1">Klik tombol "Upload Dokumen" untuk menambahkan berkas baru.</p>
           </div>
         </template>
       </DataTable>
@@ -126,7 +246,7 @@
 
         <div class="flex flex-col gap-2">
           <label class="font-medium text-sm">Deskripsi (opsional)</label>
-          <Textarea v-model="form.description" rows="2" placeholder="Keterangan singkat tentang dokumen ini..." />
+          <Textarea v-model="form.description" rows="2" placeholder="Keterangan singkat tentang dokumen ini (akan tampil sebagai hint/tooltip saat kursor diarahkan ke dokumen)..." />
         </div>
 
         <!-- 2-Level Visibility & Target Unit Controls -->
@@ -195,19 +315,41 @@
           </div>
         </div>
 
+        <!-- Versi & Masa Berlaku -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="flex flex-col gap-2">
-            <label class="font-medium">Versi Dokumen</label>
+            <label class="font-medium text-sm">Versi Dokumen</label>
             <InputText v-model="form.version" placeholder="Contoh: 1.0 atau 2026.1" />
           </div>
           <div class="flex flex-col gap-2">
-            <label class="font-medium">Tanggal Berlaku (opsional)</label>
-            <InputText v-model="form.effective_date" type="date" class="w-full" />
+            <label class="font-medium text-sm">Tanggal Mulai Berlaku (opsional)</label>
+            <InputText v-model="form.effective_date" type="date" class="w-full text-sm" />
+          </div>
+        </div>
+
+        <!-- Opsi Checkbox Masa Berlaku / Tanggal Berakhir SK/SOP -->
+        <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 space-y-3">
+          <div class="flex items-center gap-2">
+            <Checkbox v-model="form.has_expired_date" :binary="true" inputId="has-expired-check" @change="onExpiredCheckboxChange" />
+            <label for="has-expired-check" class="cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-200 select-none flex items-center gap-1.5">
+              <i class="pi pi-calendar-times text-amber-500"></i> Dokumen memiliki masa berlaku / tanggal berakhir
+            </label>
+          </div>
+
+          <!-- Input Tanggal Berakhir jika Dicentang -->
+          <div v-if="form.has_expired_date" class="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-2">
+            <label class="font-medium text-xs text-slate-700 dark:text-slate-300">
+              Pilih Tanggal, Bulan, dan Tahun Berakhirnya SOP/SK/Juknis *
+            </label>
+            <InputText v-model="form.expired_date" type="date" class="w-full text-sm" />
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">
+              Sistem akan memantau umur dokumen dan menampilkan indikator peringatan otomatis saat masa berlaku mendekati habis atau sudah kedaluwarsa.
+            </p>
           </div>
         </div>
 
         <div class="flex flex-col gap-2" v-if="!editingDoc && documents.length > 0">
-          <label class="font-medium">Revisi dari Dokumen Sebelumnya (opsional)</label>
+          <label class="font-medium text-sm">Revisi dari Dokumen Sebelumnya (opsional)</label>
           <Select v-model="form.replaces_id" :options="replacesOptions" optionLabel="title" optionValue="id" placeholder="Pilih jika merupakan revisi/update dokumen lama" showClear class="w-full" />
           <p class="text-xs text-slate-400">Pilih dokumen lama jika upload ini adalah revisi atau versi baru.</p>
         </div>
@@ -248,6 +390,7 @@
                 <i class="pi pi-times"></i>
               </button>
             </div>
+
             <div v-else class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-6 text-center hover:border-primary transition cursor-pointer" @click="triggerFileInput" @drop.prevent="handleDrop" @dragover.prevent>
               <i class="pi pi-cloud-upload text-3xl text-slate-400 mb-2"></i>
               <p class="text-sm text-slate-500">Klik untuk upload atau drag & drop</p>
@@ -310,6 +453,7 @@
             </div>
             <div class="text-xs text-slate-400 mt-1 flex flex-wrap gap-2">
               <span v-if="item.effective_date">Berlaku: {{ formatDate(item.effective_date) }}</span>
+              <span v-if="item.expired_date" class="text-amber-600 dark:text-amber-400">Berakhir: {{ formatDate(item.expired_date) }}</span>
               <span>Diupload: {{ formatDate(item.created_at) }}</span>
               <span v-if="item.uploader_name">Oleh: {{ item.uploader_name }}</span>
             </div>
@@ -337,7 +481,16 @@
             </span>
             <Tag :value="'v' + (previewDoc.version || '1.0')" severity="secondary" />
             <Tag :value="getCategoryLabel(previewDoc.category)" :severity="getCategorySeverity(previewDoc.category)" />
-            <span v-if="previewDoc.effective_date" class="text-slate-500">Berlaku: {{ formatDate(previewDoc.effective_date) }}</span>
+            
+            <span v-if="previewDoc.effective_date" class="text-slate-600 dark:text-slate-300">
+              Mulai: {{ formatDate(previewDoc.effective_date) }}
+            </span>
+            <span v-if="previewDoc.age_info" class="text-primary font-medium">
+              (Umur: {{ previewDoc.age_info.text }})
+            </span>
+            <span v-if="previewDoc.expired_date" class="text-amber-600 dark:text-amber-400 font-semibold">
+              · s/d {{ formatDate(previewDoc.expired_date) }}
+            </span>
           </div>
           <div class="flex items-center gap-2">
             <a :href="previewDoc.file_url" target="_blank" class="px-2.5 py-1 text-xs rounded-md bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-primary font-medium inline-flex items-center gap-1.5 transition">
@@ -446,6 +599,17 @@ const filterVisibility = ref('')
 const uploadProgress = ref(0)
 const fileInputRef = ref<HTMLInputElement>()
 
+// KPI summary counters
+const activeDocCount = computed(() => {
+  return documents.value.filter(d => d.expiry_info?.status === 'active' || d.expiry_info?.status === 'permanent').length
+})
+const expiringDocCount = computed(() => {
+  return documents.value.filter(d => d.expiry_info?.status === 'expiring_soon').length
+})
+const expiredDocCount = computed(() => {
+  return documents.value.filter(d => d.expiry_info?.status === 'expired').length
+})
+
 const replacesOptions = computed(() => {
   return documents.value.map(d => ({
     id: d.id,
@@ -521,6 +685,105 @@ function handleGdriveInput() {
   }
 }
 
+/**
+ * Menghitung umur dokumen secara dinamis dari tanggal berlaku (atau created_at sebagai fallback)
+ */
+function calculateDocumentAge(effectiveDateStr?: string, createdAtStr?: string) {
+  const refDateStr = effectiveDateStr || createdAtStr
+  if (!refDateStr) return { text: '-', days: 0 }
+  
+  const refDate = new Date(refDateStr)
+  const now = new Date()
+  
+  const diffTime = now.getTime() - refDate.getTime()
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  
+  if (diffDays < 0) {
+    const daysUntil = Math.abs(diffDays)
+    return { text: `Mulai dlm ${daysUntil} hr`, days: diffDays }
+  }
+  
+  if (diffDays === 0) {
+    return { text: 'Hari ini', days: 0 }
+  }
+  
+  if (diffDays < 30) {
+    return { text: `${diffDays} hari`, days: diffDays }
+  }
+  
+  const months = Math.floor(diffDays / 30.4375)
+  if (months < 12) {
+    const remDays = Math.floor(diffDays % 30.4375)
+    return {
+      text: remDays > 0 ? `${months} bln ${remDays} hr` : `${months} bln`,
+      days: diffDays
+    }
+  }
+  
+  const years = Math.floor(months / 12)
+  const remMonths = months % 12
+  return {
+    text: remMonths > 0 ? `${years} thn ${remMonths} bln` : `${years} thn`,
+    days: diffDays
+  }
+}
+
+/**
+ * Menentukan status masa berlaku dokumen (Kedaluwarsa, Sisa X hari, Aktif, Berlaku Tetap)
+ */
+function getExpiryInfo(effectiveDateStr?: string, expiredDateStr?: string) {
+  if (!expiredDateStr) {
+    return {
+      status: 'permanent',
+      label: 'Berlaku Tetap',
+      severity: 'info',
+      badgeClass: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
+      icon: 'pi pi-check-circle',
+      subtext: effectiveDateStr ? `Mulai ${formatDate(effectiveDateStr)}` : 'Tanpa batas waktu'
+    }
+  }
+
+  const expDate = new Date(expiredDateStr)
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  expDate.setHours(0, 0, 0, 0)
+  
+  const diffTime = expDate.getTime() - now.getTime()
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) {
+    const overdueDays = Math.abs(diffDays)
+    return {
+      status: 'expired',
+      label: 'Kedaluwarsa',
+      severity: 'danger',
+      badgeClass: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800',
+      icon: 'pi pi-exclamation-triangle',
+      subtext: `Habis: ${formatDate(expiredDateStr)} (lewat ${overdueDays} hr)`
+    }
+  }
+
+  if (diffDays <= 30) {
+    return {
+      status: 'expiring_soon',
+      label: `Sisa ${diffDays} hari`,
+      severity: 'warn',
+      badgeClass: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800',
+      icon: 'pi pi-clock',
+      subtext: `s/d ${formatDate(expiredDateStr)}`
+    }
+  }
+
+  return {
+    status: 'active',
+    label: 'Aktif',
+    severity: 'success',
+    badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800',
+    icon: 'pi pi-check',
+    subtext: `s/d ${formatDate(expiredDateStr)}`
+  }
+}
+
 const form = reactive({
   document_number: '',
   title: '',
@@ -533,9 +796,17 @@ const form = reactive({
   version: '1.0',
   replaces_id: null as number | null,
   effective_date: '',
+  has_expired_date: false,
+  expired_date: '',
   target_units: 'ALL',
   is_confidential: false,
 })
+
+function onExpiredCheckboxChange() {
+  if (!form.has_expired_date) {
+    form.expired_date = ''
+  }
+}
 
 function resetForm() {
   form.document_number = ''
@@ -549,6 +820,8 @@ function resetForm() {
   form.version = '1.0'
   form.replaces_id = null
   form.effective_date = ''
+  form.has_expired_date = false
+  form.expired_date = ''
   form.target_units = 'ALL'
   form.is_confidential = false
   allUnitsSelected.value = true
@@ -573,6 +846,8 @@ function openDialog(doc?: any) {
       version: doc.version || '1.0',
       replaces_id: doc.replaces_id || null,
       effective_date: doc.effective_date ? doc.effective_date.substring(0, 10) : '',
+      has_expired_date: !!doc.expired_date,
+      expired_date: doc.expired_date ? doc.expired_date.substring(0, 10) : '',
       target_units: doc.target_units || 'ALL',
       is_confidential: !!doc.is_confidential,
     })
@@ -607,7 +882,12 @@ async function openHistoryDialog(doc: any) {
   historyDialogVisible.value = true
   loadingHistory.value = true
   try {
-    documentHistory.value = await api.get<any[]>(`/internal/documents/${doc.id}/history`)
+    const raw = await api.get<any[]>(`/internal/documents/${doc.id}/history`)
+    documentHistory.value = raw.map(d => ({
+      ...d,
+      age_info: calculateDocumentAge(d.effective_date, d.created_at),
+      expiry_info: getExpiryInfo(d.effective_date, d.expired_date),
+    }))
   } catch (e) {
     console.error('Failed to fetch document history', e)
     documentHistory.value = []
@@ -623,7 +903,20 @@ async function fetchDocuments() {
     if (filterCategory.value) url += `category=${filterCategory.value}&`
     if (filterVisibility.value) url += `visibility=${filterVisibility.value}&`
     if (searchQuery.value) url += `search=${encodeURIComponent(searchQuery.value)}&`
-    documents.value = await api.get<any[]>(url)
+    const raw = await api.get<any[]>(url)
+    
+    documents.value = raw.map(doc => {
+      const age_info = calculateDocumentAge(doc.effective_date, doc.created_at)
+      const expiry_info = getExpiryInfo(doc.effective_date, doc.expired_date)
+      return {
+        ...doc,
+        age_info,
+        expiry_info,
+        effective_timestamp: doc.effective_date ? new Date(doc.effective_date).getTime() : 0,
+        expired_timestamp: doc.expired_date ? new Date(doc.expired_date).getTime() : Infinity,
+        created_timestamp: doc.created_at ? new Date(doc.created_at).getTime() : 0,
+      }
+    })
   } catch (e) {
     console.error('Failed to fetch documents', e)
   } finally {
@@ -682,7 +975,7 @@ function clearFile() {
 async function saveDocument() {
   saving.value = true
   try {
-    const payload = { ...form }
+    const payload: any = { ...form }
     if (payload.visibility === 'public') {
       payload.target_units = 'ALL'
       payload.is_confidential = false
@@ -693,6 +986,11 @@ async function saveDocument() {
         payload.target_units = JSON.stringify(selectedUnits.value)
       }
     }
+
+    if (!payload.has_expired_date) {
+      payload.expired_date = null
+    }
+    delete payload.has_expired_date
 
     if (editingDoc.value) {
       await api.put(`/internal/documents/${editingDoc.value.id}`, payload)

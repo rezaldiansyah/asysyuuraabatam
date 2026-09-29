@@ -98,6 +98,7 @@ async def get_documents(
             "version": doc.version or "1.0",
             "replaces_id": doc.replaces_id,
             "effective_date": doc.effective_date.isoformat() if doc.effective_date else None,
+            "expired_date": doc.expired_date.isoformat() if doc.expired_date else None,
             "target_units": doc.target_units or "ALL",
             "is_confidential": bool(doc.is_confidential),
             "is_active": doc.is_active,
@@ -146,6 +147,7 @@ async def create_document(
         version=data.get("version", "1.0") or "1.0",
         replaces_id=data.get("replaces_id"),
         effective_date=_parse_doc_date(data.get("effective_date")),
+        expired_date=_parse_doc_date(data.get("expired_date")),
         target_units=_format_target_units(data.get("target_units")),
         is_confidential=bool(data.get("is_confidential", False)),
         uploaded_by=current_user.id,
@@ -173,6 +175,9 @@ async def update_document(
     
     if "effective_date" in data:
         doc.effective_date = _parse_doc_date(data["effective_date"])
+
+    if "expired_date" in data:
+        doc.expired_date = _parse_doc_date(data["expired_date"])
 
     if "target_units" in data:
         doc.target_units = _format_target_units(data["target_units"])
@@ -231,6 +236,7 @@ async def get_document_history(
             "file_name": d.file_name,
             "file_size": d.file_size,
             "effective_date": d.effective_date.isoformat() if d.effective_date else None,
+            "expired_date": d.expired_date.isoformat() if d.expired_date else None,
             "is_current": d.id == doc_id,
             "is_active": d.is_active,
             "created_at": d.created_at.isoformat() if d.created_at else None,
