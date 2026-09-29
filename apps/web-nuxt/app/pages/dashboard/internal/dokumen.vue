@@ -74,43 +74,28 @@
         sortMode="single"
         removableSort
       >
-        <!-- Kolom Dokumen (Judul, Nomor, Versi, Tipe Berkas, dan Hint Deskripsi) -->
+        <!-- Kolom Dokumen (Judul, Nomor, Versi, Tipe Berkas, dan Tombol Keterangan) -->
         <Column field="title" header="Dokumen" sortable style="min-width: 290px">
           <template #body="{ data }">
-            <div class="flex items-center gap-3 py-1">
-              <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" :class="getCategoryColor(data.category)">
+            <div class="flex items-start gap-3 py-1.5">
+              <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" :class="getCategoryColor(data.category)">
                 <i :class="getCategoryIcon(data.category)" class="text-base"></i>
               </div>
               <div class="min-w-0 flex-1">
-                <!-- Baris 1: Judul, Versi, dan Hint Deskripsi Hover -->
+                <!-- Baris 1: Judul Dokumen (Bisa diklik untuk preview) -->
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <span 
                     @click="openPreviewDialog(data)" 
-                    class="font-semibold text-slate-800 dark:text-white hover:text-primary cursor-pointer transition line-clamp-1" 
-                    :title="data.title + (data.description ? ' — ' + data.description : '')"
+                    class="font-semibold text-slate-800 dark:text-white hover:text-primary cursor-pointer transition text-sm leading-snug" 
+                    :title="'Klik untuk lihat pratinjau: ' + data.title"
                   >
                     {{ data.title }}
                   </span>
                   
                   <Tag :value="'v' + (data.version || '1.0')" severity="secondary" class="text-[10px] px-1 py-0" />
-
-                  <!-- Kotak Hint Deskripsi Melayang saat Cursor Mengarah ke Icon Info -->
-                  <div v-if="data.description" class="relative group/hint inline-flex items-center ml-0.5">
-                    <button type="button" class="text-slate-400 hover:text-primary transition p-0.5 rounded cursor-help" aria-label="Lihat ringkasan deskripsi">
-                      <i class="pi pi-info-circle text-xs"></i>
-                    </button>
-                    <!-- Floating Hint Box -->
-                    <div class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover/hint:block z-50 w-72 p-3 bg-slate-900/95 backdrop-blur-sm text-white text-xs rounded-xl shadow-2xl border border-slate-700 pointer-events-none transition-all duration-200">
-                      <div class="font-semibold text-[11px] text-slate-300 mb-1 flex items-center gap-1.5 border-b border-slate-700/60 pb-1">
-                        <i class="pi pi-align-left text-[10px] text-primary"></i> Ringkasan / Deskripsi
-                      </div>
-                      <p class="text-slate-200 text-xs leading-relaxed whitespace-pre-line">{{ data.description }}</p>
-                      <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900"></div>
-                    </div>
-                  </div>
                 </div>
 
-                <!-- Baris 2: Nomor Surat dan Info File -->
+                <!-- Baris 2: Nomor Surat, Info File, dan Tombol Keterangan Popover -->
                 <div class="flex items-center gap-2 text-xs text-slate-400 mt-1 flex-wrap">
                   <span v-if="data.document_number" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
                     <i class="pi pi-hashtag text-[9px] text-slate-400"></i>{{ data.document_number }}
@@ -122,6 +107,20 @@
                   <span v-else class="text-[11px] text-slate-400 truncate max-w-[180px]" :title="data.file_name">
                     {{ data.file_name }} · {{ formatSize(data.file_size) }}
                   </span>
+
+                  <!-- Tombol Popover Deskripsi/Keterangan yang Aman & Dinamis -->
+                  <button 
+                    v-if="data.description"
+                    type="button" 
+                    @click="toggleDescPopover($event, data)"
+                    @mouseenter="showDescPopover($event, data)"
+                    @mouseleave="scheduleHideDescPopover"
+                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/60 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                    title="Klik atau arahkan kursor untuk melihat deskripsi"
+                  >
+                    <i class="pi pi-info-circle text-[10px] text-primary"></i>
+                    <span>Keterangan</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -224,6 +223,28 @@
         </template>
       </DataTable>
     </div>
+
+    <!-- Dynamic Floating Popover untuk Deskripsi Dokumen (Popper Engine - Tidak akan terpotong atau menutupi header) -->
+    <Popover ref="descPopover" class="!shadow-2xl !rounded-xl !border !border-slate-200 dark:!border-slate-700 !bg-white dark:!bg-slate-900" @mouseenter="cancelHideDescPopover" @mouseleave="hideDescPopover">
+      <div v-if="hoveredDoc" class="p-3.5 max-w-sm">
+        <div class="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-2 mb-2">
+          <div class="flex items-center gap-1.5 font-bold text-xs text-slate-800 dark:text-slate-100">
+            <i class="pi pi-align-left text-primary"></i>
+            <span>Deskripsi / Keterangan</span>
+          </div>
+          <Tag :value="'v' + (hoveredDoc.version || '1.0')" severity="secondary" class="text-[10px]" />
+        </div>
+
+        <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+          {{ hoveredDoc.description }}
+        </p>
+
+        <div v-if="hoveredDoc.document_number || hoveredDoc.effective_date" class="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+          <span v-if="hoveredDoc.document_number" class="font-mono font-medium text-slate-600 dark:text-slate-400">#{{ hoveredDoc.document_number }}</span>
+          <span v-if="hoveredDoc.effective_date">Berlaku: {{ formatDate(hoveredDoc.effective_date) }}</span>
+        </div>
+      </div>
+    </Popover>
 
     <!-- Upload/Edit Dialog -->
     <Dialog v-model:visible="dialogVisible" :header="editingDoc ? 'Edit Dokumen' : 'Upload Dokumen Baru'" modal class="w-full max-w-xl">
@@ -561,6 +582,50 @@ const loadingHistory = ref(false)
 const editingDoc = ref<any>(null)
 const previewDialogVisible = ref(false)
 const previewDoc = ref<any>(null)
+
+// Popover Deskripsi Dokumen
+const descPopover = ref<any>(null)
+const hoveredDoc = ref<any>(null)
+let hidePopoverTimer: any = null
+
+function showDescPopover(event: Event, doc: any) {
+  if (hidePopoverTimer) {
+    clearTimeout(hidePopoverTimer)
+    hidePopoverTimer = null
+  }
+  hoveredDoc.value = doc
+  descPopover.value?.show(event)
+}
+
+function toggleDescPopover(event: Event, doc: any) {
+  if (hidePopoverTimer) {
+    clearTimeout(hidePopoverTimer)
+    hidePopoverTimer = null
+  }
+  hoveredDoc.value = doc
+  descPopover.value?.toggle(event)
+}
+
+function scheduleHideDescPopover() {
+  hidePopoverTimer = setTimeout(() => {
+    descPopover.value?.hide()
+  }, 250)
+}
+
+function cancelHideDescPopover() {
+  if (hidePopoverTimer) {
+    clearTimeout(hidePopoverTimer)
+    hidePopoverTimer = null
+  }
+}
+
+function hideDescPopover() {
+  if (hidePopoverTimer) {
+    clearTimeout(hidePopoverTimer)
+    hidePopoverTimer = null
+  }
+  descPopover.value?.hide()
+}
 
 function openPreviewDialog(doc: any) {
   previewDoc.value = doc
