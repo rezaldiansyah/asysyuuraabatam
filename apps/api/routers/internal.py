@@ -29,11 +29,51 @@ async def get_document_categories():
 
 import json
 
+def _parse_doc_date(val):
+    if not val:
+        return None
+    if isinstance(val, datetime):
+        return val
+    try:
+        return datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+    except Exception:
+        try:
+            return datetime.strptime(str(val)[:10], "%Y-%m-%d")
+        except Exception:
+            return None
+
+def _format_target_units(val):
+    if not val or val == "ALL":
+        return "ALL"
+    if isinstance(val, list):
+        return json.dumps(val)
+    return str(val)
+
+def _format_attachments(val):
+    if not val:
+        return None
+    if isinstance(val, list):
+        return json.dumps(val)
+    return str(val)
+
+def _parse_attachments(val):
+    if not val:
+        return []
+    if isinstance(val, list):
+        return val
+    try:
+        parsed = json.loads(val)
+        return parsed if isinstance(parsed, list) else []
+    except Exception:
+        return []
+
 @router.get("/documents")
 async def get_documents(
     category: Optional[str] = None,
     visibility: Optional[str] = None,
     search: Optional[str] = None,
+    employee_id: Optional[int] = None,
+    sk_type: Optional[str] = None,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -44,16 +84,25 @@ async def get_documents(
         query = query.filter(models.Document.category == category)
     if visibility:
         query = query.filter(models.Document.visibility == visibility)
+    if employee_id:
+        query = query.filter(models.Document.employee_id == employee_id)
+    if sk_type:
+        query = query.filter(models.Document.sk_type == sk_type)
     if search:
         query = query.filter(
             or_(
                 models.Document.title.ilike(f"%{search}%"),
                 models.Document.document_number.ilike(f"%{search}%"),
                 models.Document.description.ilike(f"%{search}%"),
+                models.Document.employee_name.ilike(f"%{search}%"),
+                models.Document.position_title.ilike(f"%{search}%"),
             )
         )
     
-    docs = query.options(joinedload(models.Document.uploader)).order_by(models.Document.created_at.desc()).all()
+    docs = query.options(
+        joinedload(models.Document.uploader),
+        joinedload(models.Document.employee)
+    ).order_by(models.Document.created_at.desc()).all()
     
     user_role = current_user.role.code if current_user.role else "guest"
     is_pimpinan_or_tu = user_role in ["superadmin", "kabid_umum", "kabid_keuangan", "tu_yayasan", "kepala_unit", "wakil_kepala", "tu_unit"]
@@ -83,6 +132,11 @@ async def get_documents(
                 except Exception:
                     pass
 
+        # Resolve employee name
+        emp_name = doc.employee_name
+        if not emp_name and doc.employee:
+            emp_name = doc.employee.full_name
+
         result.append({
             "id": doc.id,
             "document_number": doc.document_number,
@@ -104,29 +158,18 @@ async def get_documents(
             "is_active": doc.is_active,
             "created_at": doc.created_at.isoformat() if doc.created_at else None,
             "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+            
+            # Attachments & Career info
+            "attachments": _parse_attachments(doc.attachments),
+            "employee_id": doc.employee_id,
+            "employee_name": emp_name,
+            "sk_type": doc.sk_type,
+            "position_title": doc.position_title,
+            "term_start_date": doc.term_start_date.isoformat() if doc.term_start_date else None,
+            "term_end_date": doc.term_end_date.isoformat() if doc.term_end_date else None,
         })
     
     return result
-
-def _parse_doc_date(val):
-    if not val:
-        return None
-    if isinstance(val, datetime):
-        return val
-    try:
-        return datetime.fromisoformat(str(val).replace("Z", "+00:00"))
-    except Exception:
-        try:
-            return datetime.strptime(str(val)[:10], "%Y-%m-%d")
-        except Exception:
-            return None
-
-def _format_target_units(val):
-    if not val or val == "ALL":
-        return "ALL"
-    if isinstance(val, list):
-        return json.dumps(val)
-    return str(val)
 
 @router.post("/documents")
 async def create_document(
@@ -134,7 +177,14 @@ async def create_document(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new document entry with target units and confidentiality."""
+    """Create a new document entry with target units, attachments, and employee career metadata."""
+    emp_id = data.get("employee_id")
+    emp_name = data.get("employee_name")
+    if emp_id and not emp_name:
+        u = db.query(models.User).filter(models.User.id == emp_id).first()
+        if u:
+            emp_name = u.full_name
+
     doc = models.Document(
         document_number=data.get("document_number"),
         title=data.get("title"),
@@ -151,11 +201,20 @@ async def create_document(
         target_units=_format_target_units(data.get("target_units")),
         is_confidential=bool(data.get("is_confidential", False)),
         uploaded_by=current_user.id,
+        
+        # New fields
+        attachments=_format_attachments(data.get("attachments")),
+        employee_id=emp_id,
+        employee_name=emp_name,
+        sk_type=data.get("sk_type"),
+        position_title=data.get("position_title"),
+        term_start_date=_parse_doc_date(data.get("term_start_date")),
+        term_end_date=_parse_doc_date(data.get("term_end_date")),
     )
     db.add(doc)
     db.commit()
     db.refresh(doc)
-    return {"id": doc.id, "message": "Document created successfully"}
+    return {"id": doc.id, "message": "Dokumen berhasil disimpan"}
 
 @router.put("/documents/{doc_id}")
 async def update_document(
@@ -164,31 +223,50 @@ async def update_document(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update a document entry."""
+    """Update a document entry including attachments and career metadata."""
     doc = db.query(models.Document).filter(models.Document.id == doc_id).first()
     if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
     
-    for field in ["title", "document_number", "description", "category", "file_url", "file_name", "file_size", "visibility", "version", "replaces_id"]:
+    for field in [
+        "title", "document_number", "description", "category", "file_url", 
+        "file_name", "file_size", "visibility", "version", "replaces_id",
+        "employee_id", "employee_name", "sk_type", "position_title"
+    ]:
         if field in data:
             setattr(doc, field, data[field])
     
+    if "attachments" in data:
+        doc.attachments = _format_attachments(data["attachments"])
+        
     if "effective_date" in data:
         doc.effective_date = _parse_doc_date(data["effective_date"])
 
     if "expired_date" in data:
         doc.expired_date = _parse_doc_date(data["expired_date"])
 
+    if "term_start_date" in data:
+        doc.term_start_date = _parse_doc_date(data["term_start_date"])
+
+    if "term_end_date" in data:
+        doc.term_end_date = _parse_doc_date(data["term_end_date"])
+
     if "target_units" in data:
         doc.target_units = _format_target_units(data["target_units"])
 
     if "is_confidential" in data:
         doc.is_confidential = bool(data["is_confidential"])
+        
+    # Auto-resolve employee_name if employee_id updated
+    if doc.employee_id and not doc.employee_name:
+        u = db.query(models.User).filter(models.User.id == doc.employee_id).first()
+        if u:
+            doc.employee_name = u.full_name
     
     doc.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(doc)
-    return {"id": doc.id, "message": "Document updated successfully"}
+    return {"id": doc.id, "message": "Dokumen berhasil diperbarui"}
 
 @router.get("/documents/{doc_id}/history")
 async def get_document_history(
@@ -259,6 +337,172 @@ async def delete_document(
     doc.is_active = False
     db.commit()
     return {"message": "Document deleted successfully"}
+
+def _calculate_tenure_str(start_dt: datetime, end_dt: Optional[datetime] = None) -> str:
+    if not start_dt:
+        return "-"
+    effective_end = end_dt if end_dt else datetime.utcnow()
+    total_days = max(0, (effective_end - start_dt).days)
+    years = total_days // 365
+    remaining_days = total_days % 365
+    months = remaining_days // 30
+    
+    if years > 0 and months > 0:
+        return f"{years} Tahun {months} Bulan"
+    elif years > 0:
+        return f"{years} Tahun"
+    elif months > 0:
+        return f"{months} Bulan"
+    else:
+        return f"{total_days} Hari"
+
+@router.get("/users-brief")
+async def get_users_brief(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get brief list of active users/employees for selector dropdowns."""
+    users = db.query(models.User).filter(
+        models.User.is_active == True
+    ).options(
+        joinedload(models.User.role)
+    ).order_by(models.User.full_name.asc()).all()
+    
+    return [
+        {
+            "id": u.id,
+            "full_name": u.full_name,
+            "nik": u.nik,
+            "email": u.email,
+            "role_name": u.role.name if u.role else None,
+            "role_code": u.role.code if u.role else None,
+        }
+        for u in users
+    ]
+
+@router.get("/documents/employee-career")
+async def get_employee_career_history(
+    employee_id: Optional[int] = None,
+    search: Optional[str] = None,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get employee career timeline & SK history portfolio."""
+    # Query all active documents that have employee metadata or are sk_yayasan
+    query = db.query(models.Document).filter(
+        models.Document.is_active == True,
+        or_(
+            models.Document.employee_id.isnot(None),
+            models.Document.employee_name.isnot(None),
+            models.Document.category == "sk_yayasan"
+        )
+    ).options(
+        joinedload(models.Document.employee),
+        joinedload(models.Document.uploader)
+    )
+
+    if employee_id:
+        query = query.filter(models.Document.employee_id == employee_id)
+        
+    docs = query.order_by(
+        models.Document.term_start_date.asc(),
+        models.Document.effective_date.asc(),
+        models.Document.created_at.asc()
+    ).all()
+
+    # Group by employee (key: employee_id or normalized employee_name)
+    grouped = {}
+    for d in docs:
+        emp_id = d.employee_id
+        emp_name = d.employee_name
+        if not emp_name and d.employee:
+            emp_name = d.employee.full_name
+            
+        if not emp_id and not emp_name:
+            continue
+            
+        group_key = f"id_{emp_id}" if emp_id else f"name_{emp_name.strip().lower()}"
+        
+        if group_key not in grouped:
+            grouped[group_key] = {
+                "employee_id": emp_id,
+                "employee_name": emp_name or "Tanpa Nama",
+                "nik": d.employee.nik if d.employee else None,
+                "email": d.employee.email if d.employee else None,
+                "items": [],
+                "first_date": None,
+                "latest_date": None,
+                "current_position": None,
+                "is_currently_active": True,
+            }
+            
+        dt_start = d.term_start_date or d.effective_date or d.created_at
+        dt_end = d.term_end_date
+        
+        # Track earliest date
+        if dt_start:
+            if not grouped[group_key]["first_date"] or dt_start < grouped[group_key]["first_date"]:
+                grouped[group_key]["first_date"] = dt_start
+                
+        # Determine latest position & active status
+        if d.sk_type in ["PENGUNDURAN_DIRI", "PEMBERHENTIAN"]:
+            grouped[group_key]["is_currently_active"] = False
+            
+        if d.position_title:
+            grouped[group_key]["current_position"] = d.position_title
+
+        grouped[group_key]["items"].append({
+            "id": d.id,
+            "document_number": d.document_number,
+            "title": d.title,
+            "description": d.description,
+            "category": d.category,
+            "file_url": d.file_url,
+            "file_name": d.file_name,
+            "version": d.version or "1.0",
+            "sk_type": d.sk_type or "PENGANGKATAN",
+            "position_title": d.position_title,
+            "term_start_date": dt_start.isoformat() if dt_start else None,
+            "term_end_date": dt_end.isoformat() if dt_end else None,
+            "is_active_term": dt_end is None or dt_end > datetime.utcnow(),
+            "tenure_period": _calculate_tenure_str(dt_start, dt_end) if dt_start else "-",
+            "attachments": _parse_attachments(d.attachments),
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+        })
+
+    # Build final list
+    result = []
+    for g in grouped.values():
+        # Calculate overall tenure
+        if g["first_date"]:
+            end_calc = datetime.utcnow() if g["is_currently_active"] else (g["items"][0]["term_end_date"] if g["items"] else None)
+            if isinstance(end_calc, str):
+                try:
+                    end_calc = datetime.fromisoformat(end_calc)
+                except Exception:
+                    end_calc = datetime.utcnow()
+            g["total_tenure"] = _calculate_tenure_str(g["first_date"], end_calc)
+            g["first_start_formatted"] = g["first_date"].strftime("%d %b %Y")
+        else:
+            g["total_tenure"] = "-"
+            g["first_start_formatted"] = "-"
+            
+        # Filter search if provided
+        if search:
+            q = search.lower()
+            name_match = q in (g["employee_name"] or "").lower()
+            pos_match = q in (g["current_position"] or "").lower()
+            doc_match = any(q in (it["title"] or "").lower() or q in (it["document_number"] or "").lower() for it in g["items"])
+            if not (name_match or pos_match or doc_match):
+                continue
+                
+        # Sort items chronologically (latest first for timeline)
+        g["items"].sort(key=lambda x: x["term_start_date"] or "", reverse=True)
+        result.append(g)
+
+    # Sort employees by name
+    result.sort(key=lambda x: x["employee_name"])
+    return result
 
 # ------------------------------------------------------------
 # DUPLICATE DETECTION & RESOLUTION

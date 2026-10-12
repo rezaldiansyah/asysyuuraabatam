@@ -657,7 +657,19 @@ class Document(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    # New: Attachments / Supporting Formulir files
+    attachments = Column(String, nullable=True) # JSON array: [{"title": "...", "file_url": "...", "file_name": "...", "file_size": 123}]
+    
+    # New: Employee Career SK metadata
+    employee_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    employee_name = Column(String, nullable=True) # Snapshot name for quick search / unlinked staff
+    sk_type = Column(String, nullable=True) # PENGANGKATAN, PROMOSI, MUTASI, PEMBERHENTIAN, PENGUNDURAN_DIRI, TUGAS_TAMBAHAN, UMUM
+    position_title = Column(String, nullable=True) # Jabatan resmi (e.g. "Kepala Unit SDIT", "Wakakur")
+    term_start_date = Column(DateTime, nullable=True) # Tanggal mulai menjabat
+    term_end_date = Column(DateTime, nullable=True) # Tanggal selesai menjabat / diberhentikan
+    
     uploader = relationship("User", foreign_keys=[uploaded_by])
+    employee = relationship("User", foreign_keys=[employee_id])
     replaces = relationship("Document", remote_side=[id], backref="revisions", foreign_keys=[replaces_id])
 
 

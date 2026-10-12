@@ -2,252 +2,550 @@
   <div class="space-y-6">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-slate-800 dark:text-white">Pusat Unduhan</h1>
-        <p class="text-slate-500 dark:text-slate-400">Kelola dokumen SK, SOP, Juknis, Kalender Akademik, dan lainnya.</p>
+        <h1 class="text-2xl font-bold text-slate-800 dark:text-white">Pusat Unduhan & Dokumen</h1>
+        <p class="text-slate-500 dark:text-slate-400">Kelola dokumen SK, SOP, Juknis, Lampiran Formulir, serta Riwayat Karir Pegawai.</p>
       </div>
-      <Button label="Upload Dokumen" icon="pi pi-upload" @click="openDialog()" />
+      <div class="flex items-center gap-2 flex-wrap">
+        <Button label="Upload Dokumen" icon="pi pi-upload" @click="openDialog()" />
+        <Button label="+ SK Karir Pegawai" severity="secondary" icon="pi pi-user-plus" @click="openCareerSkDialog()" />
+      </div>
     </div>
 
-    <!-- Quick Stats Cards (5 Indikator Kunci) -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
-      <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
-        <div class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
-          <i class="pi pi-folder text-lg"></i>
-        </div>
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Dokumen</div>
-          <div class="text-xl font-bold text-slate-800 dark:text-white">{{ documents.length }}</div>
-        </div>
-      </div>
-
-      <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
-        <div class="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
-          <i class="pi pi-check-circle text-lg"></i>
-        </div>
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Aktif & Tetap</div>
-          <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400">{{ activeDocCount }}</div>
-        </div>
-      </div>
-
-      <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
-        <div class="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
-          <i class="pi pi-clock text-lg"></i>
-        </div>
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Segera Berakhir</div>
-          <div class="text-xl font-bold text-amber-600 dark:text-amber-400">{{ expiringDocCount }}</div>
-        </div>
-      </div>
-
-      <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
-        <div class="w-10 h-10 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center font-bold">
-          <i class="pi pi-exclamation-triangle text-lg"></i>
-        </div>
-        <div>
-          <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Kedaluwarsa</div>
-          <div class="text-xl font-bold text-red-600 dark:text-red-400">{{ expiredDocCount }}</div>
-        </div>
-      </div>
-
-      <!-- Card Potensi Duplikasi (Interaktif) -->
-      <div 
-        @click="openDuplicateDialog"
-        class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border shadow-sm flex items-center gap-3 cursor-pointer transition group"
-        :class="duplicateCount > 0 ? 'border-purple-300 dark:border-purple-700 bg-purple-50/30 dark:bg-purple-950/20 hover:border-purple-400' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'"
+    <!-- Tab Navigasi Utama -->
+    <div class="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 pb-3 flex-wrap">
+      <button
+        type="button"
+        @click="activeViewTab = 'documents'"
+        class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition inline-flex items-center gap-2"
+        :class="activeViewTab === 'documents' ? 'bg-primary text-white shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'"
       >
+        <i class="pi pi-folder-open text-xs"></i>
+        <span>Semua Dokumen & SOP</span>
+        <span class="px-1.5 py-0.5 rounded-full text-[10px]" :class="activeViewTab === 'documents' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'">
+          {{ documents.length }}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        @click="switchTab('career')"
+        class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition inline-flex items-center gap-2"
+        :class="activeViewTab === 'career' ? 'bg-primary text-white shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'"
+      >
+        <i class="pi pi-id-card text-xs"></i>
+        <span>Riwayat SK & Karir Pegawai</span>
+        <span class="px-1.5 py-0.5 rounded-full text-[10px]" :class="activeViewTab === 'career' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'">
+          {{ careerList.length }}
+        </span>
+      </button>
+    </div>
+
+    <!-- TAB 1: SEMUA DOKUMEN & SOP -->
+    <div v-show="activeViewTab === 'documents'" class="space-y-6">
+      <!-- Quick Stats Cards (5 Indikator Kunci) -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+            <i class="pi pi-folder text-lg"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Dokumen</div>
+            <div class="text-xl font-bold text-slate-800 dark:text-white">{{ documents.length }}</div>
+          </div>
+        </div>
+
+        <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+            <i class="pi pi-check-circle text-lg"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Aktif & Tetap</div>
+            <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400">{{ activeDocCount }}</div>
+          </div>
+        </div>
+
+        <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+            <i class="pi pi-clock text-lg"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Segera Berakhir</div>
+            <div class="text-xl font-bold text-amber-600 dark:text-amber-400">{{ expiringDocCount }}</div>
+          </div>
+        </div>
+
+        <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center font-bold">
+            <i class="pi pi-exclamation-triangle text-lg"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Kedaluwarsa</div>
+            <div class="text-xl font-bold text-red-600 dark:text-red-400">{{ expiredDocCount }}</div>
+          </div>
+        </div>
+
+        <!-- Card Potensi Duplikasi (Interaktif) -->
         <div 
-          class="w-10 h-10 rounded-lg flex items-center justify-center font-bold transition"
-          :class="duplicateCount > 0 ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'"
+          @click="openDuplicateDialog"
+          class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border shadow-sm flex items-center gap-3 cursor-pointer transition group"
+          :class="duplicateCount > 0 ? 'border-purple-300 dark:border-purple-700 bg-purple-50/30 dark:bg-purple-950/20 hover:border-purple-400' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'"
         >
-          <i class="pi pi-copy text-lg"></i>
-        </div>
-        <div class="min-w-0 flex-1">
-          <div class="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center justify-between">
-            <span>Potensi Duplikat</span>
-            <span v-if="duplicateCount > 0" class="text-[10px] text-purple-600 dark:text-purple-400 font-bold group-hover:underline">Tinjau &rarr;</span>
+          <div 
+            class="w-10 h-10 rounded-lg flex items-center justify-center font-bold transition"
+            :class="duplicateCount > 0 ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'"
+          >
+            <i class="pi pi-copy text-lg"></i>
           </div>
-          <div class="text-xl font-bold" :class="duplicateCount > 0 ? 'text-purple-600 dark:text-purple-400' : 'text-slate-700 dark:text-slate-300'">
-            {{ duplicateCount }}
+          <div class="min-w-0 flex-1">
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center justify-between">
+              <span>Potensi Duplikat</span>
+              <span v-if="duplicateCount > 0" class="text-[10px] text-purple-600 dark:text-purple-400 font-bold group-hover:underline">Tinjau &rarr;</span>
+            </div>
+            <div class="text-xl font-bold" :class="duplicateCount > 0 ? 'text-purple-600 dark:text-purple-400' : 'text-slate-700 dark:text-slate-300'">
+              {{ duplicateCount }}
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Filters -->
-    <div class="card">
-      <div class="flex flex-col md:flex-row gap-4">
-        <div class="flex-1">
-          <InputText v-model="searchQuery" placeholder="Cari nomor surat, judul, atau kata kunci..." class="w-full" @input="fetchDocuments" />
+      <!-- Filters -->
+      <div class="card">
+        <div class="flex flex-col md:flex-row gap-4">
+          <div class="flex-1">
+            <InputText v-model="searchQuery" placeholder="Cari nomor surat, judul, kata kunci, atau nama pegawai..." class="w-full" @input="fetchDocuments" />
+          </div>
+          <Select v-model="filterCategory" :options="allCategoryOptions" optionLabel="label" optionValue="value" placeholder="Semua Kategori" class="w-full md:w-48" @change="fetchDocuments" />
+          <Select v-model="filterVisibility" :options="visibilityOptions" optionLabel="label" optionValue="value" placeholder="Semua Akses" class="w-full md:w-48" @change="fetchDocuments" />
         </div>
-        <Select v-model="filterCategory" :options="allCategoryOptions" optionLabel="label" optionValue="value" placeholder="Semua Kategori" class="w-full md:w-48" @change="fetchDocuments" />
-        <Select v-model="filterVisibility" :options="visibilityOptions" optionLabel="label" optionValue="value" placeholder="Semua Akses" class="w-full md:w-48" @change="fetchDocuments" />
       </div>
-    </div>
 
-    <!-- Documents Table -->
-    <div class="card !p-0 overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm">
-      <DataTable 
-        :value="documents" 
-        :loading="loading" 
-        stripedRows 
-        :rowHover="true" 
-        responsiveLayout="scroll" 
-        class="text-sm"
-        sortMode="single"
-        removableSort
-      >
-        <!-- Kolom Dokumen (Judul, Nomor, Versi, Tipe Berkas, dan Tombol Keterangan) -->
-        <Column field="title" header="Dokumen" sortable style="min-width: 290px">
-          <template #body="{ data }">
-            <div class="flex items-start gap-3 py-1.5">
-              <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" :class="getCategoryColor(data.category)">
-                <i :class="getCategoryIcon(data.category)" class="text-base"></i>
+      <!-- Documents Table -->
+      <div class="card !p-0 overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm">
+        <DataTable 
+          :value="documents" 
+          :loading="loading" 
+          stripedRows 
+          :rowHover="true" 
+          responsiveLayout="scroll" 
+          class="text-sm"
+          sortMode="single"
+          removableSort
+        >
+          <!-- Kolom Dokumen (Judul, Nomor, Versi, Lampiran, Pegawai, dan Tombol Keterangan) -->
+          <Column field="title" header="Dokumen" sortable style="min-width: 310px">
+            <template #body="{ data }">
+              <div class="flex items-start gap-3 py-1.5">
+                <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" :class="getCategoryColor(data.category)">
+                  <i :class="getCategoryIcon(data.category)" class="text-base"></i>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <!-- Baris 1: Judul Dokumen (Bisa diklik untuk preview) -->
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span 
+                      @click="openPreviewDialog(data)" 
+                      class="font-semibold text-slate-800 dark:text-white hover:text-primary cursor-pointer transition text-sm leading-snug" 
+                      :title="'Klik untuk lihat pratinjau: ' + data.title"
+                    >
+                      {{ data.title }}
+                    </span>
+                    
+                    <Tag :value="'v' + (data.version || '1.0')" severity="secondary" class="text-[10px] px-1 py-0" />
+
+                    <!-- Badge Lampiran Formulir Pendukung -->
+                    <button
+                      v-if="data.attachments && data.attachments.length > 0"
+                      type="button"
+                      @click.stop="openPreviewDialog(data)"
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition cursor-pointer"
+                      :title="'Ada ' + data.attachments.length + ' berkas formulir pendukung'"
+                    >
+                      <i class="pi pi-paperclip text-[9px]"></i>
+                      <span>{{ data.attachments.length }} Formulir</span>
+                    </button>
+
+                    <!-- Badge Kaitan Pegawai jika SK Karir -->
+                    <span
+                      v-if="data.employee_name"
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
+                    >
+                      <i class="pi pi-user text-[9px]"></i>
+                      <span>{{ data.employee_name }}<span v-if="data.position_title"> ({{ data.position_title }})</span></span>
+                    </span>
+                  </div>
+
+                  <!-- Baris 2: Nomor Surat, Info File, dan Tombol Keterangan Popover -->
+                  <div class="flex items-center gap-2 text-xs text-slate-400 mt-1 flex-wrap">
+                    <span v-if="data.document_number" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+                      <i class="pi pi-hashtag text-[9px] text-slate-400"></i>{{ data.document_number }}
+                    </span>
+                    
+                    <span v-if="isGdriveLink(data.file_url)" class="text-blue-600 dark:text-blue-400 font-semibold inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded text-[11px]">
+                      <i class="pi pi-external-link text-[10px]"></i> Google Drive
+                    </span>
+                    <span v-else class="text-[11px] text-slate-400 truncate max-w-[180px]" :title="data.file_name">
+                      {{ data.file_name }} · {{ formatSize(data.file_size) }}
+                    </span>
+
+                    <!-- Tombol Popover Deskripsi/Keterangan -->
+                    <button 
+                      v-if="data.description"
+                      type="button" 
+                      @click="toggleDescPopover($event, data)"
+                      @mouseenter="showDescPopover($event, data)"
+                      @mouseleave="scheduleHideDescPopover"
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/60 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                      title="Klik atau arahkan kursor untuk melihat deskripsi"
+                    >
+                      <i class="pi pi-info-circle text-[10px] text-primary"></i>
+                      <span>Keterangan</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div class="min-w-0 flex-1">
-                <!-- Baris 1: Judul Dokumen (Bisa diklik untuk preview) -->
-                <div class="flex items-center gap-1.5 flex-wrap">
+            </template>
+          </Column>
+
+          <!-- Kolom Kategori -->
+          <Column field="category" header="Kategori" sortable style="min-width: 140px">
+            <template #body="{ data }">
+              <Tag :value="getCategoryLabel(data.category)" :severity="getCategorySeverity(data.category)" class="text-xs font-medium" />
+            </template>
+          </Column>
+
+          <!-- Kolom Masa Berlaku, Umur Dokumen, dan Status Kadaluarsa -->
+          <Column field="effective_timestamp" header="Masa Berlaku & Umur" sortable style="min-width: 200px">
+            <template #body="{ data }">
+              <div class="space-y-1 py-1">
+                <div>
                   <span 
-                    @click="openPreviewDialog(data)" 
-                    class="font-semibold text-slate-800 dark:text-white hover:text-primary cursor-pointer transition text-sm leading-snug" 
-                    :title="'Klik untuk lihat pratinjau: ' + data.title"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold"
+                    :class="data.expiry_info.badgeClass"
                   >
-                    {{ data.title }}
+                    <i :class="data.expiry_info.icon" class="text-[10px]"></i>
+                    {{ data.expiry_info.label }}
                   </span>
-                  
-                  <Tag :value="'v' + (data.version || '1.0')" severity="secondary" class="text-[10px] px-1 py-0" />
                 </div>
 
-                <!-- Baris 2: Nomor Surat, Info File, dan Tombol Keterangan Popover -->
-                <div class="flex items-center gap-2 text-xs text-slate-400 mt-1 flex-wrap">
-                  <span v-if="data.document_number" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
-                    <i class="pi pi-hashtag text-[9px] text-slate-400"></i>{{ data.document_number }}
-                  </span>
-                  
-                  <span v-if="isGdriveLink(data.file_url)" class="text-blue-600 dark:text-blue-400 font-semibold inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded text-[11px]">
-                    <i class="pi pi-external-link text-[10px]"></i> Google Drive
-                  </span>
-                  <span v-else class="text-[11px] text-slate-400 truncate max-w-[180px]" :title="data.file_name">
-                    {{ data.file_name }} · {{ formatSize(data.file_size) }}
-                  </span>
+                <div class="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 font-medium">
+                  <i class="pi pi-hourglass text-[10px] text-primary"></i>
+                  <span>Umur: <strong>{{ data.age_info.text }}</strong></span>
+                </div>
 
-                  <!-- Tombol Popover Deskripsi/Keterangan yang Aman & Dinamis -->
-                  <button 
-                    v-if="data.description"
-                    type="button" 
-                    @click="toggleDescPopover($event, data)"
-                    @mouseenter="showDescPopover($event, data)"
-                    @mouseleave="scheduleHideDescPopover"
-                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/60 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition cursor-pointer"
-                    title="Klik atau arahkan kursor untuk melihat deskripsi"
-                  >
-                    <i class="pi pi-info-circle text-[10px] text-primary"></i>
-                    <span>Keterangan</span>
-                  </button>
+                <div class="text-[11px] text-slate-400">
+                  {{ data.expiry_info.subtext }}
                 </div>
               </div>
-            </div>
-          </template>
-        </Column>
+            </template>
+          </Column>
 
-        <!-- Kolom Kategori -->
-        <Column field="category" header="Kategori" sortable style="min-width: 140px">
-          <template #body="{ data }">
-            <Tag :value="getCategoryLabel(data.category)" :severity="getCategorySeverity(data.category)" class="text-xs font-medium" />
-          </template>
-        </Column>
-
-        <!-- Kolom Masa Berlaku, Umur Dokumen, dan Status Kadaluarsa -->
-        <Column field="effective_timestamp" header="Masa Berlaku & Umur" sortable style="min-width: 200px">
-          <template #body="{ data }">
-            <div class="space-y-1 py-1">
-              <!-- Status Masa Berlaku (Aktif, Segera Berakhir, Kedaluwarsa, Berlaku Tetap) -->
-              <div>
-                <span 
-                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold"
-                  :class="data.expiry_info.badgeClass"
-                >
-                  <i :class="data.expiry_info.icon" class="text-[10px]"></i>
-                  {{ data.expiry_info.label }}
-                </span>
+          <!-- Kolom Akses & Visibilitas -->
+          <Column field="visibility" header="Akses" sortable style="min-width: 130px">
+            <template #body="{ data }">
+              <div class="space-y-1 py-1">
+                <Tag 
+                  :value="data.visibility === 'public' ? 'Publik' : formatTargetUnits(data.target_units)" 
+                  :severity="data.visibility === 'public' ? 'success' : 'info'" 
+                  class="text-xs font-semibold"
+                />
+                <div v-if="data.is_confidential" class="text-[10px] text-red-600 dark:text-red-400 font-bold flex items-center gap-1">
+                  <i class="pi pi-lock text-[9px]"></i> Pimpinan & TU
+                </div>
               </div>
+            </template>
+          </Column>
 
-              <!-- Umur Dokumen Dinamis -->
-              <div class="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 font-medium">
-                <i class="pi pi-hourglass text-[10px] text-primary"></i>
-                <span>Umur: <strong>{{ data.age_info.text }}</strong></span>
+          <!-- Kolom Diupload -->
+          <Column field="created_timestamp" header="Diupload" sortable style="min-width: 140px">
+            <template #body="{ data }">
+              <div class="py-1">
+                <p class="text-xs text-slate-600 dark:text-slate-300 font-medium truncate max-w-[130px]" :title="data.uploader_name || '-'">
+                  {{ data.uploader_name || '-' }}
+                </p>
+                <p class="text-xs text-slate-400">{{ formatDate(data.created_at) }}</p>
               </div>
+            </template>
+          </Column>
 
-              <!-- Sub-informasi Tanggal Mulai / Berakhir -->
-              <div class="text-[11px] text-slate-400">
-                {{ data.expiry_info.subtext }}
+          <!-- Kolom Aksi -->
+          <Column header="Aksi" style="min-width: 190px">
+            <template #body="{ data }">
+              <div class="flex items-center gap-1">
+                <button @click="openPreviewDialog(data)" class="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition" title="Lihat Pratinjau">
+                  <i class="pi pi-eye text-sm"></i>
+                </button>
+                <a :href="data.file_url" target="_blank" download class="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition" title="Unduh File">
+                  <i class="pi pi-download text-sm"></i>
+                </a>
+                <button @click="openHistoryDialog(data)" class="p-1.5 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition" title="Riwayat Versi">
+                  <i class="pi pi-history text-sm"></i>
+                </button>
+                <button @click="openDialog(data)" class="p-1.5 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition" title="Edit">
+                  <i class="pi pi-pencil text-sm"></i>
+                </button>
+                <button @click="deleteDoc(data)" class="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition" title="Hapus">
+                  <i class="pi pi-trash text-sm"></i>
+                </button>
               </div>
+            </template>
+          </Column>
+
+          <template #empty>
+            <div class="text-center py-12 text-slate-400">
+              <i class="pi pi-folder-open text-4xl mb-3 block opacity-50"></i>
+              <p class="font-medium">Belum ada dokumen yang sesuai kriteria.</p>
+              <p class="text-xs text-slate-400 mt-1">Klik tombol "Upload Dokumen" untuk menambahkan berkas baru.</p>
             </div>
           </template>
-        </Column>
-
-        <!-- Kolom Akses & Visibilitas -->
-        <Column field="visibility" header="Akses" sortable style="min-width: 130px">
-          <template #body="{ data }">
-            <div class="space-y-1 py-1">
-              <Tag 
-                :value="data.visibility === 'public' ? 'Publik' : formatTargetUnits(data.target_units)" 
-                :severity="data.visibility === 'public' ? 'success' : 'info'" 
-                class="text-xs font-semibold"
-              />
-              <div v-if="data.is_confidential" class="text-[10px] text-red-600 dark:text-red-400 font-bold flex items-center gap-1">
-                <i class="pi pi-lock text-[9px]"></i> Pimpinan & TU
-              </div>
-            </div>
-          </template>
-        </Column>
-
-        <!-- Kolom Diupload -->
-        <Column field="created_timestamp" header="Diupload" sortable style="min-width: 140px">
-          <template #body="{ data }">
-            <div class="py-1">
-              <p class="text-xs text-slate-600 dark:text-slate-300 font-medium truncate max-w-[130px]" :title="data.uploader_name || '-'">
-                {{ data.uploader_name || '-' }}
-              </p>
-              <p class="text-xs text-slate-400">{{ formatDate(data.created_at) }}</p>
-            </div>
-          </template>
-        </Column>
-
-        <!-- Kolom Aksi -->
-        <Column header="Aksi" style="min-width: 190px">
-          <template #body="{ data }">
-            <div class="flex items-center gap-1">
-              <button @click="openPreviewDialog(data)" class="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition" title="Lihat Pratinjau">
-                <i class="pi pi-eye text-sm"></i>
-              </button>
-              <a :href="data.file_url" target="_blank" download class="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition" title="Unduh File">
-                <i class="pi pi-download text-sm"></i>
-              </a>
-              <button @click="openHistoryDialog(data)" class="p-1.5 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition" title="Riwayat Versi">
-                <i class="pi pi-history text-sm"></i>
-              </button>
-              <button @click="openDialog(data)" class="p-1.5 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition" title="Edit">
-                <i class="pi pi-pencil text-sm"></i>
-              </button>
-              <button @click="deleteDoc(data)" class="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition" title="Hapus">
-                <i class="pi pi-trash text-sm"></i>
-              </button>
-            </div>
-          </template>
-        </Column>
-
-        <template #empty>
-          <div class="text-center py-12 text-slate-400">
-            <i class="pi pi-folder-open text-4xl mb-3 block opacity-50"></i>
-            <p class="font-medium">Belum ada dokumen yang sesuai kriteria.</p>
-            <p class="text-xs text-slate-400 mt-1">Klik tombol "Upload Dokumen" untuk menambahkan berkas baru.</p>
-          </div>
-        </template>
-      </DataTable>
+        </DataTable>
+      </div>
     </div>
 
-    <!-- Dynamic Floating Popover untuk Deskripsi Dokumen (Popper Engine - Tidak akan terpotong atau menutupi header) -->
+    <!-- TAB 2: RIWAYAT SK & KARIR PEGAWAI -->
+    <div v-show="activeViewTab === 'career'" class="space-y-6">
+      <!-- Career Summary Stats Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+            <i class="pi pi-users text-lg"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Pegawai Terdata SK</div>
+            <div class="text-xl font-bold text-slate-800 dark:text-white">{{ careerList.length }} Orang</div>
+          </div>
+        </div>
+
+        <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+            <i class="pi pi-check-circle text-lg"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Aktif Menjabat</div>
+            <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400">{{ activeCareerCount }} Orang</div>
+          </div>
+        </div>
+
+        <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+            <i class="pi pi-file-o text-lg"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Total SK Karir Terbit</div>
+            <div class="text-xl font-bold text-blue-600 dark:text-blue-400">{{ totalCareerSkCount }} Berkas SK</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters & Search for Career -->
+      <div class="card">
+        <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div class="flex-1 w-full">
+            <InputText v-model="careerSearch" placeholder="Cari nama pegawai/guru, NIK, jabatan, atau nomor SK..." class="w-full" @input="fetchCareerHistory" />
+          </div>
+          <div class="flex items-center gap-2 w-full md:w-auto">
+            <Select v-model="careerSkTypeFilter" :options="allSkTypeFilterOptions" optionLabel="label" optionValue="value" placeholder="Semua Jenis SK" class="w-full md:w-56" @change="fetchCareerHistory" />
+            <Button label="+ SK Pegawai" icon="pi pi-plus" @click="openCareerSkDialog()" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Career Dossiers List -->
+      <div v-if="loadingCareer" class="text-center py-16 text-slate-400">
+        <i class="pi pi-spin pi-spinner text-3xl mb-3 text-primary"></i>
+        <p class="font-medium">Memuat berkas riwayat SK & karir pegawai...</p>
+      </div>
+
+      <div v-else-if="careerList.length === 0" class="card text-center py-16 text-slate-400">
+        <div class="w-14 h-14 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
+          <i class="pi pi-id-card text-2xl"></i>
+        </div>
+        <h3 class="text-base font-bold text-slate-700 dark:text-white">Tidak Ada Riwayat SK Pegawai Ditemukan</h3>
+        <p class="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+          Belum ada SK pengangkatan/promosi/mutasi yang ditautkan ke nama pegawai yang dicari.
+        </p>
+        <div class="mt-4">
+          <Button label="Buat SK Pegawai Baru" icon="pi pi-plus" @click="openCareerSkDialog()" />
+        </div>
+      </div>
+
+      <div v-else class="space-y-6">
+        <div
+          v-for="emp in careerList"
+          :key="emp.employee_name"
+          class="border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-800 shadow-sm overflow-hidden"
+        >
+          <!-- Employee Dossier Header -->
+          <div class="p-4 sm:p-5 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800/90 dark:to-slate-800 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div class="flex items-center gap-3.5">
+              <!-- Avatar Initials -->
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-primary to-indigo-500 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">
+                {{ getInitials(emp.employee_name) }}
+              </div>
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 class="text-base font-bold text-slate-800 dark:text-white">{{ emp.employee_name }}</h3>
+                  <Tag
+                    :value="emp.is_currently_active ? 'Aktif Menjabat' : 'Non-Aktif / Pensiun'"
+                    :severity="emp.is_currently_active ? 'success' : 'secondary'"
+                    class="text-[11px]"
+                  />
+                  <Tag v-if="emp.unit" :value="emp.unit" severity="info" class="text-[11px]" />
+                </div>
+                <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
+                  <span v-if="emp.current_position">
+                    Jabatan Saat Ini: <strong class="text-slate-700 dark:text-slate-200">{{ emp.current_position }}</strong>
+                  </span>
+                  <span v-if="emp.first_appointment_date">
+                    &bull; Mulai Bekerja: {{ formatDate(emp.first_appointment_date) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Side: Total Tenure Badge & Quick Add SK Button -->
+            <div class="flex items-center gap-2 flex-wrap self-end sm:self-center">
+              <div class="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-1.5 shadow-xs">
+                <i class="pi pi-hourglass text-emerald-600"></i>
+                <span>Masa Pengabdian: <strong>{{ emp.total_tenure || '-' }}</strong></span>
+              </div>
+
+              <Button
+                label="+ Tambah SK"
+                icon="pi pi-plus"
+                size="small"
+                severity="secondary"
+                @click="openCareerSkDialog(emp)"
+                title="Tambah SK baru untuk pegawai ini"
+              />
+            </div>
+          </div>
+
+          <!-- Chronological Career Timeline -->
+          <div class="p-4 sm:p-6 bg-slate-50/40 dark:bg-slate-900/20">
+            <div class="relative pl-6 sm:pl-8 border-l-2 border-indigo-200 dark:border-indigo-900/60 space-y-6">
+              <div
+                v-for="(item, idx) in emp.items"
+                :key="item.id"
+                class="relative group"
+              >
+                <!-- Timeline Node Dot -->
+                <div
+                  class="absolute -left-[31px] sm:-left-[39px] top-1.5 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-xs border-2 border-white dark:border-slate-800"
+                  :class="getSkTypeBadge(item.sk_type).badgeClass"
+                >
+                  <i :class="getSkTypeBadge(item.sk_type).icon" class="text-[11px]"></i>
+                </div>
+
+                <!-- Timeline Content Card -->
+                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/90 shadow-2xs hover:shadow-sm transition">
+                  <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-2.5 mb-2.5">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span
+                        class="px-2 py-0.5 rounded text-[11px] font-bold border"
+                        :class="getSkTypeBadge(item.sk_type).badgeClass"
+                      >
+                        {{ getSkTypeBadge(item.sk_type).label }}
+                      </span>
+                      <h4 class="font-bold text-sm text-slate-800 dark:text-white">
+                        {{ item.position_title || 'Penetapan SK' }}
+                      </h4>
+                      <Tag
+                        v-if="idx === 0 && emp.is_currently_active"
+                        value="Jabatan Terakhir / Saat Ini"
+                        severity="success"
+                        class="text-[10px]"
+                      />
+                    </div>
+
+                    <!-- Periode & Durasi -->
+                    <div class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
+                      <span class="inline-flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">
+                        <i class="pi pi-calendar text-[10px] text-primary"></i>
+                        {{ formatDate(item.term_start_date) }}
+                        &rarr;
+                        {{ item.term_end_date ? formatDate(item.term_end_date) : 'Sekarang / Tetap' }}
+                      </span>
+                      <span class="text-slate-400">
+                        ({{ calculateTenure(item.term_start_date, item.term_end_date) }})
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- Document Reference & Description -->
+                  <div class="text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span v-if="item.document_number" class="font-mono text-[11px] font-semibold bg-slate-100 dark:bg-slate-700/60 px-1.5 py-0.5 rounded text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+                        #{{ item.document_number }}
+                      </span>
+                      <span class="font-semibold text-slate-800 dark:text-white">{{ item.title }}</span>
+                      <Tag :value="'v' + (item.version || '1.0')" severity="secondary" class="text-[10px]" />
+                    </div>
+                    <p v-if="item.description" class="text-slate-500 dark:text-slate-400 italic text-[11px]">
+                      "{{ item.description }}"
+                    </p>
+                  </div>
+
+                  <!-- Supporting Forms / Attachments (Lampiran Formulir) -->
+                  <div v-if="item.attachments && item.attachments.length > 0" class="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-700/60">
+                    <div class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                      <i class="pi pi-paperclip text-[10px] text-emerald-600"></i>
+                      <span>Berkas Lampiran & Formulir ({{ item.attachments.length }}):</span>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <a
+                        v-for="(att, aIdx) in item.attachments"
+                        :key="aIdx"
+                        :href="att.file_url"
+                        target="_blank"
+                        download
+                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium transition border border-slate-200 dark:border-slate-600"
+                        :title="'Unduh: ' + (att.title || att.file_name)"
+                      >
+                        <i :class="getAttachmentIcon(att.file_url)" class="text-xs"></i>
+                        <span>{{ att.title || att.file_name }}</span>
+                        <span v-if="att.file_size" class="text-[10px] text-slate-400">({{ formatSize(att.file_size) }})</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <!-- Action Buttons -->
+                  <div class="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between flex-wrap gap-2">
+                    <span class="text-[11px] text-slate-400">
+                      Diupload: {{ formatDate(item.created_at) }}
+                    </span>
+                    <div class="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        @click="openPreviewDialog(item)"
+                        class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 transition inline-flex items-center gap-1"
+                      >
+                        <i class="pi pi-eye text-[11px]"></i> Pratinjau SK
+                      </button>
+                      <a
+                        :href="item.file_url"
+                        target="_blank"
+                        download
+                        class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 transition inline-flex items-center gap-1"
+                      >
+                        <i class="pi pi-download text-[11px]"></i> Unduh
+                      </a>
+                      <button
+                        type="button"
+                        @click="openDialog(item)"
+                        class="px-2 py-1 rounded-lg text-xs font-semibold text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition inline-flex items-center gap-1"
+                      >
+                        <i class="pi pi-pencil text-[11px]"></i> Edit
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dynamic Floating Popover untuk Deskripsi Dokumen -->
     <Popover ref="descPopover" class="!shadow-2xl !rounded-xl !border !border-slate-200 dark:!border-slate-700 !bg-white dark:!bg-slate-900" @mouseenter="cancelHideDescPopover" @mouseleave="hideDescPopover">
       <div v-if="hoveredDoc" class="p-3.5 max-w-sm">
         <div class="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-2 mb-2">
@@ -270,8 +568,8 @@
     </Popover>
 
     <!-- Upload/Edit Dialog -->
-    <Dialog v-model:visible="dialogVisible" :header="editingDoc ? 'Edit Dokumen' : 'Upload Dokumen Baru'" modal class="w-full max-w-xl">
-      <div class="space-y-4 pt-2">
+    <Dialog v-model:visible="dialogVisible" :header="editingDoc ? 'Edit Dokumen' : 'Upload Dokumen Baru'" modal class="w-full max-w-2xl" :breakpoints="{ '960px': '90vw', '640px': '98vw' }">
+      <div class="space-y-4 pt-2 max-h-[75vh] overflow-y-auto pr-1">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="flex flex-col gap-2">
             <label class="font-medium text-sm">Nomor Surat / SK (opsional)</label>
@@ -279,7 +577,7 @@
           </div>
           <div class="flex flex-col gap-2">
             <label class="font-medium text-sm">Kategori *</label>
-            <Select v-model="form.category" :options="categoryOptions" optionLabel="label" optionValue="value" placeholder="Pilih kategori" class="w-full" @change="onTitleOrNumberInput" />
+            <Select v-model="form.category" :options="categoryOptions" optionLabel="label" optionValue="value" placeholder="Pilih kategori" class="w-full" @change="onCategoryChange" />
           </div>
         </div>
 
@@ -323,15 +621,180 @@
         </div>
 
         <div class="flex flex-col gap-2">
-          <label class="font-medium text-sm">Deskripsi (opsional)</label>
-          <Textarea v-model="form.description" rows="2" placeholder="Keterangan singkat tentang dokumen ini (akan tampil sebagai hint/tooltip saat kursor diarahkan ke dokumen)..." />
+          <label class="font-medium text-sm">Deskripsi / Keterangan Singkat (opsional)</label>
+          <Textarea v-model="form.description" rows="2" placeholder="Keterangan singkat tentang dokumen ini (akan tampil sebagai popover saat kursor diarahkan ke dokumen)..." />
+        </div>
+
+        <!-- SEKSI 1: KAITAN KARIR PEGAWAI & SK JABATAN -->
+        <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 space-y-3">
+          <div class="flex items-center gap-2">
+            <Checkbox v-model="form.is_career_sk" :binary="true" inputId="is-career-check" />
+            <label for="is-career-check" class="cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-200 select-none flex items-center gap-1.5">
+              <i class="pi pi-id-card text-purple-500"></i> Tautkan ke Riwayat Karir & Jabatan Pegawai
+            </label>
+          </div>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 pl-6">
+            Centang jika dokumen ini merupakan SK Pengangkatan, Mutasi, Promosi, Pemberhentian, atau Tugas Tambahan untuk staf/guru tertentu.
+          </p>
+
+          <div v-if="form.is_career_sk" class="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <!-- Dropdown Pegawai Terdaftar -->
+              <div class="flex flex-col gap-1.5">
+                <label class="font-medium text-xs">Pilih Pegawai dari Sistem (opsional)</label>
+                <Select
+                  v-model="selectedUserObj"
+                  :options="usersBrief"
+                  optionLabel="full_name"
+                  filter
+                  placeholder="Cari nama pegawai/guru..."
+                  class="w-full text-xs"
+                  @change="onUserSelected"
+                  showClear
+                >
+                  <template #option="{ option }">
+                    <div class="flex items-center justify-between text-xs w-full">
+                      <span class="font-medium">{{ option.full_name }}</span>
+                      <span class="text-[10px] text-slate-400">({{ option.unit || option.role || '-' }})</span>
+                    </div>
+                  </template>
+                </Select>
+              </div>
+
+              <!-- Input Nama Lengkap Pegawai -->
+              <div class="flex flex-col gap-1.5">
+                <label class="font-medium text-xs">Nama Lengkap Pegawai *</label>
+                <InputText v-model="form.employee_name" placeholder="Contoh: Siti Yeni, S.Pd" class="w-full text-sm" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <!-- Jenis SK Karir -->
+              <div class="flex flex-col gap-1.5">
+                <label class="font-medium text-xs">Jenis Penetapan SK *</label>
+                <Select
+                  v-model="form.sk_type"
+                  :options="skTypeOptions"
+                  optionLabel="label"
+                  optionValue="value"
+                  placeholder="Pilih jenis SK"
+                  class="w-full text-xs"
+                />
+              </div>
+
+              <!-- Nama Posisi / Jabatan -->
+              <div class="flex flex-col gap-1.5">
+                <label class="font-medium text-xs">Nama Jabatan / Posisi *</label>
+                <InputText v-model="form.position_title" placeholder="Contoh: Wakil Kurikulum / Kepala Sekolah" class="w-full text-sm" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <!-- TMT Mulai Menjabat -->
+              <div class="flex flex-col gap-1.5">
+                <label class="font-medium text-xs">TMT Mulai Menjabat (Berlaku SK) *</label>
+                <InputText v-model="form.term_start_date" type="date" class="w-full text-sm" />
+              </div>
+
+              <!-- Selesai Menjabat -->
+              <div class="flex flex-col gap-1.5">
+                <label class="font-medium text-xs">Selesai Menjabat (opsional)</label>
+                <InputText v-model="form.term_end_date" type="date" class="w-full text-sm" />
+                <span class="text-[10px] text-slate-400">Kosongkan jika aktif sampai sekarang / masa jabatan tetap.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SEKSI 2: BERKAS LAMPIRAN & FORMULIR PENDUKUNG -->
+        <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                <i class="pi pi-paperclip text-emerald-600"></i>
+                <span>Berkas Lampiran & Formulir Pendukung</span>
+                <Tag v-if="form.attachments.length > 0" :value="form.attachments.length + ' Berkas'" severity="success" class="text-[10px]" />
+              </div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Lampirkan formulir yang harus diisi atau berkas turunan (contoh: Form Pengajuan Spanduk, Form Exit Clearance, dll).
+              </p>
+            </div>
+            <Button
+              type="button"
+              label="+ Tambah Formulir"
+              icon="pi pi-plus"
+              size="small"
+              severity="secondary"
+              @click="addAttachmentRow"
+            />
+          </div>
+
+          <!-- Hidden File Input for Attachment -->
+          <input
+            ref="attachmentFileInputRef"
+            type="file"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.jpg,.jpeg,.png"
+            class="hidden"
+            @change="handleAttachmentFileSelect"
+          />
+
+          <div v-if="form.attachments.length === 0" class="text-center py-3 text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg">
+            Belum ada berkas formulir dilampirkan. Klik <strong>"+ Tambah Formulir"</strong> jika SOP/SK ini membutuhkan lampiran form.
+          </div>
+
+          <div v-else class="space-y-2">
+            <div
+              v-for="(att, idx) in form.attachments"
+              :key="idx"
+              class="p-2.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2"
+            >
+              <div class="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <InputText
+                  v-model="att.title"
+                  placeholder="Judul Formulir (contoh: Form Exit Clearance)"
+                  class="w-full sm:w-1/2 text-xs"
+                />
+
+                <div v-if="att.file_url" class="flex-1 flex items-center gap-2 text-xs bg-slate-50 dark:bg-slate-700/60 p-1.5 rounded border border-slate-200 dark:border-slate-600 min-w-0">
+                  <i :class="getAttachmentIcon(att.file_url)" class="text-sm shrink-0"></i>
+                  <span class="truncate text-slate-700 dark:text-slate-200 text-xs">{{ att.file_name }}</span>
+                  <span v-if="att.file_size" class="text-[10px] text-slate-400 shrink-0">({{ formatSize(att.file_size) }})</span>
+                </div>
+
+                <div v-else class="flex-1 flex items-center gap-2">
+                  <button
+                    type="button"
+                    :disabled="att.uploading"
+                    @click="triggerAttachmentUpload(idx)"
+                    class="px-2.5 py-1.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 text-xs font-semibold inline-flex items-center gap-1 transition shrink-0"
+                  >
+                    <i :class="att.uploading ? 'pi pi-spin pi-spinner' : 'pi pi-upload'"></i>
+                    <span>{{ att.uploading ? 'Mengupload...' : 'Pilih File Formulir' }}</span>
+                  </button>
+                  <InputText
+                    v-model="att.file_url"
+                    placeholder="Atau tautan URL / Google Drive..."
+                    class="flex-1 text-xs"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                @click="removeAttachmentRow(idx)"
+                class="text-red-500 hover:text-red-700 p-1 self-end sm:self-center"
+                title="Hapus Lampiran"
+              >
+                <i class="pi pi-trash text-sm"></i>
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- 2-Level Visibility & Target Unit Controls -->
         <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 space-y-3">
           <label class="font-bold text-sm text-slate-800 dark:text-white block">Tingkat Akses & Visibilitas Dokumen *</label>
           
-          <!-- Radio Pilihan Utama: Publik vs Internal -->
           <div class="grid grid-cols-2 gap-3">
             <div 
               @click="form.visibility = 'public'"
@@ -358,7 +821,6 @@
             </div>
           </div>
 
-          <!-- Opsi Tambahan jika Internal -->
           <div v-if="form.visibility === 'internal'" class="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-3">
             <div>
               <div class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Cakupan Unit Target:</div>
@@ -376,7 +838,6 @@
               </div>
             </div>
 
-            <!-- Batasan Kerahasiaan (Konfidensial) -->
             <div class="pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
               <div class="flex items-start gap-2">
                 <Checkbox v-model="form.is_confidential" :binary="true" inputId="confidential-check" />
@@ -414,7 +875,6 @@
             </label>
           </div>
 
-          <!-- Input Tanggal Berakhir jika Dicentang -->
           <div v-if="form.has_expired_date" class="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-2">
             <label class="font-medium text-xs text-slate-700 dark:text-slate-300">
               Pilih Tanggal, Bulan, dan Tahun Berakhirnya SOP/SK/Juknis *
@@ -435,7 +895,7 @@
         <!-- File Source Switcher: Upload Berkas vs Link Google Drive -->
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <label class="font-medium text-sm">Sumber Dokumen *</label>
+            <label class="font-medium text-sm">Sumber Dokumen Utama *</label>
             <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs">
               <button
                 type="button"
@@ -577,33 +1037,83 @@
           </div>
         </div>
 
+        <!-- Career SK Info Banner jika dokumen ditautkan ke Karir Pegawai -->
+        <div v-if="previewDoc.employee_name" class="p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold">
+              <i class="pi pi-id-card"></i>
+            </div>
+            <div>
+              <div class="font-bold text-slate-800 dark:text-white">SK Terkait Pegawai: {{ previewDoc.employee_name }}</div>
+              <div class="text-slate-500 dark:text-slate-400">
+                {{ getSkTypeBadge(previewDoc.sk_type).label }} &bull; Jabatan: <strong>{{ previewDoc.position_title || '-' }}</strong>
+                <span v-if="previewDoc.term_start_date"> &bull; Periode: {{ formatDate(previewDoc.term_start_date) }} s/d {{ previewDoc.term_end_date ? formatDate(previewDoc.term_end_date) : 'Sekarang / Tetap' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Berkas Lampiran & Formulir Pendukung (Jika Ada) -->
+        <div v-if="previewDoc.attachments && previewDoc.attachments.length > 0" class="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="font-bold text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+              <i class="pi pi-paperclip text-sm"></i>
+              <span>Berkas Lampiran & Formulir Pendukung ({{ previewDoc.attachments.length }})</span>
+            </div>
+            <span class="text-[11px] text-slate-400">Dapat diunduh terpisah untuk pengisian formulir</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div
+              v-for="(att, idx) in previewDoc.attachments"
+              :key="idx"
+              class="p-2.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <i :class="getAttachmentIcon(att.file_url)" class="text-lg shrink-0"></i>
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold text-slate-800 dark:text-white truncate">{{ att.title || att.file_name }}</p>
+                  <p class="text-[10px] text-slate-400 truncate">{{ att.file_name }} <span v-if="att.file_size">· {{ formatSize(att.file_size) }}</span></p>
+                </div>
+              </div>
+              <a
+                :href="att.file_url"
+                target="_blank"
+                download
+                class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold inline-flex items-center gap-1 shrink-0 transition"
+              >
+                <i class="pi pi-download text-[10px]"></i> Unduh
+              </a>
+            </div>
+          </div>
+        </div>
+
         <!-- Embedded Viewer Container -->
-        <div class="bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 min-h-[65vh] flex items-center justify-center">
+        <div class="bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 min-h-[60vh] flex items-center justify-center">
           <!-- Mode 1: Google Drive Link -->
           <iframe 
             v-if="isGdriveLink(previewDoc.file_url)" 
             :src="getGdrivePreviewUrl(previewDoc.file_url)" 
-            class="w-full h-[72vh] border-0" 
+            class="w-full h-[68vh] border-0" 
             allow="autoplay"
           ></iframe>
 
           <!-- Mode 2: Image File -->
-          <div v-else-if="isImageFile(previewDoc.file_url)" class="p-4 text-center max-h-[72vh] overflow-auto w-full">
-            <img :src="previewDoc.file_url" :alt="previewDoc.title" class="max-h-[70vh] max-w-full mx-auto object-contain rounded-lg shadow-sm" />
+          <div v-else-if="isImageFile(previewDoc.file_url)" class="p-4 text-center max-h-[68vh] overflow-auto w-full">
+            <img :src="previewDoc.file_url" :alt="previewDoc.title" class="max-h-[66vh] max-w-full mx-auto object-contain rounded-lg shadow-sm" />
           </div>
 
           <!-- Mode 3: PDF File -->
           <iframe 
             v-else-if="isPdfFile(previewDoc.file_url)" 
             :src="previewDoc.file_url" 
-            class="w-full h-[72vh] border-0"
+            class="w-full h-[68vh] border-0"
           ></iframe>
 
           <!-- Mode 4: Other Docs (Word/Excel/dll) via Google Docs Viewer -->
           <iframe 
             v-else 
             :src="'https://docs.google.com/viewer?url=' + encodeURIComponent(previewDoc.file_url) + '&embedded=true'" 
-            class="w-full h-[72vh] border-0"
+            class="w-full h-[68vh] border-0"
           ></iframe>
         </div>
       </div>
@@ -613,14 +1123,14 @@
           <div class="flex items-center gap-2">
             <Button label="Tutup" severity="secondary" @click="previewDialogVisible = false" />
             <a v-if="previewDoc?.file_url" :href="previewDoc.file_url" target="_blank" download class="p-button p-component p-button-primary inline-flex items-center gap-1 text-sm px-3 py-2 rounded-lg">
-              <i class="pi pi-download"></i> Unduh File
+              <i class="pi pi-download"></i> Unduh File Utama
             </a>
           </div>
         </div>
       </template>
     </Dialog>
 
-    <!-- Dialog Audit & Resolusi Potensi Duplikasi Dokumen (Side-by-Side Comparison) -->
+    <!-- Dialog Audit & Resolusi Potensi Duplikasi Dokumen -->
     <Dialog v-model:visible="duplicateDialogVisible" header="Audit & Resolusi Potensi Duplikasi Dokumen" modal class="w-full max-w-4xl" :breakpoints="{ '960px': '90vw', '640px': '98vw' }">
       <div v-if="loadingDuplicates" class="text-center py-12 text-slate-400">
         <i class="pi pi-spin pi-spinner text-3xl mb-3 text-primary"></i>
@@ -638,7 +1148,6 @@
       </div>
 
       <div v-else class="space-y-6 py-2 max-h-[72vh] overflow-y-auto pr-1">
-        <!-- Banner Penjelasan -->
         <div class="p-3.5 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl text-xs text-purple-900 dark:text-purple-200 flex items-start gap-2.5">
           <i class="pi pi-info-circle text-purple-600 text-base mt-0.5 shrink-0"></i>
           <div class="leading-relaxed">
@@ -647,9 +1156,7 @@
           </div>
         </div>
 
-        <!-- Daftar Pasangan Komparasi Berdampingan -->
         <div v-for="(pair, idx) in duplicatePairs" :key="pair.pair_id" class="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-800 shadow-sm">
-          <!-- Header Bar Pasangan: Skor & Alasan -->
           <div class="bg-slate-50 dark:bg-slate-800/80 p-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between flex-wrap gap-2">
             <div class="flex items-center gap-2">
               <span class="w-6 h-6 rounded-full bg-purple-600 text-white text-xs font-bold flex items-center justify-center">
@@ -662,7 +1169,6 @@
             </span>
           </div>
 
-          <!-- Komparasi Berdampingan Side-by-Side Grid -->
           <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-700 p-4 gap-4">
             <!-- Dokumen A -->
             <div class="space-y-2 pr-0 md:pr-2">
@@ -715,9 +1221,7 @@
             </div>
           </div>
 
-          <!-- Bar Aksi Keputusan per Pasangan -->
           <div class="bg-slate-50 dark:bg-slate-800/60 p-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between flex-wrap gap-2">
-            <!-- Aksi 1: Jadikan Revisi (Merge) -->
             <div class="flex items-center gap-1.5 flex-wrap">
               <span class="text-xs font-semibold text-slate-600 dark:text-slate-400">Rantai Versi:</span>
               <button 
@@ -736,7 +1240,6 @@
               </button>
             </div>
 
-            <!-- Aksi 2 & 3: Hapus Salah Satu atau Tandai Sah / Terpisah -->
             <div class="flex items-center gap-1.5 flex-wrap">
               <button 
                 @click="resolveDuplicate(pair, 'delete_doc', undefined, undefined, pair.doc_a.id)"
@@ -791,6 +1294,13 @@ const loadingHistory = ref(false)
 const editingDoc = ref<any>(null)
 const previewDialogVisible = ref(false)
 const previewDoc = ref<any>(null)
+
+// Tab Aktif: 'documents' | 'career'
+const activeViewTab = ref<'documents' | 'career'>('documents')
+
+// User list for dropdown
+const usersBrief = ref<any[]>([])
+const selectedUserObj = ref<any>(null)
 
 // Popover Deskripsi Dokumen
 const descPopover = ref<any>(null)
@@ -873,6 +1383,10 @@ const filterVisibility = ref('')
 const uploadProgress = ref(0)
 const fileInputRef = ref<HTMLInputElement>()
 
+// Attachment upload reference & state
+const attachmentFileInputRef = ref<HTMLInputElement>()
+const currentAttIndexToUpload = ref<number | null>(null)
+
 // KPI summary counters
 const activeDocCount = computed(() => {
   return documents.value.filter(d => d.expiry_info?.status === 'active' || d.expiry_info?.status === 'permanent').length
@@ -906,6 +1420,32 @@ const visibilityOptions = [
   { value: 'internal', label: 'Internal' },
   { value: 'public', label: 'Publik' },
 ]
+
+// SK Career Type Options
+const skTypeOptions = [
+  { value: 'PENGANGKATAN', label: 'Pengangkatan Pegawai/Guru', icon: 'pi pi-check-circle', badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300' },
+  { value: 'PROMOSI', label: 'Promosi Jabatan', icon: 'pi pi-arrow-up-circle', badgeClass: 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-300' },
+  { value: 'MUTASI', label: 'Mutasi / Rotasi Posisi', icon: 'pi pi-sync', badgeClass: 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300' },
+  { value: 'TUGAS_TAMBAHAN', label: 'Tugas Tambahan (Wakakur, dll)', icon: 'pi pi-star', badgeClass: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300' },
+  { value: 'PEMBERHENTIAN', label: 'Pemberhentian / Selesai Masa Bakti', icon: 'pi pi-ban', badgeClass: 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border-red-300' },
+  { value: 'PENGUNDURAN_DIRI', label: 'Pengunduran Diri (Resign)', icon: 'pi pi-sign-out', badgeClass: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-300' },
+]
+
+const allSkTypeFilterOptions = [
+  { value: '', label: 'Semua Jenis SK' },
+  ...skTypeOptions
+]
+
+function getSkTypeBadge(val?: string) {
+  const found = skTypeOptions.find(o => o.value === val)
+  if (found) return found
+  return {
+    value: val || 'SK_UMUM',
+    label: val ? val.replace(/_/g, ' ') : 'SK Umum',
+    icon: 'pi pi-file',
+    badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300'
+  }
+}
 
 const fileSourceMode = ref<'upload' | 'gdrive'>('upload')
 const gdriveInputUrl = ref('')
@@ -959,9 +1499,6 @@ function handleGdriveInput() {
   }
 }
 
-/**
- * Menghitung umur dokumen secara dinamis dari tanggal berlaku (atau created_at sebagai fallback)
- */
 function calculateDocumentAge(effectiveDateStr?: string, createdAtStr?: string) {
   const refDateStr = effectiveDateStr || createdAtStr
   if (!refDateStr) return { text: '-', days: 0 }
@@ -1002,9 +1539,6 @@ function calculateDocumentAge(effectiveDateStr?: string, createdAtStr?: string) 
   }
 }
 
-/**
- * Menentukan status masa berlaku dokumen (Kedaluwarsa, Sisa X hari, Aktif, Berlaku Tetap)
- */
 function getExpiryInfo(effectiveDateStr?: string, expiredDateStr?: string) {
   if (!expiredDateStr) {
     return {
@@ -1058,6 +1592,50 @@ function getExpiryInfo(effectiveDateStr?: string, expiredDateStr?: string) {
   }
 }
 
+// Tenure helper between two dates
+function calculateTenure(startDateStr?: string, endDateStr?: string): string {
+  if (!startDateStr) return '-'
+  const start = new Date(startDateStr)
+  const end = endDateStr ? new Date(endDateStr) : new Date()
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return '-'
+  
+  let years = end.getFullYear() - start.getFullYear()
+  let months = end.getMonth() - start.getMonth()
+  let days = end.getDate() - start.getDate()
+  
+  if (days < 0) {
+    months -= 1
+  }
+  if (months < 0) {
+    years -= 1
+    months += 12
+  }
+  
+  const parts: string[] = []
+  if (years > 0) parts.push(`${years} Tahun`)
+  if (months > 0) parts.push(`${months} Bulan`)
+  if (parts.length === 0) return 'Kurang dari 1 Bulan'
+  return parts.join(' ')
+}
+
+function getInitials(name?: string): string {
+  if (!name) return 'PG'
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
+  return (parts[0][0] + parts[1][0]).toUpperCase()
+}
+
+function getAttachmentIcon(urlOrName?: string): string {
+  if (!urlOrName) return 'pi pi-file text-slate-500'
+  const ext = urlOrName.split('?')[0].split('.').pop()?.toLowerCase() || ''
+  if (['doc', 'docx'].includes(ext)) return 'pi pi-file-word text-blue-600'
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'pi pi-file-excel text-emerald-600'
+  if (ext === 'pdf') return 'pi pi-file-pdf text-red-600'
+  if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) return 'pi pi-image text-purple-600'
+  if (['zip', 'rar'].includes(ext)) return 'pi pi-box text-amber-600'
+  return 'pi pi-file text-slate-600'
+}
+
 const form = reactive({
   document_number: '',
   title: '',
@@ -1074,7 +1652,37 @@ const form = reactive({
   expired_date: '',
   target_units: 'ALL',
   is_confidential: false,
+  // Feature A: Attachments
+  attachments: [] as Array<{
+    title: string
+    file_url: string
+    file_name: string
+    file_size?: number
+    uploading?: boolean
+  }>,
+  // Feature B: Career Metadata
+  is_career_sk: false,
+  employee_id: null as number | null,
+  employee_name: '',
+  sk_type: 'PENGANGKATAN',
+  position_title: '',
+  term_start_date: '',
+  term_end_date: '',
 })
+
+function onCategoryChange() {
+  onTitleOrNumberInput()
+  if (form.category === 'sk_yayasan' && !editingDoc.value) {
+    form.is_career_sk = true
+  }
+}
+
+function onUserSelected(e: any) {
+  if (e?.value) {
+    form.employee_id = e.value.id
+    form.employee_name = e.value.full_name
+  }
+}
 
 function onExpiredCheckboxChange() {
   if (!form.has_expired_date) {
@@ -1098,6 +1706,15 @@ function resetForm() {
   form.expired_date = ''
   form.target_units = 'ALL'
   form.is_confidential = false
+  form.attachments = []
+  form.is_career_sk = false
+  form.employee_id = null
+  form.employee_name = ''
+  form.sk_type = 'PENGANGKATAN'
+  form.position_title = ''
+  form.term_start_date = ''
+  form.term_end_date = ''
+  selectedUserObj.value = null
   allUnitsSelected.value = true
   selectedUnits.value = ['YYS', 'RA', 'SDIT', 'SMPIT']
   fileSourceMode.value = 'upload'
@@ -1124,7 +1741,24 @@ function openDialog(doc?: any) {
       expired_date: doc.expired_date ? doc.expired_date.substring(0, 10) : '',
       target_units: doc.target_units || 'ALL',
       is_confidential: !!doc.is_confidential,
+      employee_id: doc.employee_id || null,
+      employee_name: doc.employee_name || '',
+      sk_type: doc.sk_type || 'PENGANGKATAN',
+      position_title: doc.position_title || '',
+      term_start_date: doc.term_start_date ? doc.term_start_date.substring(0, 10) : '',
+      term_end_date: doc.term_end_date ? doc.term_end_date.substring(0, 10) : '',
+      is_career_sk: !!(doc.employee_name || doc.employee_id || doc.position_title || doc.category === 'sk_yayasan'),
     })
+
+    form.attachments = doc.attachments && Array.isArray(doc.attachments)
+      ? doc.attachments.map((a: any) => ({ ...a, uploading: false }))
+      : []
+
+    if (doc.employee_id && usersBrief.value.length > 0) {
+      selectedUserObj.value = usersBrief.value.find(u => u.id === doc.employee_id) || null
+    } else {
+      selectedUserObj.value = null
+    }
 
     if (!doc.target_units || doc.target_units === 'ALL') {
       allUnitsSelected.value = true
@@ -1150,6 +1784,71 @@ function openDialog(doc?: any) {
     resetForm()
   }
   dialogVisible.value = true
+}
+
+function openCareerSkDialog(employee?: any) {
+  openDialog()
+  form.category = 'sk_yayasan'
+  form.is_career_sk = true
+  if (employee) {
+    form.employee_id = employee.employee_id || null
+    form.employee_name = employee.employee_name || ''
+    if (employee.employee_id && usersBrief.value.length > 0) {
+      selectedUserObj.value = usersBrief.value.find(u => u.id === employee.employee_id) || null
+    }
+  }
+}
+
+// Attachment Management
+function addAttachmentRow() {
+  form.attachments.push({
+    title: '',
+    file_url: '',
+    file_name: '',
+    file_size: 0,
+    uploading: false,
+  })
+}
+
+function removeAttachmentRow(index: number) {
+  form.attachments.splice(index, 1)
+}
+
+function triggerAttachmentUpload(index: number) {
+  currentAttIndexToUpload.value = index
+  attachmentFileInputRef.value?.click()
+}
+
+async function handleAttachmentFileSelect(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file || currentAttIndexToUpload.value === null) return
+  
+  const targetIndex = currentAttIndexToUpload.value
+  const targetAtt = form.attachments[targetIndex]
+  if (!targetAtt) return
+  
+  if (file.size > 15 * 1024 * 1024) {
+    toast.add({ severity: 'error', summary: 'Error', detail: 'File lampiran maksimal 15MB', life: 3000 })
+    return
+  }
+  
+  targetAtt.uploading = true
+  try {
+    const result = await api.upload('/cms/upload', file)
+    targetAtt.file_url = result.url
+    targetAtt.file_name = file.name
+    targetAtt.file_size = file.size
+    if (!targetAtt.title) {
+      targetAtt.title = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ')
+    }
+    toast.add({ severity: 'success', summary: 'Lampiran Diupload', detail: `Berkas ${file.name} siap disimpan`, life: 2500 })
+  } catch (err) {
+    toast.add({ severity: 'error', summary: 'Gagal', detail: 'Gagal mengupload berkas lampiran', life: 3000 })
+  } finally {
+    targetAtt.uploading = false
+    if (attachmentFileInputRef.value) attachmentFileInputRef.value.value = ''
+    currentAttIndexToUpload.value = null
+  }
 }
 
 async function openHistoryDialog(doc: any) {
@@ -1195,6 +1894,59 @@ async function fetchDocuments() {
     console.error('Failed to fetch documents', e)
   } finally {
     loading.value = false
+  }
+}
+
+// ------------------------------------------------------------
+// CAREER TIMELINE & DOSSIER LOGIC
+// ------------------------------------------------------------
+const careerList = ref<any[]>([])
+const loadingCareer = ref(false)
+const careerSearch = ref('')
+const careerSkTypeFilter = ref('')
+
+const activeCareerCount = computed(() => {
+  return careerList.value.filter(e => e.is_currently_active).length
+})
+
+const totalCareerSkCount = computed(() => {
+  return careerList.value.reduce((acc, emp) => acc + (emp.items ? emp.items.length : 0), 0)
+})
+
+const filteredCareerList = computed(() => {
+  return careerList.value
+})
+
+async function fetchCareerHistory() {
+  loadingCareer.value = true
+  try {
+    let url = '/internal/documents/employee-career'
+    const q: string[] = []
+    if (careerSearch.value) q.push(`search=${encodeURIComponent(careerSearch.value)}`)
+    if (careerSkTypeFilter.value) q.push(`sk_type=${encodeURIComponent(careerSkTypeFilter.value)}`)
+    if (q.length > 0) url += `?${q.join('&')}`
+    
+    careerList.value = await api.get<any[]>(url)
+  } catch (e) {
+    console.error('Failed to fetch career history', e)
+    careerList.value = []
+  } finally {
+    loadingCareer.value = false
+  }
+}
+
+function switchTab(tab: 'documents' | 'career') {
+  activeViewTab.value = tab
+  if (tab === 'career' && careerList.value.length === 0) {
+    fetchCareerHistory()
+  }
+}
+
+async function fetchUsersBrief() {
+  try {
+    usersBrief.value = await api.get<any[]>('/internal/users-brief')
+  } catch (e) {
+    console.error('Failed to fetch users brief', e)
   }
 }
 
@@ -1266,6 +2018,30 @@ async function saveDocument() {
     }
     delete payload.has_expired_date
 
+    // Clean attachments array
+    payload.attachments = (form.attachments || [])
+      .filter(a => a.file_url)
+      .map(a => ({
+        title: a.title || a.file_name || 'Lampiran Berkas',
+        file_url: a.file_url,
+        file_name: a.file_name || 'Berkas Lampiran',
+        file_size: a.file_size || 0,
+      }))
+
+    // Career fields normalization
+    if (!payload.is_career_sk) {
+      payload.employee_id = null
+      payload.employee_name = null
+      payload.sk_type = null
+      payload.position_title = null
+      payload.term_start_date = null
+      payload.term_end_date = null
+    } else {
+      if (!payload.term_start_date) payload.term_start_date = null
+      if (!payload.term_end_date) payload.term_end_date = null
+    }
+    delete payload.is_career_sk
+
     if (editingDoc.value) {
       await api.put(`/internal/documents/${editingDoc.value.id}`, payload)
       toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Dokumen berhasil diperbarui', life: 3000 })
@@ -1275,6 +2051,9 @@ async function saveDocument() {
     }
     dialogVisible.value = false
     await fetchDocuments()
+    if (activeViewTab.value === 'career' || payload.employee_name) {
+      await fetchCareerHistory()
+    }
   } catch (e) {
     console.error('Save failed', e)
     toast.add({ severity: 'error', summary: 'Gagal', detail: 'Gagal menyimpan dokumen', life: 3000 })
@@ -1289,6 +2068,9 @@ async function deleteDoc(doc: any) {
     await api.delete(`/internal/documents/${doc.id}`)
     toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Dokumen berhasil dihapus', life: 3000 })
     await fetchDocuments()
+    if (activeViewTab.value === 'career' || doc.employee_name) {
+      await fetchCareerHistory()
+    }
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Gagal', detail: 'Gagal menghapus dokumen', life: 3000 })
   }
@@ -1398,6 +2180,9 @@ async function resolveDuplicate(pair: any, action: string, parentId?: number, ch
     // Refresh duplicates and documents table
     await fetchDuplicateCount()
     await fetchDocuments()
+    if (activeViewTab.value === 'career') {
+      await fetchCareerHistory()
+    }
     
     if (duplicatePairs.value.length === 0) {
       setTimeout(() => {
@@ -1434,7 +2219,6 @@ function onTitleOrNumberInput() {
 
 function applyAsRevision(matchedDoc: any) {
   form.replaces_id = matchedDoc.id
-  // Auto suggest next version
   try {
     const v = parseFloat(matchedDoc.version || '1.0')
     if (!isNaN(v)) {
@@ -1455,5 +2239,7 @@ function applyAsRevision(matchedDoc: any) {
 onMounted(() => {
   fetchDocuments()
   fetchDuplicateCount()
+  fetchUsersBrief()
+  fetchCareerHistory()
 })
 </script>
