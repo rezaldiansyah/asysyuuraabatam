@@ -137,9 +137,9 @@
               </template>
             </Column>
 
-            <Column field="type" header="Tipe" sortable style="width: 130px">
+            <Column field="type" header="Tipe" sortable style="width: 140px">
               <template #body="slotProps">
-                <Tag :value="getEventLabel(slotProps.data.type)" :severity="getEventSeverity(slotProps.data.type)" class="text-xs" />
+                <Tag :value="getEventLabel(slotProps.data.type)" :severity="getEventSeverity(slotProps.data.type)" class="!text-[10px] !px-2 !py-0.5 font-bold whitespace-nowrap" />
               </template>
             </Column>
 
@@ -195,54 +195,70 @@
       </Card>
 
       <!-- Sidebar Legend & Mini Guide (1 Column) -->
-      <div class="space-y-6">
-        <Card class="shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-xl">
-          <template #title>
-            <div class="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-              <i class="pi pi-info-circle text-primary"></i>
-              Panduan Tipe Kegiatan
+      <div class="space-y-4">
+        <div class="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-sm space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2.5">
+            <div class="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wide">
+              <i class="pi pi-info-circle text-primary text-xs"></i>
+              Keterangan
             </div>
-          </template>
-          <template #content>
-            <div class="space-y-3.5 pt-2">
-              <div class="flex items-start gap-3">
-                <Tag value="Hari Efektif" severity="info" class="mt-0.5" />
-                <div class="text-xs text-slate-600 dark:text-slate-300">
-                  <strong>Kegiatan Belajar Mengajar (KBM)</strong> biasa, wajib presensi kehadiran guru dan siswa.
-                </div>
-              </div>
+            <span class="text-[10px] text-slate-400">Tipe Kegiatan</span>
+          </div>
 
-              <div class="flex items-start gap-3">
-                <Tag value="Libur" severity="danger" class="mt-0.5" />
-                <div class="text-xs text-slate-600 dark:text-slate-300">
-                  <strong>Tanggal Merah / Cuti Bersama</strong>. Sistem presensi otomatis meniadakan kewajiban absen.
-                </div>
-              </div>
-
-              <div class="flex items-start gap-3">
-                <Tag value="Ujian" severity="warning" class="mt-0.5" />
-                <div class="text-xs text-slate-600 dark:text-slate-300">
-                  <strong>PTS, PAS, Asesmen Madrasah / US</strong>. Tidak ada KBM reguler, fokus pada ujian.
-                </div>
-              </div>
-
-              <div class="flex items-start gap-3">
-                <Tag value="Event Sekolah" severity="success" class="mt-0.5" />
-                <div class="text-xs text-slate-600 dark:text-slate-300">
-                  <strong>Acara & Perlombaan</strong> seperti Classmeeting, Pawai Muharram, Upacara, Manasik Haji.
-                </div>
+          <div class="space-y-2.5 pt-0.5">
+            <!-- Item 1: Hari Efektif -->
+            <div class="flex items-start gap-2.5 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/30 transition border border-slate-100/60 dark:border-slate-700/40">
+              <span class="w-24 shrink-0 px-2 py-0.5 text-center rounded text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800/60">
+                Hari Efektif
+              </span>
+              <div class="text-[11px] leading-tight min-w-0">
+                <div class="font-semibold text-slate-700 dark:text-slate-200">KBM Biasa</div>
+                <div class="text-[10px] text-slate-400 mt-0.5 leading-normal">Wajib presensi kehadiran guru dan siswa</div>
               </div>
             </div>
-          </template>
-        </Card>
+
+            <!-- Item 2: Libur -->
+            <div class="flex items-start gap-2.5 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/30 transition border border-slate-100/60 dark:border-slate-700/40">
+              <span class="w-24 shrink-0 px-2 py-0.5 text-center rounded text-[10px] font-bold bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200/80 dark:border-red-800/60">
+                Libur
+              </span>
+              <div class="text-[11px] leading-tight min-w-0">
+                <div class="font-semibold text-slate-700 dark:text-slate-200">Tanggal Merah / Cuti</div>
+                <div class="text-[10px] text-slate-400 mt-0.5 leading-normal">Sistem presensi meniadakan kewajiban absen</div>
+              </div>
+            </div>
+
+            <!-- Item 3: Ujian -->
+            <div class="flex items-start gap-2.5 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/30 transition border border-slate-100/60 dark:border-slate-700/40">
+              <span class="w-24 shrink-0 px-2 py-0.5 text-center rounded text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60">
+                Ujian
+              </span>
+              <div class="text-[11px] leading-tight min-w-0">
+                <div class="font-semibold text-slate-700 dark:text-slate-200">PTS, PAS, Asesmen / US</div>
+                <div class="text-[10px] text-slate-400 mt-0.5 leading-normal">Fokus ujian, tidak ada KBM reguler</div>
+              </div>
+            </div>
+
+            <!-- Item 4: Event Sekolah -->
+            <div class="flex items-start gap-2.5 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/30 transition border border-slate-100/60 dark:border-slate-700/40">
+              <span class="w-24 shrink-0 px-2 py-0.5 text-center rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60">
+                Kegiatan
+              </span>
+              <div class="text-[11px] leading-tight min-w-0">
+                <div class="font-semibold text-slate-700 dark:text-slate-200">Acara & Perlombaan</div>
+                <div class="text-[10px] text-slate-400 mt-0.5 leading-normal">Classmeeting, Lomba, Upacara, Manasik</div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- Academic Year Summary Box -->
-        <div class="p-4 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/20 text-xs space-y-2 text-slate-600 dark:text-slate-300">
-          <div class="font-bold text-primary flex items-center gap-1.5">
-            <i class="pi pi-bookmark"></i>
+        <div class="p-3.5 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/20 text-xs space-y-1.5 text-slate-600 dark:text-slate-300">
+          <div class="font-bold text-primary flex items-center gap-1.5 text-xs">
+            <i class="pi pi-bookmark text-[11px]"></i>
             Informasi Periode
           </div>
-          <p>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
             Agenda kalender yang dicatat di sini menjadi acuan resmi hari efektif belajar dan jadwal libur seluruh unit di bawah Yayasan Asy-Syuuraa Batam.
           </p>
         </div>
