@@ -813,15 +813,38 @@ async def upload_files_batch(files: List[UploadFile] = File(...), current_user: 
 # --- Academic Calendar Routes ---
 
 @app.get("/academic-calendar", response_model=List[schemas.CalendarEvent])
-def get_calendar_events(academic_year_id: Optional[int] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def get_calendar_events(academic_year_id: Optional[int] = None, skip: int = 0, limit: int = 200, db: Session = Depends(get_db)):
     query = db.query(models.AcademicCalendarEvent)
     if academic_year_id:
         query = query.filter(models.AcademicCalendarEvent.academic_year_id == academic_year_id)
-    return query.order_by(models.AcademicCalendarEvent.date).offset(skip).limit(limit).all()
+    return query.order_by(models.AcademicCalendarEvent.date.asc()).offset(skip).limit(limit).all()
 
 @app.post("/academic-calendar", response_model=schemas.CalendarEvent)
 def create_calendar_event(event: schemas.CalendarEventCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    db_event = models.AcademicCalendarEvent(**event.dict())
+    # 1. Resolve academic year
+    ay = None
+    if event.academic_year_id:
+        ay = db.query(models.AcademicYear).filter(models.AcademicYear.id == event.academic_year_id).first()
+    
+    if not ay:
+        # Fallback to active academic year
+        ay = db.query(models.AcademicYear).filter(models.AcademicYear.is_active == True).first()
+    
+    if not ay:
+        # Fallback to first existing academic year
+        ay = db.query(models.AcademicYear).first()
+        
+    if not ay:
+        # Auto-create active academic year if database is empty
+        ay = models.AcademicYear(name="2025/2026", semester="Ganjil", is_active=True)
+        db.add(ay)
+        db.commit()
+        db.refresh(ay)
+
+    event_dict = event.dict()
+    event_dict["academic_year_id"] = ay.id
+    
+    db_event = models.AcademicCalendarEvent(**event_dict)
     db.add(db_event)
     db.commit()
     db.refresh(db_event)
@@ -831,9 +854,16 @@ def create_calendar_event(event: schemas.CalendarEventCreate, db: Session = Depe
 def update_calendar_event(event_id: int, event: schemas.CalendarEventUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     db_event = db.query(models.AcademicCalendarEvent).filter(models.AcademicCalendarEvent.id == event_id).first()
     if not db_event:
-        raise HTTPException(status_code=404, detail="Event not found")
+        raise HTTPException(status_code=404, detail="Kegiatan tidak ditemukan")
     
     event_data = event.dict(exclude_unset=True)
+    
+    # If academic_year_id is provided, validate it exists
+    if "academic_year_id" in event_data and event_data["academic_year_id"]:
+        ay_exists = db.query(models.AcademicYear).filter(models.AcademicYear.id == event_data["academic_year_id"]).first()
+        if not ay_exists:
+            event_data.pop("academic_year_id", None)
+            
     for key, value in event_data.items():
         setattr(db_event, key, value)
     
@@ -845,7 +875,7 @@ def update_calendar_event(event_id: int, event: schemas.CalendarEventUpdate, db:
 def delete_calendar_event(event_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     db_event = db.query(models.AcademicCalendarEvent).filter(models.AcademicCalendarEvent.id == event_id).first()
     if not db_event:
-        raise HTTPException(status_code=404, detail="Event not found")
+        raise HTTPException(status_code=404, detail="Kegiatan tidak ditemukan")
     
     db.delete(db_event)
     db.commit()

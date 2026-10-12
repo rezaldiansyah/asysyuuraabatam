@@ -202,7 +202,7 @@ class CalendarEventBase(BaseModel):
     type: "CalendarEventType" # Forward reference
     description: Optional[str] = None
     is_holiday: bool = False
-    academic_year_id: int
+    academic_year_id: Optional[int] = None
 
 class CalendarEventCreate(CalendarEventBase):
     pass
@@ -218,9 +218,10 @@ class CalendarEventUpdate(BaseModel):
 class CalendarEvent(CalendarEventBase):
     id: int
     end_date: Optional[datetime] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
+        from_attributes = True
         orm_mode = True
 
 JournalEntry.model_rebuild()
