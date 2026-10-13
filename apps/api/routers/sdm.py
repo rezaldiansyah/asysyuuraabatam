@@ -137,15 +137,14 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
                     errors.append(f"Baris {row_idx}: Format tanggal lahir salah, harus YYYY-MM-DD")
                     continue
                     
-            # User creation
+            # User creation with default role 'karyawan' (Opsi B)
             generated_password = "password123"
             if tgl_lahir:
                 generated_password = tgl_lahir.strftime("%d%m%Y")
                 
             hashed_password = passlib.hash.bcrypt.hash(generated_password)
-            role_id = 3
-            if row["Jabatan"] and "guru" in row["Jabatan"].lower():
-                role_id = 2
+            karyawan_role = db.query(models.Role).filter(models.Role.code == "karyawan").first()
+            role_id = karyawan_role.id if karyawan_role else None
                 
             user = models.User(
                 nik=nik_kepegawaian,
@@ -165,6 +164,19 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
                 except ValueError:
                     pass
             
+            # Gender normalization & validation
+            raw_jk = row["Jenis Kelamin (Laki-laki/Perempuan)"].strip() if row.get("Jenis Kelamin (Laki-laki/Perempuan)") else ""
+            jk_val = None
+            if raw_jk:
+                jk_lower = raw_jk.lower()
+                if jk_lower in ["l", "lk", "laki", "laki-laki", "pria", "male"]:
+                    jk_val = "Laki-laki"
+                elif jk_lower in ["p", "pr", "perempuan", "wanita", "female"]:
+                    jk_val = "Perempuan"
+                else:
+                    errors.append(f"Baris {row_idx}: Jenis kelamin '{raw_jk}' tidak valid. Harap gunakan Laki-laki atau Perempuan")
+                    continue
+
             # Employee creation
             emp = models.Employee(
                 user_id=user.id,
@@ -173,7 +185,7 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
                 nik_kepegawaian=nik_kepegawaian,
                 tempat_lahir=row["Tempat Lahir"].strip() if row["Tempat Lahir"] else None,
                 tanggal_lahir=tgl_lahir,
-                jenis_kelamin=row["Jenis Kelamin (Laki-laki/Perempuan)"].strip() if row["Jenis Kelamin (Laki-laki/Perempuan)"] else None,
+                jenis_kelamin=jk_val,
                 status_pernikahan=row["Status Pernikahan (Kawin/Belum Kawin)"].strip() if row["Status Pernikahan (Kawin/Belum Kawin)"] else None,
                 alamat=row["Alamat"].strip() if row["Alamat"] else None,
                 no_hp=row["No HP"].strip() if row["No HP"] else None,
@@ -242,10 +254,9 @@ async def create_employee(employee: schemas.EmployeeCreate, db: Session = Depend
             
         hashed_password = passlib.hash.bcrypt.hash(generated_password)
         
-        # Determine Role
-        role_id = 3 # Default to Karyawan (assuming ID 3)
-        if employee.position and "guru" in employee.position.lower():
-            role_id = 2 # Guru (assuming ID 2)
+        # Determine Role: default to 'karyawan' (Opsi B)
+        karyawan_role = db.query(models.Role).filter(models.Role.code == "karyawan").first()
+        role_id = karyawan_role.id if karyawan_role else None
             
         user = models.User(
             nik=employee.nik_kepegawaian,

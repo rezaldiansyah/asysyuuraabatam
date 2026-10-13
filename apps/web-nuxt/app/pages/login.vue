@@ -17,13 +17,13 @@
 
         <!-- Login Form -->
         <form @submit.prevent="handleLogin" class="space-y-5">
-          <!-- NIK Field -->
+          <!-- NIK / Email Field -->
           <div class="flex flex-col gap-2">
-            <label for="nik" class="font-medium text-slate-700 dark:text-slate-300">NIK / Username</label>
+            <label for="nik" class="font-medium text-slate-700 dark:text-slate-300">NIK Kepegawaian / Email</label>
             <InputText
               id="nik"
               v-model="form.nik"
-              placeholder="Masukkan NIK"
+              placeholder="Masukkan NIK atau Email"
               class="w-full"
               :disabled="loading"
             />
