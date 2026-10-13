@@ -53,11 +53,27 @@
             </template>
           </Column>
           
-           <Column header="Aksi" style="width: 100px">
+           <Column header="Aksi" style="width: 120px">
               <template #body="slotProps">
-                 <div class="flex gap-1 justify-end">
-                    <Button icon="pi pi-pencil" text rounded size="small" @click="openDialog(slotProps.data)" title="Edit" />
-                    <Button icon="pi pi-trash" text rounded severity="danger" size="small" @click="confirmDelete(slotProps.data)" title="Hapus" />
+                 <div class="flex gap-1 justify-end items-center">
+                    <Button icon="pi pi-pencil" text rounded size="small" @click="openDialog(slotProps.data)" title="Edit / Reset Password" />
+                    <Button 
+                      v-if="slotProps.data.role?.code !== 'superadmin'" 
+                      icon="pi pi-trash" 
+                      text 
+                      rounded 
+                      severity="danger" 
+                      size="small" 
+                      @click="confirmDelete(slotProps.data)" 
+                      title="Hapus" 
+                    />
+                    <Tag 
+                      v-else 
+                      value="Dilindungi" 
+                      severity="secondary" 
+                      class="text-xs py-0.5 px-2" 
+                      title="Akun Superadmin dilindungi dan tidak dapat dihapus" 
+                    />
                  </div>
               </template>
           </Column>
@@ -129,6 +145,11 @@ function openDialog(user = null) {
 }
 
 function confirmDelete(user: any) {
+    if (user.role?.code === 'superadmin') {
+        toast.add({ severity: 'warn', summary: 'Dilindungi', detail: 'Akun Super Administrator dilindungi dan tidak dapat dihapus' })
+        return
+    }
+
     confirm.require({
         message: `Apakah Anda yakin ingin menghapus user ${user.full_name}?`,
         header: 'Konfirmasi Hapus',
@@ -139,8 +160,8 @@ function confirmDelete(user: any) {
                 await api.delete(`/users/${user.id}`)
                 toast.add({ severity: 'success', summary: 'Sukses', detail: 'User berhasil dihapus' })
                 fetchUsers()
-            } catch (e) {
-                toast.add({ severity: 'error', summary: 'Gagal', detail: 'Gagal menghapus user' })
+            } catch (e: any) {
+                toast.add({ severity: 'error', summary: 'Gagal', detail: e?.data?.detail || e?.message || 'Gagal menghapus user' })
             }
         }
     })

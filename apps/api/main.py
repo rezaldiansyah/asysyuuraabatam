@@ -251,11 +251,22 @@ async def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session
     return db_user
 
 @app.delete("/users/{user_id}")
-async def delete_user(user_id: int, db: Session = Depends(get_db)):
+async def delete_user(user_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
          raise HTTPException(status_code=404, detail="User not found")
     
+    if current_user.id == db_user.id:
+        raise HTTPException(status_code=400, detail="Tidak dapat menghapus akun Anda sendiri.")
+
+    if db_user.role and db_user.role.code == "superadmin":
+        raise HTTPException(status_code=403, detail="Akun Super Administrator dilindungi oleh sistem dan tidak dapat dihapus. Anda dapat mengubah data atau mereset password jika diperlukan.")
+    
+    # Unlink or remove linked employee record if present
+    db_emp = db.query(models.Employee).filter(models.Employee.user_id == user_id).first()
+    if db_emp:
+        db.delete(db_emp)
+
     db.delete(db_user)
     db.commit()
     return {"message": "User deleted"}

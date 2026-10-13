@@ -43,7 +43,10 @@ async def get_employees(
     if employee_type:
         query = query.filter(models.Employee.employee_type == employee_type)
     if is_active is not None:
-        query = query.filter(models.Employee.is_active == is_active)
+        if is_active:
+            query = query.filter(or_(models.Employee.is_active == True, models.Employee.is_active.is_(None)))
+        else:
+            query = query.filter(models.Employee.is_active == False)
     if search:
         query = query.filter(
             or_(
@@ -232,21 +235,21 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
     unit_code_map = {u.code.upper(): u.id for u in units}
 
     for row_idx, row in enumerate(rows_data, start=1):
-        nama_lengkap = ""
+        nama_lengkap = _clean_str(row.get("namalengkap") or row.get("nama"))
+        if not nama_lengkap:
+            continue # Skip blank rows
+            
+        nik_kepegawaian = _clean_str(row.get("nikkepegawaian") or row.get("nik") or row.get("username"))
+        if not nik_kepegawaian:
+            errors.append(f"Baris {row_idx} ({nama_lengkap}): NIK Kepegawaian tidak boleh kosong")
+            continue
+
+        savepoint = db.begin_nested()
         try:
-            nama_lengkap = _clean_str(row.get("namalengkap") or row.get("nama"))
-            nik_kepegawaian = _clean_str(row.get("nikkepegawaian") or row.get("nik") or row.get("username"))
             nik_ktp = _clean_str(row.get("noktp") or row.get("ktp") or row.get("nikktp") or row.get("niknegara"))
             email = _clean_str(row.get("email"))
             if email and ("@" not in email or "." not in email):
                 email = None
-                
-            if not nama_lengkap:
-                continue # Skip blank rows
-                
-            if not nik_kepegawaian:
-                errors.append(f"Baris {row_idx} ({nama_lengkap}): NIK Kepegawaian tidak boleh kosong")
-                continue
                 
             # Check duplication for KTP against other employees
             if nik_ktp:
@@ -255,8 +258,8 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
                     models.Employee.nik_kepegawaian != nik_kepegawaian
                 ).first()
                 if existing_ktp:
-                    errors.append(f"Baris {row_idx} ({nama_lengkap}): NIK KTP {nik_ktp} sudah terdaftar pada {existing_ktp.nama_lengkap}")
-                    continue
+                    errors.append(f"Baris {row_idx} ({nama_lengkap}): NIK KTP {nik_ktp} sudah terdaftar pada {existing_ktp.nama_lengkap}. No KTP dikosongkan sementara.")
+                    nik_ktp = None
 
             # TTL & Date parsing
             tempat_lahir = _clean_str(row.get("tempatlahir"))
@@ -276,11 +279,32 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
             # Phone & Admin
             no_hp = _clean_phone_number(row.get("nohp") or row.get("hp") or row.get("telepon") or row.get("wa") or row.get("whatsapp"))
             nuptk = _clean_str(row.get("nuptk")) or None
+            nip = _clean_str(row.get("nip")) or None
             npwp = _clean_str(row.get("nonpwp") or row.get("npwp")) or None
             bpjs_tk = _clean_str(row.get("nobpjsketenagakerjaan") or row.get("bpjsketenagakerjaan") or row.get("bpjstk") or row.get("nobpjstk")) or None
             bpjs_kes = _clean_str(row.get("nobpjskesehatan") or row.get("bpjskesehatan") or row.get("bpjskes") or row.get("nobpjskes")) or None
             tmt_date = _parse_birth_date(row.get("tmt") or row.get("tmtmulaikerja") or row.get("tanggalmulaitugas"))
             
+            # Check duplication for NUPTK against other employees
+            if nuptk:
+                existing_nuptk = db.query(models.Employee).filter(
+                    models.Employee.nuptk == nuptk,
+                    models.Employee.nik_kepegawaian != nik_kepegawaian
+                ).first()
+                if existing_nuptk:
+                    errors.append(f"Baris {row_idx} ({nama_lengkap}): NUPTK '{nuptk}' kembar/sudah terdaftar pada {existing_nuptk.nama_lengkap}. NUPTK dikosongkan sementara agar data tetap tersimpan.")
+                    nuptk = None
+
+            # Check duplication for NIP against other employees
+            if nip:
+                existing_nip = db.query(models.Employee).filter(
+                    models.Employee.nip == nip,
+                    models.Employee.nik_kepegawaian != nik_kepegawaian
+                ).first()
+                if existing_nip:
+                    errors.append(f"Baris {row_idx} ({nama_lengkap}): NIP '{nip}' sudah terdaftar pada {existing_nip.nama_lengkap}. NIP dikosongkan sementara.")
+                    nip = None
+
             position = _clean_str(row.get("jabatan") or row.get("posisi")) or None
             
             # Employee type
@@ -316,7 +340,6 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
             raw_anak = _clean_str(row.get("jumlahanak"))
             jml_anak = int(raw_anak) if raw_anak and raw_anak.isdigit() else 0
             alamat = _clean_str(row.get("alamat")) or None
-            nip = _clean_str(row.get("nip")) or None
 
             # Password generation (DDMMYYYY)
             generated_password = "password123"
@@ -355,6 +378,7 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
             if existing_emp:
                 emp = existing_emp
                 emp.nama_lengkap = nama_lengkap
+                emp.is_active = True
                 if nik_ktp: emp.no_ktp = nik_ktp
                 if tempat_lahir: emp.tempat_lahir = tempat_lahir
                 if tanggal_lahir: emp.tanggal_lahir = tanggal_lahir
@@ -393,7 +417,8 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
                     unit_id=unit_id,
                     join_date=tmt_date,
                     nip=nip,
-                    nuptk=nuptk
+                    nuptk=nuptk,
+                    is_active=True
                 )
                 db.add(emp)
                 db.flush()
@@ -415,9 +440,10 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
                     )
                     db.add(edu)
 
+            savepoint.commit()
             success_count += 1
         except Exception as e:
-            db.rollback()
+            savepoint.rollback()
             errors.append(f"Baris {row_idx} ({nama_lengkap}): {str(e)}")
             continue
 
