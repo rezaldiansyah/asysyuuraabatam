@@ -182,14 +182,16 @@
               <NuxtLink :to="`/dashboard/internal/notulen/${data.id}`" class="p-2 text-primary hover:bg-primary/10 rounded-lg transition" title="Lihat Notulen">
                 <i class="pi pi-eye"></i>
               </NuxtLink>
-              <a 
-                :href="`${apiBase}/meeting/minutes/${data.id}/export-pdf`" 
-                target="_blank" 
-                class="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition" 
-                title="Download PDF Resmi"
+              <button 
+                type="button"
+                @click="downloadMinutePdf(data)" 
+                :disabled="downloadingPdf === data.id"
+                class="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition cursor-pointer" 
+                title="Download PDF Resmi Notulen"
               >
-                <i class="pi pi-file-pdf"></i>
-              </a>
+                <i v-if="downloadingPdf === data.id" class="pi pi-spin pi-spinner text-rose-500"></i>
+                <i v-else class="pi pi-file-pdf"></i>
+              </button>
               <button 
                 v-if="canDelete(data)" 
                 @click="deleteMinute(data)" 
@@ -356,6 +358,46 @@ async function fetchMyActionItems() {
     console.error('Failed to fetch my action items', e)
   } finally {
     loadingActions.value = false
+  }
+}
+
+const downloadingPdf = ref<number | null>(null)
+
+async function downloadMinutePdf(minute: any) {
+  downloadingPdf.value = minute.id
+  try {
+    const token = authStore.token || useCookie('auth_token').value
+    const response = await fetch(`${apiBase}/meeting/minutes/${minute.id}/export-pdf`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+    if (!response.ok) {
+      throw new Error(`Gagal mengunduh PDF (Status: ${response.status})`)
+    }
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    
+    const cleanNomor = (minute.nomor_notulen || `ID-${minute.id}`).replace(/[/\\?%*:|"<>#]/g, '-').trim()
+    const cleanTitle = (minute.title || 'Rapat').replace(/[/\\?%*:|"<>#]/g, '_').trim()
+    const fileName = `Notulen_${cleanNomor}_${cleanTitle}.pdf`
+    
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    
+    toast.add({ severity: 'success', summary: 'Berhasil Diunduh', detail: `File "${fileName}" berhasil diunduh`, life: 3000 })
+  } catch (err: any) {
+    console.error('Download PDF error:', err)
+    // Fallback: open via URL with token parameter in new tab
+    const token = authStore.token || useCookie('auth_token').value
+    window.open(`${apiBase}/meeting/minutes/${minute.id}/export-pdf?token=${encodeURIComponent(token || '')}`, '_blank')
+  } finally {
+    downloadingPdf.value = null
   }
 }
 

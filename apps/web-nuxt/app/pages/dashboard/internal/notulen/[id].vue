@@ -21,14 +21,16 @@
 
       <div class="flex items-center gap-2 flex-wrap">
         <!-- PDF Export -->
-        <a 
+        <Button 
           v-if="minute" 
-          :href="`${apiBase}/meeting/minutes/${minute.id}/export-pdf`" 
-          target="_blank" 
-          class="p-button p-component p-button-secondary inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg"
-        >
-          <i class="pi pi-file-pdf text-rose-500"></i> Unduh PDF Resmi
-        </a>
+          label="Unduh PDF Resmi" 
+          icon="pi pi-file-pdf" 
+          severity="secondary" 
+          size="small"
+          class="!text-xs"
+          :loading="downloadingPdf"
+          @click="downloadMinutePdf(minute)" 
+        />
 
         <!-- Submit for Approval (If Draft/Rejected) -->
         <Button 
@@ -285,9 +287,49 @@ const loading = ref(true)
 const submitting = ref(false)
 const approving = ref(false)
 const rejecting = ref(false)
+const downloadingPdf = ref(false)
 
 const rejectDialogVisible = ref(false)
 const rejectNotes = ref('')
+
+async function downloadMinutePdf(min: any) {
+  if (!min) return
+  downloadingPdf.value = true
+  try {
+    const token = authStore.token || useCookie('auth_token').value
+    const response = await fetch(`${apiBase}/meeting/minutes/${min.id}/export-pdf`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+    if (!response.ok) {
+      throw new Error(`Gagal mengunduh PDF (Status: ${response.status})`)
+    }
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    
+    const cleanNomor = (min.nomor_notulen || `ID-${min.id}`).replace(/[/\\?%*:|"<>#]/g, '-').trim()
+    const cleanTitle = (min.title || 'Rapat').replace(/[/\\?%*:|"<>#]/g, '_').trim()
+    const fileName = `Notulen_${cleanNomor}_${cleanTitle}.pdf`
+    
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    
+    toast.add({ severity: 'success', summary: 'Berhasil Diunduh', detail: `File "${fileName}" berhasil diunduh`, life: 3000 })
+  } catch (err: any) {
+    console.error('Download PDF error:', err)
+    // Fallback: open via URL with token parameter in new tab
+    const token = authStore.token || useCookie('auth_token').value
+    window.open(`${apiBase}/meeting/minutes/${min.id}/export-pdf?token=${encodeURIComponent(token || '')}`, '_blank')
+  } finally {
+    downloadingPdf.value = false
+  }
+}
 
 const isNotulisOrAdmin = computed(() => {
   if (!minute.value || !authStore.user) return false

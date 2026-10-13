@@ -3,12 +3,43 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, desc
 from database import get_db
 import models
+import auth
 from datetime import datetime, date
 from typing import Optional, List
 import json
 import io
+import re
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
 
 from deps import get_current_user
+
+oauth2_scheme_opt = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
+
+async def get_current_user_flexible(
+    token_header: Optional[str] = Depends(oauth2_scheme_opt),
+    token: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+) -> models.User:
+    raw_token = token_header or token
+    if not raw_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    try:
+        payload = jwt.decode(raw_token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        
+    user = db.query(models.User).options(joinedload(models.User.role)).filter(models.User.nik == username).first()
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
 
 router = APIRouter(prefix="/meeting", tags=["Meeting Minutes & Action Items"])
 
@@ -668,7 +699,7 @@ async def update_action_item_status(
 @router.get("/minutes/{minute_id}/export-pdf")
 async def export_meeting_minute_pdf(
     minute_id: int,
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(get_current_user_flexible),
     db: Session = Depends(get_db)
 ):
     """Generate official PDF document for meeting minutes."""
@@ -896,7 +927,10 @@ async def export_meeting_minute_pdf(
     doc.build(elements)
     buffer.seek(0)
     
-    filename = f"Notulen_{m.nomor_notulen.replace('/', '_') if m.nomor_notulen else m.id}.pdf"
+    clean_nomor = re.sub(r'[/\\?%*:|"<>#]', '-', m.nomor_notulen or f"ID-{m.id}").strip()
+    clean_title = re.sub(r'[/\\?%*:|"<>#]', '', m.title or 'Rapat').strip().replace(' ', '_')
+    filename = f"Notulen_{clean_nomor}_{clean_title}.pdf"
+    
     return Response(
         content=buffer.getvalue(),
         media_type="application/pdf",
