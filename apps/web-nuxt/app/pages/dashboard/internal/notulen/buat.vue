@@ -7,14 +7,33 @@
           <Button icon="pi pi-arrow-left" severity="secondary" rounded text />
         </NuxtLink>
         <div>
-          <h1 class="text-2xl font-bold text-slate-800 dark:text-white">Tulis Notulen Rapat Baru</h1>
-          <p class="text-xs text-slate-500">Catat jalannya rapat resmi, tetapkan kehadiran, dan buat tindak lanjut tugas.</p>
+          <div class="flex items-center gap-2">
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">
+              {{ isEditing ? 'Edit Notulen Rapat' : 'Tulis Notulen Rapat Baru' }}
+            </h1>
+            <Tag v-if="isEditing" value="Mode Edit" severity="warn" class="text-xs" />
+          </div>
+          <p class="text-xs text-slate-500">
+            {{ isEditing ? 'Perbarui isi notulensi, agenda pembahasan, dan tindak lanjut tugas.' : 'Catat jalannya rapat resmi, tetapkan kehadiran, dan buat tindak lanjut tugas.' }}
+          </p>
         </div>
       </div>
       <div class="flex items-center gap-2">
         <Button label="Batal" severity="secondary" @click="router.back()" />
-        <Button label="Simpan Draf" icon="pi pi-save" severity="secondary" :loading="saving" @click="saveMinute(false)" />
-        <Button label="Simpan & Ajukan" icon="pi pi-send" severity="primary" :loading="saving" @click="saveMinute(true)" />
+        <Button 
+          :label="isEditing ? 'Simpan Perubahan' : 'Simpan Draf'" 
+          icon="pi pi-save" 
+          severity="secondary" 
+          :loading="saving" 
+          @click="saveMinute(false)" 
+        />
+        <Button 
+          label="Simpan & Ajukan" 
+          icon="pi pi-send" 
+          severity="primary" 
+          :loading="saving" 
+          @click="saveMinute(true)" 
+        />
       </div>
     </div>
 
@@ -100,10 +119,10 @@
         </div>
       </div>
 
-      <!-- 2. Kehadiran Peserta Rapat -->
+      <!-- 2. Kehadiran & Peserta Rapat -->
       <div class="card p-5 space-y-4">
         <h2 class="font-bold text-base text-slate-800 dark:text-white flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-          <i class="pi pi-users text-primary"></i> 2. Kehadiran Peserta Rapat
+          <i class="pi pi-users text-primary"></i> 2. Kehadiran & Peserta Rapat
         </h2>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -161,13 +180,99 @@
         </div>
       </div>
 
-      <!-- 4. Jalannya Rapat & Notulensi -->
+      <!-- 4. Jalannya Rapat & Notulensi (Rich Text Editor) -->
       <div class="card p-5 space-y-3">
-        <h2 class="font-bold text-base text-slate-800 dark:text-white flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-          <i class="pi pi-file-edit text-primary"></i> 4. Catatan Pembahasan / Isi Notulensi *
-        </h2>
-        <p class="text-xs text-slate-500">Tuliskan ringkasan jalannya diskusi, aspirasi, dan tanggapan peserta secara berurutan.</p>
-        <Textarea v-model="form.content" rows="8" placeholder="Catatan pembahasan rapat..." class="w-full" />
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+          <div>
+            <h2 class="font-bold text-base text-slate-800 dark:text-white flex items-center gap-2">
+              <i class="pi pi-file-edit text-primary"></i> 4. Catatan Pembahasan / Isi Notulensi *
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Gunakan fitur teks tebal, miring, poin, dan tabel untuk mencatat jalannya rapat secara terstruktur.
+            </p>
+          </div>
+
+          <!-- Quick Template & Table Action Buttons -->
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <Button 
+              type="button" 
+              label="Tabel 2 Kolom" 
+              icon="pi pi-table" 
+              size="small" 
+              outlined 
+              severity="secondary" 
+              class="!text-xs !py-1"
+              @click="insertTable(2)" 
+              title="Sisipkan tabel 2 kolom (No, Pembahasan)"
+            />
+            <Button 
+              type="button" 
+              label="Tabel 3 Kolom" 
+              icon="pi pi-table" 
+              size="small" 
+              outlined 
+              severity="secondary" 
+              class="!text-xs !py-1"
+              @click="insertTable(3)" 
+              title="Sisipkan tabel 3 kolom (No, Masukan, Kesepakatan)"
+            />
+            <Button 
+              type="button" 
+              label="Template Notulen" 
+              icon="pi pi-file" 
+              size="small" 
+              outlined 
+              severity="info" 
+              class="!text-xs !py-1"
+              @click="insertNotulenTemplate" 
+              title="Gunakan template format notulensi terstruktur"
+            />
+          </div>
+        </div>
+
+        <!-- PrimeVue Rich Text Editor with Custom Toolbar -->
+        <div class="rich-editor-wrapper">
+          <Editor v-model="form.content" editorStyle="min-height: 280px" placeholder="Tuliskan catatan pembahasan rapat, aspirasi, dan tanggapan peserta di sini...">
+            <template #toolbar>
+              <span class="ql-formats">
+                <select class="ql-header" title="Format Judul / Paragraf">
+                  <option value="1">Judul Utama (H1)</option>
+                  <option value="2">Sub Judul (H2)</option>
+                  <option value="3">Poin Bahasan (H3)</option>
+                  <option selected>Teks Normal</option>
+                </select>
+              </span>
+              <span class="ql-formats">
+                <button class="ql-bold" type="button" title="Tebal (Bold)"></button>
+                <button class="ql-italic" type="button" title="Miring (Italic)"></button>
+                <button class="ql-underline" type="button" title="Garis Bawah (Underline)"></button>
+                <button class="ql-strike" type="button" title="Coret (Strikethrough)"></button>
+              </span>
+              <span class="ql-formats">
+                <select class="ql-color" title="Warna Teks"></select>
+                <select class="ql-background" title="Warna Latar / Sorotan"></select>
+              </span>
+              <span class="ql-formats">
+                <button class="ql-list" value="ordered" type="button" title="Penomoran (1, 2, 3)"></button>
+                <button class="ql-list" value="bullet" type="button" title="Daftar Poin (Bullets)"></button>
+                <button class="ql-list" value="check" type="button" title="Daftar Centang (Checklist)"></button>
+                <button class="ql-indent" value="-1" type="button" title="Geser Kiri (Outdent)"></button>
+                <button class="ql-indent" value="+1" type="button" title="Geser Kanan (Indent)"></button>
+              </span>
+              <span class="ql-formats">
+                <select class="ql-align" title="Perataan Paragraf"></select>
+              </span>
+              <span class="ql-formats">
+                <button class="ql-blockquote" type="button" title="Kutipan"></button>
+                <button class="ql-code-block" type="button" title="Blok Kode / Format Rapat"></button>
+                <button class="ql-link" type="button" title="Sisipkan Link"></button>
+              </span>
+              <span class="ql-formats">
+                <button class="ql-clean" type="button" title="Bersihkan Format"></button>
+              </span>
+            </template>
+          </Editor>
+        </div>
       </div>
 
       <!-- 5. Keputusan & Kesimpulan -->
@@ -259,8 +364,15 @@ import { useToast } from 'primevue/usetoast'
 definePageMeta({ layout: 'dashboard' })
 
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
 const api = useApi()
+
+const editId = computed(() => {
+  const q = route.query.id
+  return q ? Number(q) : null
+})
+const isEditing = computed(() => !!editId.value)
 
 const saving = ref(false)
 const gdriveUrl = ref('')
@@ -334,11 +446,150 @@ function removeActionItem(idx: number) {
   form.action_items.splice(idx, 1)
 }
 
+// Helper: Insert formatted table into content
+function insertTable(cols: 2 | 3) {
+  let tableHtml = ''
+  if (cols === 2) {
+    tableHtml = `
+      <table class="notulen-table" border="1" style="width: 100%; border-collapse: collapse; margin: 12px 0;">
+        <thead>
+          <tr style="background-color: #f8fafc;">
+            <th style="width: 50px; text-align: center; padding: 8px; border: 1px solid #cbd5e1;">No</th>
+            <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Poin Pembahasan / Catatan Rapat</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1;">1</td>
+            <td style="padding: 8px; border: 1px solid #cbd5e1;">Tuliskan poin pembahasan pertama di sini...</td>
+          </tr>
+          <tr>
+            <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1;">2</td>
+            <td style="padding: 8px; border: 1px solid #cbd5e1;">Tuliskan poin pembahasan kedua di sini...</td>
+          </tr>
+        </tbody>
+      </table>
+      <p></p>
+    `
+  } else {
+    tableHtml = `
+      <table class="notulen-table" border="1" style="width: 100%; border-collapse: collapse; margin: 12px 0;">
+        <thead>
+          <tr style="background-color: #f8fafc;">
+            <th style="width: 50px; text-align: center; padding: 8px; border: 1px solid #cbd5e1;">No</th>
+            <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Poin Masukan / Aspirasi Peserta</th>
+            <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Tanggapan & Kesepakatan Bersama</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1;">1</td>
+            <td style="padding: 8px; border: 1px solid #cbd5e1;">Aspirasi / kendala yang disampaikan...</td>
+            <td style="padding: 8px; border: 1px solid #cbd5e1;">Tanggapan pimpinan / kesepakatan...</td>
+          </tr>
+          <tr>
+            <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1;">2</td>
+            <td style="padding: 8px; border: 1px solid #cbd5e1;"></td>
+            <td style="padding: 8px; border: 1px solid #cbd5e1;"></td>
+          </tr>
+        </tbody>
+      </table>
+      <p></p>
+    `
+  }
+  form.content = (form.content ? form.content + '<br/>' : '') + tableHtml
+  toast.add({ severity: 'info', summary: 'Tabel Disisipkan', detail: `Tabel ${cols} kolom berhasil ditambahkan ke catatan notulensi`, life: 2500 })
+}
+
+// Helper: Insert structured notulen template
+function insertNotulenTemplate() {
+  const templateHtml = `
+    <h3>1. Pembukaan & Pengantar Pimpinan</h3>
+    <p>Rapat dibuka secara resmi pada pukul ${form.start_time || '08:30'} WIB dengan membaca Basmalah dan arahan singkat pimpinan terkait fokus pertemuan hari ini.</p>
+    
+    <h3>2. Pembahasan Pokok & Jalannya Diskusi</h3>
+    <p>Berikut rangkuman tanggapan dan aspirasi yang disampaikan oleh seluruh peserta rapat:</p>
+    <table class="notulen-table" border="1" style="width: 100%; border-collapse: collapse; margin: 12px 0;">
+      <thead>
+        <tr style="background-color: #f8fafc;">
+          <th style="width: 50px; text-align: center; padding: 8px; border: 1px solid #cbd5e1;">No</th>
+          <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Topik / Masukan Peserta</th>
+          <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Tanggapan & Solusi yang Disepakati</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1;">1</td>
+          <td style="padding: 8px; border: 1px solid #cbd5e1;">Evaluasi pelaksanaan kegiatan dan kendala di lapangan...</td>
+          <td style="padding: 8px; border: 1px solid #cbd5e1;">Disepakati penyesuaian jadwal dan koordinasi tim teknis...</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>3. Catatan Khusus & Rekomendasi</h3>
+    <ul>
+      <li>Seluruh pihak terkait diharapkan menyelesaikan tindak lanjut sebelum batas waktu yang ditentukan.</li>
+      <li>Koordinasi teknis lanjutan akan dilakukan secara bertahap pada masing-masing unit kerja.</li>
+    </ul>
+    <p></p>
+  `
+  if (form.content && !confirm('Konten yang ada akan ditambahkan dengan template. Lanjutkan?')) return
+  form.content = (form.content ? form.content + '<br/>' : '') + templateHtml
+  toast.add({ severity: 'success', summary: 'Template Digunakan', detail: 'Template format notulensi berhasil diterapkan', life: 2500 })
+}
+
 async function fetchUsers() {
   try {
     users.value = await api.get<any[]>('/users?limit=200')
   } catch (e) {
     console.error('Failed to fetch users', e)
+  }
+}
+
+async function loadExistingMinute(id: number) {
+  try {
+    const data = await api.get<any>(`/meeting/minutes/${id}`)
+    if (!data) return
+
+    form.scope = data.scope || 'unit'
+    form.unit_id = data.unit_id || null
+    form.meeting_type = data.meeting_type || 'rapat_unit'
+    form.title = data.title || ''
+    form.nomor_notulen = data.nomor_notulen || ''
+    form.meeting_date = data.meeting_date ? String(data.meeting_date).substring(0, 10) : new Date().toISOString().substring(0, 10)
+    form.start_time = data.start_time || '08:30'
+    form.end_time = data.end_time || '11:00'
+    form.location = data.location || 'Ruang Rapat Utama'
+    form.content = data.content || ''
+
+    if (Array.isArray(data.attendees)) {
+      form.attendees = data.attendees.map((a: any) => typeof a === 'object' ? a.id : a)
+    }
+    if (Array.isArray(data.absent_members)) {
+      form.absent_members = data.absent_members.map((a: any) => typeof a === 'object' ? a.id : a)
+    }
+    if (Array.isArray(data.agenda) && data.agenda.length > 0) {
+      form.agenda = [...data.agenda]
+    }
+    if (Array.isArray(data.decisions) && data.decisions.length > 0) {
+      form.decisions = [...data.decisions]
+    }
+    if (Array.isArray(data.action_items)) {
+      form.action_items = data.action_items.map((ai: any) => ({
+        id: ai.id,
+        task_description: ai.task_description || '',
+        pic_user_id: ai.pic_user_id || ai.pic?.id || null,
+        deadline: ai.deadline ? String(ai.deadline).substring(0, 10) : '',
+        notes: ai.notes || '',
+        status: ai.status || 'pending'
+      }))
+    }
+    if (Array.isArray(data.attachment_urls) && data.attachment_urls.length > 0) {
+      gdriveUrl.value = data.attachment_urls[0] || ''
+    }
+  } catch (e: any) {
+    console.error('Failed to load existing minute', e)
+    toast.add({ severity: 'error', summary: 'Error', detail: 'Gagal memuat data notulen untuk diedit', life: 3000 })
   }
 }
 
@@ -352,30 +603,62 @@ async function saveMinute(submitNow: boolean) {
   try {
     const payload = {
       ...form,
-      agenda: form.agenda.filter(a => a.trim().length > 0),
-      decisions: form.decisions.filter(d => d.trim().length > 0),
+      agenda: form.agenda.filter(a => a && a.trim().length > 0),
+      decisions: form.decisions.filter(d => d && d.trim().length > 0),
       attachment_urls: gdriveUrl.value.trim() ? [gdriveUrl.value.trim()] : [],
     }
 
-    const res = await api.post<{ id: number; nomor_notulen: string }>('/meeting/minutes', payload)
+    let targetId = editId.value
 
-    if (submitNow) {
-      await api.post(`/meeting/minutes/${res.id}/submit`)
-      toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Notulen berhasil diajukan untuk disahkan', life: 3000 })
+    if (isEditing.value && targetId) {
+      await api.put(`/meeting/minutes/${targetId}`, payload)
+      if (submitNow) {
+        await api.post(`/meeting/minutes/${targetId}/submit`)
+        toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Notulen berhasil diperbarui & diajukan', life: 3000 })
+      } else {
+        toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Perubahan notulen berhasil disimpan', life: 3000 })
+      }
     } else {
-      toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Draf notulen berhasil disimpan', life: 3000 })
+      const res = await api.post<{ id: number; nomor_notulen: string }>('/meeting/minutes', payload)
+      targetId = res.id
+
+      if (submitNow) {
+        await api.post(`/meeting/minutes/${res.id}/submit`)
+        toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Notulen berhasil dibuat & diajukan untuk disahkan', life: 3000 })
+      } else {
+        toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Draf notulen berhasil disimpan', life: 3000 })
+      }
     }
 
-    router.push(`/dashboard/internal/notulen/${res.id}`)
-  } catch (e) {
+    router.push(`/dashboard/internal/notulen/${targetId}`)
+  } catch (e: any) {
     console.error('Save minute failed', e)
-    toast.add({ severity: 'error', summary: 'Gagal', detail: 'Gagal menyimpan notulen', life: 3000 })
+    toast.add({ severity: 'error', summary: 'Gagal', detail: e.data?.detail || e.message || 'Gagal menyimpan notulen', life: 4000 })
   } finally {
     saving.value = false
   }
 }
 
-onMounted(() => {
-  fetchUsers()
+onMounted(async () => {
+  await fetchUsers()
+  if (editId.value) {
+    await loadExistingMinute(editId.value)
+  }
 })
 </script>
+
+<style scoped>
+.rich-editor-wrapper :deep(.p-editor-content) {
+  border-bottom-left-radius: 0.75rem;
+  border-bottom-right-radius: 0.75rem;
+}
+.rich-editor-wrapper :deep(.p-editor-toolbar) {
+  border-top-left-radius: 0.75rem;
+  border-top-right-radius: 0.75rem;
+  background-color: #f8fafc;
+}
+:deep(.dark) .rich-editor-wrapper :deep(.p-editor-toolbar) {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+</style>

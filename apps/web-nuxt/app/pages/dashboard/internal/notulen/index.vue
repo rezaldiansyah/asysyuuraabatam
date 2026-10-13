@@ -182,6 +182,14 @@
               <NuxtLink :to="`/dashboard/internal/notulen/${data.id}`" class="p-2 text-primary hover:bg-primary/10 rounded-lg transition" title="Lihat Notulen">
                 <i class="pi pi-eye"></i>
               </NuxtLink>
+              <NuxtLink 
+                v-if="['draft', 'rejected'].includes(data.status)"
+                :to="`/dashboard/internal/notulen/buat?id=${data.id}`" 
+                class="p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition" 
+                title="Edit Notulen"
+              >
+                <i class="pi pi-pencil"></i>
+              </NuxtLink>
               <button 
                 type="button"
                 @click="downloadMinutePdf(data)" 

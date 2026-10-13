@@ -696,6 +696,161 @@ async def update_action_item_status(
 # PDF EXPORT (ReportLab)
 # ============================================================
 
+import html as pyhtml
+from html.parser import HTMLParser
+
+class _NotulenDocParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.elements = []
+        self.in_table = False
+        self.current_row = []
+        self.current_cell = []
+        self.table_data = []
+        self.is_header_cell = False
+        self.in_list = False
+        self.list_type = None
+        self.list_idx = 1
+        self.current_p = []
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if tag == 'table':
+            self.in_table = True
+            self.table_data = []
+        elif tag == 'tr':
+            self.current_row = []
+        elif tag in ('th', 'td'):
+            self.current_cell = []
+            self.is_header_cell = (tag == 'th')
+        elif tag in ('ul', 'ol'):
+            self.in_list = True
+            self.list_type = tag
+            self.list_idx = 1
+        elif tag == 'li':
+            self.current_p = []
+        elif tag in ('p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div'):
+            self.current_p = []
+        elif tag in ('b', 'strong'):
+            self._append_tag('<b>')
+        elif tag in ('i', 'em'):
+            self._append_tag('<i>')
+        elif tag == 'u':
+            self._append_tag('<u>')
+        elif tag == 'br':
+            self._append_tag('<br/>')
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag in ('b', 'strong'):
+            self._append_tag('</b>')
+        elif tag in ('i', 'em'):
+            self._append_tag('</i>')
+        elif tag == 'u':
+            self._append_tag('</u>')
+        elif tag in ('th', 'td'):
+            self.current_row.append((''.join(self.current_cell).strip(), self.is_header_cell))
+        elif tag == 'tr':
+            if self.current_row:
+                self.table_data.append(self.current_row)
+        elif tag == 'table':
+            self.in_table = False
+            if self.table_data:
+                self.elements.append(('table', self.table_data))
+        elif tag == 'li':
+            prefix = f'{self.list_idx}. ' if self.list_type == 'ol' else '&bull; '
+            self.list_idx += 1
+            txt = ''.join(self.current_p).strip()
+            if txt:
+                self.elements.append(('p', prefix + txt))
+        elif tag in ('ul', 'ol'):
+            self.in_list = False
+        elif tag in ('p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div'):
+            txt = ''.join(self.current_p).strip()
+            if txt:
+                self.elements.append(('h' if tag.startswith('h') else 'p', txt))
+
+    def handle_data(self, data):
+        self._append_tag(pyhtml.escape(data))
+
+    def _append_tag(self, text):
+        if self.in_table:
+            self.current_cell.append(text)
+        else:
+            self.current_p.append(text)
+
+def _render_notulen_content_to_flowables(raw_html, body_style, header_style, meta_key, colors, Table, TableStyle, Paragraph, Spacer):
+    if not raw_html or not raw_html.strip():
+        return [Paragraph("Tidak ada catatan pembahasan.", body_style)]
+
+    # If it has no HTML tags, return plain text
+    if '<' not in raw_html:
+        clean = raw_html.replace('\n', '<br/>')
+        return [Paragraph(clean, body_style)]
+
+    flowables = []
+    try:
+        parser = _NotulenDocParser()
+        parser.feed(raw_html)
+
+        for kind, val in parser.elements:
+            if kind == 'h':
+                flowables.append(Spacer(1, 4))
+                flowables.append(Paragraph(f"<b>{val}</b>", header_style))
+                flowables.append(Spacer(1, 2))
+            elif kind == 'p':
+                flowables.append(Paragraph(val, body_style))
+                flowables.append(Spacer(1, 3))
+            elif kind == 'table':
+                table_rows = []
+                for row in val:
+                    cells = []
+                    for cell_txt, is_head in row:
+                        style = meta_key if is_head else body_style
+                        cells.append(Paragraph(cell_txt or "-", style))
+                    table_rows.append(cells)
+
+                if table_rows:
+                    max_cols = max(len(r) for r in table_rows)
+                    for r in table_rows:
+                        while len(r) < max_cols:
+                            r.append(Paragraph("-", body_style))
+
+                    tot_w = 515
+                    if max_cols == 2:
+                        widths = [50, 465]
+                    elif max_cols == 3:
+                        widths = [40, 240, 235]
+                    elif max_cols == 4:
+                        widths = [35, 160, 160, 160]
+                    else:
+                        widths = [tot_w / max_cols] * max_cols
+
+                    t = Table(table_rows, colWidths=widths)
+                    t.setStyle(TableStyle([
+                        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+                        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F8FAFC')),
+                        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                        ('TOPPADDING', (0,0), (-1,-1), 4),
+                        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+                        ('LEFTPADDING', (0,0), (-1,-1), 5),
+                        ('RIGHTPADDING', (0,0), (-1,-1), 5),
+                    ]))
+                    flowables.append(Spacer(1, 4))
+                    flowables.append(t)
+                    flowables.append(Spacer(1, 6))
+
+        if not flowables:
+            clean_content = re.sub('<[^<]+?>', '', raw_html or "").strip()
+            flowables = [Paragraph(clean_content.replace('\n', '<br/>'), body_style)]
+
+    except Exception:
+        clean_content = re.sub('<[^<]+?>', '', raw_html or "").strip()
+        flowables = [Paragraph(clean_content.replace('\n', '<br/>'), body_style)]
+
+    return flowables
+
+
 @router.get("/minutes/{minute_id}/export-pdf")
 async def export_meeting_minute_pdf(
     minute_id: int,
@@ -856,9 +1011,10 @@ async def export_meeting_minute_pdf(
     # 5. Isi Notulensi / Pembahasan
     elements.append(Paragraph("II. JALANNYA RAPAT / PEMBAHASAN", section_h2))
     elements.append(Spacer(1, 4))
-    import re
-    clean_content = re.sub('<[^<]+?>', '', m.content or "Tidak ada catatan pembahasan.")
-    elements.append(Paragraph(clean_content.replace('\n', '<br/>'), body_style))
+    content_flowables = _render_notulen_content_to_flowables(
+        m.content, body_style, section_h2, meta_key, colors, Table, TableStyle, Paragraph, Spacer
+    )
+    elements.extend(content_flowables)
     elements.append(Spacer(1, 10))
 
     # 6. Keputusan / Kesimpulan Rapat

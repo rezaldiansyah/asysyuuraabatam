@@ -32,6 +32,18 @@
           @click="downloadMinutePdf(minute)" 
         />
 
+        <!-- Edit Notulen (If Draft/Rejected) -->
+        <NuxtLink v-if="minute && ['draft', 'rejected'].includes(minute.status) && isNotulisOrAdmin" :to="`/dashboard/internal/notulen/buat?id=${minute.id}`">
+          <Button 
+            label="Edit Notulen" 
+            icon="pi pi-pencil" 
+            severity="warn" 
+            outlined 
+            size="small"
+            class="!text-xs"
+          />
+        </NuxtLink>
+
         <!-- Submit for Approval (If Draft/Rejected) -->
         <Button 
           v-if="minute && ['draft', 'rejected'].includes(minute.status) && isNotulisOrAdmin" 
@@ -200,9 +212,10 @@
         <h2 class="font-bold text-sm text-slate-800 dark:text-white uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800 pb-2">
           Catatan Jalannya Rapat & Notulensi
         </h2>
-        <div class="prose dark:prose-invert max-w-none text-xs text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed">
-          {{ minute.content || 'Tidak ada catatan jalannya rapat.' }}
-        </div>
+        <div 
+          class="notulen-content prose dark:prose-invert max-w-none text-xs text-slate-700 dark:text-slate-300 leading-relaxed overflow-x-auto"
+          v-html="renderedContent"
+        ></div>
       </div>
 
       <!-- 5. Keputusan & Kesimpulan -->
@@ -283,6 +296,10 @@ const apiBase = config.public.apiBase
 const minuteId = route.params.id
 const minute = ref<any>(null)
 const loading = ref(true)
+
+const renderedContent = computed(() => {
+  return minute.value?.content || '<p class="italic text-slate-400">Tidak ada catatan jalannya rapat.</p>'
+})
 
 const submitting = ref(false)
 const approving = ref(false)
