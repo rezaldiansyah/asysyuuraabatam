@@ -417,8 +417,9 @@ const fetchEmployees = async () => {
       headers: { Authorization: `Bearer ${apiToken.value}` }
     })
     employees.value = data
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Error', detail: 'Gagal mengambil data pegawai' })
+  } catch (error: any) {
+    console.error('Fetch employees error:', error)
+    toast.add({ severity: 'error', summary: 'Error', detail: error?.data?.detail || error?.message || 'Gagal mengambil data pegawai' })
   } finally {
     loading.value = false
   }

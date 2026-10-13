@@ -422,13 +422,13 @@ class EmployeeBase(BaseModel):
     nik_kepegawaian: Optional[str] = None
     nip: Optional[str] = None
     nuptk: Optional[str] = None
-    nama_lengkap: str
+    nama_lengkap: Optional[str] = None
     no_ktp: Optional[str] = None
     tempat_lahir: Optional[str] = None
     tanggal_lahir: Optional[datetime] = None
     jenis_kelamin: Optional[str] = None
     status_pernikahan: Optional[str] = None
-    jumlah_anak: int = 0
+    jumlah_anak: Optional[int] = 0
     alamat: Optional[str] = None
     no_hp: Optional[str] = None
     npwp: Optional[str] = None
@@ -437,11 +437,11 @@ class EmployeeBase(BaseModel):
     no_rekening: Optional[str] = None
     nama_bank: Optional[str] = None
     position: Optional[str] = None
-    employee_type: str = "tetap"
+    employee_type: Optional[str] = "tetap"
     unit_id: Optional[int] = None
     join_date: Optional[datetime] = None
     resign_date: Optional[datetime] = None
-    is_active: bool = True
+    is_active: Optional[bool] = True
     photo_url: Optional[str] = None
 
 class EmployeeCreate(EmployeeBase):
@@ -483,7 +483,7 @@ class PositionHistory(PositionHistoryBase):
 
 class Employee(EmployeeBase):
     id: int
-    user_id: int
+    user_id: Optional[int] = None
     user: Optional[User] = None
     unit: Optional[Any] = None # Or Unit schema if available
     education_history: List[EducationHistory] = []

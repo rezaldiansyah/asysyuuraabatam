@@ -234,6 +234,13 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
     units = db.query(models.Unit).all()
     unit_code_map = {u.code.upper(): u.id for u in units}
 
+    # Pre-clean any invalid empty string emails in users table so unique constraint isn't violated
+    try:
+        db.query(models.User).filter(models.User.email == "").update({models.User.email: None})
+        db.commit()
+    except Exception:
+        db.rollback()
+
     for row_idx, row in enumerate(rows_data, start=1):
         nama_lengkap = _clean_str(row.get("namalengkap") or row.get("nama"))
         if not nama_lengkap:
@@ -247,9 +254,8 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
         savepoint = db.begin_nested()
         try:
             nik_ktp = _clean_str(row.get("noktp") or row.get("ktp") or row.get("nikktp") or row.get("niknegara"))
-            email = _clean_str(row.get("email"))
-            if email and ("@" not in email or "." not in email):
-                email = None
+            raw_email = _clean_str(row.get("email"))
+            email = raw_email if (raw_email and "@" in raw_email and "." in raw_email) else None
                 
             # Check duplication for KTP against other employees
             if nik_ktp:
@@ -365,7 +371,7 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
                 user = models.User(
                     nik=nik_kepegawaian,
                     full_name=nama_lengkap,
-                    email=user_email,
+                    email=user_email if user_email else None,
                     password_hash=hashed_password,
                     must_change_password=True,
                     role_id=role_id

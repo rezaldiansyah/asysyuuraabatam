@@ -44,65 +44,115 @@
     <div v-show="activeViewTab === 'documents'" class="space-y-6">
       <!-- Quick Stats Cards (5 Indikator Kunci) -->
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
-        <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
-          <div class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+        <!-- Card 1: Total Dokumen -->
+        <div 
+          @click="filterStatus = ''"
+          class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border shadow-sm flex items-center gap-3 cursor-pointer transition hover:shadow-md"
+          :class="filterStatus === '' ? 'border-blue-400 dark:border-blue-600 ring-2 ring-blue-500/20 bg-blue-50/20' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'"
+          title="Klik untuk tampilkan semua dokumen"
+        >
+          <div class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold shrink-0">
             <i class="pi pi-folder text-lg"></i>
           </div>
-          <div>
+          <div class="min-w-0 flex-1">
             <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Dokumen</div>
-            <div class="text-xl font-bold text-slate-800 dark:text-white">{{ documents.length }}</div>
+            <div class="flex items-center justify-between gap-1 mt-0.5">
+              <span class="text-xl font-bold text-slate-800 dark:text-white">{{ documents.length }}</span>
+              <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+                <i class="pi pi-list"></i> Semua
+              </span>
+            </div>
           </div>
         </div>
 
-        <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
-          <div class="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+        <!-- Card 2: Aktif & Tetap -->
+        <div 
+          @click="toggleStatusFilter('active')"
+          class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border shadow-sm flex items-center gap-3 cursor-pointer transition hover:shadow-md group"
+          :class="filterStatus === 'active' ? 'border-emerald-400 dark:border-emerald-600 ring-2 ring-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/20' : 'border-slate-200 dark:border-slate-700 hover:border-emerald-300'"
+          title="Klik untuk filter dokumen Aktif & Tetap"
+        >
+          <div class="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold shrink-0">
             <i class="pi pi-check-circle text-lg"></i>
           </div>
-          <div>
+          <div class="min-w-0 flex-1">
             <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Aktif & Tetap</div>
-            <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400">{{ activeDocCount }}</div>
+            <div class="flex items-center justify-between gap-1 mt-0.5">
+              <span class="text-xl font-bold text-emerald-600 dark:text-emerald-400">{{ activeDocCount }}</span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 group-hover:bg-emerald-200 transition">
+                <i class="pi pi-eye text-xs"></i> Lihat
+              </span>
+            </div>
           </div>
         </div>
 
-        <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
-          <div class="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+        <!-- Card 3: Segera Berakhir -->
+        <div 
+          @click="toggleStatusFilter('expiring_soon')"
+          class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border shadow-sm flex items-center gap-3 cursor-pointer transition hover:shadow-md group"
+          :class="filterStatus === 'expiring_soon' ? 'border-amber-400 dark:border-amber-600 ring-2 ring-amber-500/30 bg-amber-50/30 dark:bg-amber-950/20' : 'border-slate-200 dark:border-slate-700 hover:border-amber-300'"
+          title="Klik untuk filter dokumen yang Segera Berakhir"
+        >
+          <div class="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold shrink-0">
             <i class="pi pi-clock text-lg"></i>
           </div>
-          <div>
+          <div class="min-w-0 flex-1">
             <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Segera Berakhir</div>
-            <div class="text-xl font-bold text-amber-600 dark:text-amber-400">{{ expiringDocCount }}</div>
+            <div class="flex items-center justify-between gap-1 mt-0.5">
+              <span class="text-xl font-bold text-amber-600 dark:text-amber-400">{{ expiringDocCount }}</span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 group-hover:bg-amber-200 transition">
+                <i class="pi pi-eye text-xs"></i> Lihat
+              </span>
+            </div>
           </div>
         </div>
 
-        <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
-          <div class="w-10 h-10 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center font-bold">
+        <!-- Card 4: Kedaluwarsa -->
+        <div 
+          @click="toggleStatusFilter('expired')"
+          class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border shadow-sm flex items-center gap-3 cursor-pointer transition hover:shadow-md group"
+          :class="filterStatus === 'expired' ? 'border-red-400 dark:border-red-600 ring-2 ring-red-500/30 bg-red-50/30 dark:bg-red-950/20' : 'border-slate-200 dark:border-slate-700 hover:border-red-300'"
+          title="Klik untuk filter dokumen yang Kedaluwarsa"
+        >
+          <div class="w-10 h-10 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center font-bold shrink-0">
             <i class="pi pi-exclamation-triangle text-lg"></i>
           </div>
-          <div>
+          <div class="min-w-0 flex-1">
             <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Kedaluwarsa</div>
-            <div class="text-xl font-bold text-red-600 dark:text-red-400">{{ expiredDocCount }}</div>
+            <div class="flex items-center justify-between gap-1 mt-0.5">
+              <span class="text-xl font-bold text-red-600 dark:text-red-400">{{ expiredDocCount }}</span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300 group-hover:bg-red-200 transition">
+                <i class="pi pi-eye text-xs"></i> Lihat
+              </span>
+            </div>
           </div>
         </div>
 
-        <!-- Card Potensi Duplikasi (Interaktif) -->
+        <!-- Card 5: Potensi Duplikasi (Interaktif) -->
         <div 
           @click="openDuplicateDialog"
-          class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border shadow-sm flex items-center gap-3 cursor-pointer transition group"
+          class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border shadow-sm flex items-center gap-3 cursor-pointer transition group hover:shadow-md"
           :class="duplicateCount > 0 ? 'border-purple-300 dark:border-purple-700 bg-purple-50/30 dark:bg-purple-950/20 hover:border-purple-400' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'"
+          title="Klik untuk meninjau potensi duplikasi file"
         >
           <div 
-            class="w-10 h-10 rounded-lg flex items-center justify-center font-bold transition"
+            class="w-10 h-10 rounded-lg flex items-center justify-center font-bold transition shrink-0"
             :class="duplicateCount > 0 ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'"
           >
             <i class="pi pi-copy text-lg"></i>
           </div>
           <div class="min-w-0 flex-1">
-            <div class="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center justify-between">
-              <span>Potensi Duplikat</span>
-              <span v-if="duplicateCount > 0" class="text-[10px] text-purple-600 dark:text-purple-400 font-bold group-hover:underline">Tinjau &rarr;</span>
-            </div>
-            <div class="text-xl font-bold" :class="duplicateCount > 0 ? 'text-purple-600 dark:text-purple-400' : 'text-slate-700 dark:text-slate-300'">
-              {{ duplicateCount }}
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Potensi Duplikat</div>
+            <div class="flex items-center justify-between gap-1 mt-0.5">
+              <span class="text-xl font-bold" :class="duplicateCount > 0 ? 'text-purple-600 dark:text-purple-400' : 'text-slate-700 dark:text-slate-300'">
+                {{ duplicateCount }}
+              </span>
+              <span 
+                v-if="duplicateCount > 0" 
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 group-hover:bg-purple-200 transition"
+              >
+                <i class="pi pi-eye text-xs"></i> Tinjau
+              </span>
             </div>
           </div>
         </div>
@@ -110,19 +160,31 @@
 
       <!-- Filters -->
       <div class="card">
-        <div class="flex flex-col md:flex-row gap-4">
-          <div class="flex-1">
+        <div class="flex flex-col md:flex-row gap-3 flex-wrap">
+          <div class="flex-1 min-w-[240px]">
             <InputText v-model="searchQuery" placeholder="Cari nomor surat, judul, kata kunci, atau nama pegawai..." class="w-full" @input="fetchDocuments" />
           </div>
+          <Select v-model="filterStatus" :options="statusOptions" optionLabel="label" optionValue="value" placeholder="Semua Status" class="w-full md:w-48" showClear />
           <Select v-model="filterCategory" :options="allCategoryOptions" optionLabel="label" optionValue="value" placeholder="Semua Kategori" class="w-full md:w-48" @change="fetchDocuments" />
-          <Select v-model="filterVisibility" :options="visibilityOptions" optionLabel="label" optionValue="value" placeholder="Semua Akses" class="w-full md:w-48" @change="fetchDocuments" />
+          <Select v-model="filterVisibility" :options="visibilityOptions" optionLabel="label" optionValue="value" placeholder="Semua Akses" class="w-full md:w-40" @change="fetchDocuments" />
+        </div>
+
+        <!-- Filter Status Active Banner -->
+        <div v-if="filterStatus" class="mt-3 flex items-center justify-between p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-xs">
+          <div class="flex items-center gap-2 text-primary font-medium">
+            <i class="pi pi-filter"></i>
+            <span>Menampilkan dokumen dengan status: <strong>{{ getStatusFilterLabel() }}</strong> (Ditemukan: <b>{{ displayedDocuments.length }}</b> dari {{ documents.length }} dokumen)</span>
+          </div>
+          <button type="button" @click="filterStatus = ''" class="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer">
+            <i class="pi pi-times text-[10px]"></i> Reset Filter Status
+          </button>
         </div>
       </div>
 
       <!-- Documents Table -->
       <div class="card !p-0 overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm">
         <DataTable 
-          :value="documents" 
+          :value="displayedDocuments" 
           :loading="loading" 
           stripedRows 
           :rowHover="true" 
@@ -213,7 +275,7 @@
           </Column>
 
           <!-- Kolom Masa Berlaku, Umur Dokumen, dan Status Kadaluarsa -->
-          <Column field="effective_timestamp" header="Masa Berlaku & Umur" sortable style="min-width: 200px">
+          <Column field="expiry_rank" header="Masa Berlaku & Umur" sortable style="min-width: 200px">
             <template #body="{ data }">
               <div class="space-y-1 py-1">
                 <div>
@@ -1398,6 +1460,40 @@ const expiredDocCount = computed(() => {
   return documents.value.filter(d => d.expiry_info?.status === 'expired').length
 })
 
+// Filter status state & options (interaktif via Card atau Dropdown)
+const filterStatus = ref<string>('') // '', 'active', 'expiring_soon', 'expired'
+const statusOptions = [
+  { value: '', label: 'Semua Status' },
+  { value: 'active', label: 'Aktif & Tetap' },
+  { value: 'expiring_soon', label: 'Segera Berakhir (30 Hari)' },
+  { value: 'expired', label: 'Kedaluwarsa' },
+]
+
+function toggleStatusFilter(status: string) {
+  if (filterStatus.value === status) {
+    filterStatus.value = ''
+  } else {
+    filterStatus.value = status
+  }
+}
+
+function getStatusFilterLabel() {
+  const found = statusOptions.find(o => o.value === filterStatus.value)
+  return found ? found.label : 'Semua Status'
+}
+
+const displayedDocuments = computed(() => {
+  let list = documents.value
+  if (filterStatus.value === 'active') {
+    list = list.filter(d => d.expiry_info?.status === 'active' || d.expiry_info?.status === 'permanent')
+  } else if (filterStatus.value === 'expiring_soon') {
+    list = list.filter(d => d.expiry_info?.status === 'expiring_soon')
+  } else if (filterStatus.value === 'expired') {
+    list = list.filter(d => d.expiry_info?.status === 'expired')
+  }
+  return list
+})
+
 const replacesOptions = computed(() => {
   return documents.value.map(d => ({
     id: d.id,
@@ -1878,6 +1974,13 @@ async function fetchDocuments() {
     if (searchQuery.value) url += `search=${encodeURIComponent(searchQuery.value)}&`
     const raw = await api.get<any[]>(url)
     
+    const rankMap: Record<string, number> = {
+      expired: 1,
+      expiring_soon: 2,
+      active: 3,
+      permanent: 4
+    }
+
     documents.value = raw.map(doc => {
       const age_info = calculateDocumentAge(doc.effective_date, doc.created_at)
       const expiry_info = getExpiryInfo(doc.effective_date, doc.expired_date)
@@ -1885,6 +1988,7 @@ async function fetchDocuments() {
         ...doc,
         age_info,
         expiry_info,
+        expiry_rank: rankMap[expiry_info.status] || 5,
         effective_timestamp: doc.effective_date ? new Date(doc.effective_date).getTime() : 0,
         expired_timestamp: doc.expired_date ? new Date(doc.expired_date).getTime() : Infinity,
         created_timestamp: doc.created_at ? new Date(doc.created_at).getTime() : 0,

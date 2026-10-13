@@ -410,6 +410,25 @@ async def get_employee_career_history(
         models.Document.created_at.asc()
     ).all()
 
+    # Pre-fetch users and employees to auto-link documents by name
+    all_users = db.query(models.User).all()
+    user_lookup = []
+    for u in all_users:
+        if u.full_name:
+            cname = re.sub(r'[,.]?\s*(s\.pd|m\.pd|s\.e|s\.si|s\.kom|s\.ag|m\.ag|lc|s\.sos|m\.si|m\.m|m\.pd\.i|s\.pd\.i)\b', '', u.full_name, flags=re.I).strip().lower()
+            if len(cname) >= 3:
+                user_lookup.append((cname, u))
+
+    all_employees = db.query(models.Employee).all()
+    emp_lookup = []
+    for e in all_employees:
+        if e.nama_lengkap:
+            cname = re.sub(r'[,.]?\s*(s\.pd|m\.pd|s\.e|s\.si|s\.kom|s\.ag|m\.ag|lc|s\.sos|m\.si|m\.m|m\.pd\.i|s\.pd\.i)\b', '', e.nama_lengkap, flags=re.I).strip().lower()
+            if len(cname) >= 3:
+                emp_lookup.append((cname, e))
+
+    has_db_updates = False
+
     # Group by employee (key: employee_id or normalized employee_name)
     grouped = {}
     for d in docs:
@@ -419,8 +438,68 @@ async def get_employee_career_history(
             emp_name = d.employee.full_name
             
         if not emp_id and not emp_name:
+            raw_title = d.title or ""
+            title_lower = raw_title.lower()
+            
+            # 1. Match against known users/employees
+            matched_user = None
+            for cname, u_obj in user_lookup:
+                if cname in title_lower:
+                    matched_user = u_obj
+                    break
+                    
+            if not matched_user:
+                for cname, e_obj in emp_lookup:
+                    if cname in title_lower:
+                        emp_name = e_obj.nama_lengkap
+                        emp_id = e_obj.user_id
+                        break
+            else:
+                emp_name = matched_user.full_name
+                emp_id = matched_user.id
+
+            if not emp_name:
+                # 2. Extract candidate name from title using regex
+                m = re.search(r'(?:PENGANGKATAN|MUTASI|PEMBERHENTIAN|PENETAPAN)\s+(?:DAN\s+PENETAPAN\s+)?(?:SEBAGAI\s+)?(?:GURU|KEPALA\s+SEKOLAH|TATA\s+USAHA|KABID|WAKIL|BENDAHARA|STAF|OPERATOR|SECURITY|SATPAM)?\s*(?:SDIT|SMPIT|RA|PAUD|YAYASAN)?\s*[:\-–]?\s*([A-Za-z\s\.,\']{3,50})', raw_title, re.I)
+                if m:
+                    extracted = m.group(1).strip()
+                    extracted = re.sub(r'^(GURU|KEPALA|STAF|SDIT|SMPIT|RA)\s+', '', extracted, flags=re.I).strip()
+                    if len(extracted) >= 3:
+                        emp_name = extracted
+                elif d.category == "sk_yayasan":
+                    emp_name = raw_title
+
+            if emp_name:
+                d.employee_name = emp_name
+                if emp_id:
+                    d.employee_id = emp_id
+                has_db_updates = True
+
+        if not emp_id and not emp_name:
             continue
             
+        # Detect position title from document title if missing
+        if not d.position_title:
+            t_up = (d.title or "").upper()
+            if "GURU SMPIT" in t_up or "GURU SMP" in t_up:
+                d.position_title = "Guru SMPIT"
+            elif "GURU SDIT" in t_up or "GURU SD" in t_up:
+                d.position_title = "Guru SDIT"
+            elif "GURU RA" in t_up or "GURU PAUD" in t_up:
+                d.position_title = "Guru RA"
+            elif "KEPALA SEKOLAH SDIT" in t_up:
+                d.position_title = "Kepala Sekolah SDIT"
+            elif "KEPALA SEKOLAH SMPIT" in t_up:
+                d.position_title = "Kepala Sekolah SMPIT"
+            elif "KEPALA SEKOLAH RA" in t_up:
+                d.position_title = "Kepala Sekolah RA"
+            elif "TATA USAHA" in t_up or "TU " in t_up:
+                d.position_title = "Tata Usaha"
+            elif "BENDAHARA" in t_up:
+                d.position_title = "Bendahara"
+            if d.position_title:
+                has_db_updates = True
+
         group_key = f"id_{emp_id}" if emp_id else f"name_{emp_name.strip().lower()}"
         
         if group_key not in grouped:
@@ -469,6 +548,12 @@ async def get_employee_career_history(
             "attachments": _parse_attachments(d.attachments),
             "created_at": d.created_at.isoformat() if d.created_at else None,
         })
+
+    if has_db_updates:
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
 
     # Build final list
     result = []
