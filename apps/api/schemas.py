@@ -447,6 +447,9 @@ class EmployeeBase(BaseModel):
 class EmployeeCreate(EmployeeBase):
     pass
 
+class EmployeeUpdate(EmployeeBase):
+    email: Optional[str] = None
+
 class EducationHistoryBase(BaseModel):
     tingkat: str
     jurusan: Optional[str] = None

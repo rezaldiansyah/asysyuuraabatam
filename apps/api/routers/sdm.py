@@ -540,14 +540,47 @@ async def create_employee(employee: schemas.EmployeeCreate, db: Session = Depend
     return response
 
 @router.put("/employees/{employee_id}", response_model=schemas.Employee)
-async def update_employee(employee_id: int, employee: schemas.EmployeeCreate, db: Session = Depends(get_db)):
+async def update_employee(employee_id: int, employee: schemas.EmployeeUpdate, db: Session = Depends(get_db)):
     db_emp = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
     if not db_emp:
         raise HTTPException(status_code=404, detail="Employee not found")
-    
-    for key, value in employee.dict(exclude_unset=True).items():
+
+    data = employee.dict(exclude_unset=True)
+    email = data.pop("email", None)
+    email_provided = "email" in employee.dict(exclude_unset=True)
+
+    # Normalisasi string kosong -> None (hindari bentrok unique constraint)
+    for key in ("nik_kepegawaian", "nip", "nuptk", "no_ktp"):
+        if key in data and isinstance(data[key], str):
+            data[key] = data[key].strip() or None
+
+    # Cek keunikan identitas
+    for key, label in (("nik_kepegawaian", "NIK Kepegawaian"), ("nip", "NIP"), ("nuptk", "NUPTK"), ("no_ktp", "No. KTP")):
+        val = data.get(key)
+        if val:
+            dup = db.query(models.Employee).filter(getattr(models.Employee, key) == val, models.Employee.id != employee_id).first()
+            if dup:
+                raise HTTPException(status_code=400, detail=f"{label} {val} sudah dipakai pegawai lain ({dup.nama_lengkap})")
+
+    user = db_emp.user
+    if email_provided and user:
+        new_email = (email or "").strip() or None
+        if new_email:
+            dup_user = db.query(models.User).filter(models.User.email == new_email, models.User.id != user.id).first()
+            if dup_user:
+                raise HTTPException(status_code=400, detail=f"Email {new_email} sudah dipakai akun lain")
+        user.email = new_email
+
+    for key, value in data.items():
         setattr(db_emp, key, value)
-    
+
+    # Sinkronkan akun login
+    if user:
+        if data.get("nik_kepegawaian"):
+            user.nik = data["nik_kepegawaian"]
+        if data.get("nama_lengkap"):
+            user.full_name = data["nama_lengkap"]
+
     db.commit()
     db.refresh(db_emp)
     return db_emp
@@ -602,13 +635,63 @@ async def get_employee_computed(employee_id: int, db: Session = Depends(get_db))
     }
 
 # --- Education & Position History Routes ---
+EDUCATION_LEVELS = ["SD", "SMP", "SMA/SMK", "D1", "D2", "D3", "D4", "S1", "S2", "S3"]
+
+def _normalize_education_level(raw: str) -> str:
+    level = (raw or "").strip().upper().replace(" ", "")
+    if level in ("SMA", "SMK", "SMA/SMK", "MA"):
+        level = "SMA/SMK"
+    if level not in EDUCATION_LEVELS:
+        raise HTTPException(status_code=400, detail=f"Jenjang pendidikan tidak valid. Pilihan: {', '.join(EDUCATION_LEVELS)}")
+    return level
+
+def _assert_education_unique(db, employee_id: int, level: str, exclude_id: Optional[int] = None):
+    q = db.query(models.EducationHistory).filter(
+        models.EducationHistory.employee_id == employee_id,
+        models.EducationHistory.tingkat == level
+    )
+    if exclude_id:
+        q = q.filter(models.EducationHistory.id != exclude_id)
+    if q.first():
+        raise HTTPException(status_code=400, detail=f"Pendidikan jenjang {level} sudah ada. Edit data yang ada, bukan menambah baru.")
+
 @router.post("/employees/{employee_id}/education", response_model=schemas.EducationHistory)
 async def add_education(employee_id: int, edu: schemas.EducationHistoryCreate, db: Session = Depends(get_db)):
-    db_edu = models.EducationHistory(**edu.dict(), employee_id=employee_id)
+    if not db.query(models.Employee).filter(models.Employee.id == employee_id).first():
+        raise HTTPException(status_code=404, detail="Employee not found")
+    data = edu.dict()
+    data["tingkat"] = _normalize_education_level(data["tingkat"])
+    _assert_education_unique(db, employee_id, data["tingkat"])
+    db_edu = models.EducationHistory(**data, employee_id=employee_id)
     db.add(db_edu)
     db.commit()
     db.refresh(db_edu)
     return db_edu
+
+@router.put("/education/{id}", response_model=schemas.EducationHistory)
+async def update_education(id: int, edu: schemas.EducationHistoryCreate, db: Session = Depends(get_db)):
+    db_edu = db.query(models.EducationHistory).filter(models.EducationHistory.id == id).first()
+    if not db_edu:
+        raise HTTPException(status_code=404, detail="Not found")
+    data = edu.dict()
+    data["tingkat"] = _normalize_education_level(data["tingkat"])
+    _assert_education_unique(db, db_edu.employee_id, data["tingkat"], exclude_id=id)
+    for k, v in data.items():
+        setattr(db_edu, k, v)
+    db.commit()
+    db.refresh(db_edu)
+    return db_edu
+
+@router.put("/positions/{id}", response_model=schemas.PositionHistory)
+async def update_position(id: int, pos: schemas.PositionHistoryCreate, db: Session = Depends(get_db)):
+    db_pos = db.query(models.PositionHistory).filter(models.PositionHistory.id == id).first()
+    if not db_pos:
+        raise HTTPException(status_code=404, detail="Not found")
+    for k, v in pos.dict().items():
+        setattr(db_pos, k, v)
+    db.commit()
+    db.refresh(db_pos)
+    return db_pos
 
 @router.delete("/education/{id}")
 async def delete_education(id: int, db: Session = Depends(get_db)):
