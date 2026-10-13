@@ -145,7 +145,7 @@
             <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">Potensi Duplikat</div>
             <div class="flex items-center justify-between gap-1 mt-0.5">
               <span class="text-xl font-bold" :class="duplicateCount > 0 ? 'text-purple-600 dark:text-purple-400' : 'text-slate-700 dark:text-slate-300'">
-                {{ duplicateCount }}
+                {{ duplicateDocCount }}
               </span>
               <span 
                 v-if="duplicateCount > 0" 
@@ -2233,6 +2233,7 @@ function formatDate(iso: string) {
 // DUPLICATE DETECTION & RESOLUTION
 // ------------------------------------------------------------
 const duplicateCount = ref(0)
+const duplicateDocCount = ref(0)
 const duplicatePairs = ref<any[]>([])
 const duplicateDialogVisible = ref(false)
 const loadingDuplicates = ref(false)
@@ -2241,8 +2242,9 @@ let checkDuplicateTimer: any = null
 
 async function fetchDuplicateCount() {
   try {
-    const res = await api.get<{ count: number, pairs: any[] }>('/internal/documents/duplicates')
+    const res = await api.get<{ count: number, doc_count: number, pairs: any[] }>('/internal/documents/duplicates')
     duplicateCount.value = res.count || 0
+    duplicateDocCount.value = (res as any).doc_count || 0
     duplicatePairs.value = res.pairs || []
   } catch (e) {
     console.error('Failed to fetch duplicate count', e)
@@ -2253,8 +2255,9 @@ async function openDuplicateDialog() {
   duplicateDialogVisible.value = true
   loadingDuplicates.value = true
   try {
-    const res = await api.get<{ count: number, pairs: any[] }>('/internal/documents/duplicates')
+    const res = await api.get<{ count: number, doc_count: number, pairs: any[] }>('/internal/documents/duplicates')
     duplicateCount.value = res.count || 0
+    duplicateDocCount.value = (res as any).doc_count || 0
     duplicatePairs.value = res.pairs || []
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Gagal', detail: 'Gagal memuat daftar potensi duplikasi', life: 3000 })

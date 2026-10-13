@@ -618,12 +618,15 @@ def _calculate_similarity(doc_a, doc_b) -> dict:
             "score": 98,
             "reason": f"Nomor SK/Surat Sama Persis (#{doc_num})"
         }
+    # Dua dokumen dengan nomor resmi berbeda dianggap dokumen berbeda
+    # (mis. SK pegawai berjudul mirip), kecuali judulnya nyaris identik.
+    different_numbers = bool(num_a and num_b and num_a != num_b)
 
     # 2. Cek kesamaan nama file berkas
     same_file_name = False
     fn_a = (getattr(doc_a, 'file_name', None) or '').strip().lower()
     fn_b = (getattr(doc_b, 'file_name', None) or '').strip().lower()
-    if fn_a and fn_b and fn_a == fn_b and fn_a != "google drive document":
+    if fn_a and fn_b and fn_a == fn_b and fn_a != "google drive document" and not different_numbers:
         same_file_name = True
 
     # 3. Cek kemiripan teks judul
@@ -654,7 +657,8 @@ def _calculate_similarity(doc_a, doc_b) -> dict:
             "reason": "Nama Berkas File Identik" + (" & Kategori Sama" if same_category else "")
         }
 
-    if score >= 70:
+    threshold = 95 if different_numbers else 70
+    if title_a and title_b and score >= threshold:
         reason_parts = [f"Kemiripan Judul ({score}%)"]
         if same_category:
             reason_parts.append("Kategori Sama")
@@ -733,6 +737,7 @@ async def get_duplicate_candidates(
     candidates.sort(key=lambda x: x["score"], reverse=True)
     return {
         "count": len(candidates),
+        "doc_count": len({c["doc_a_id"] for c in candidates} | {c["doc_b_id"] for c in candidates}),
         "pairs": candidates
     }
 
