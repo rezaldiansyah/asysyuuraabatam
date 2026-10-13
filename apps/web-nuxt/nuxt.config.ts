@@ -3,7 +3,30 @@ import Aura from '@primevue/themes/aura'
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
-  devtools: { enabled: true },
+  devtools: { enabled: false },
+
+  sourcemap: {
+    server: false,
+    client: false,
+  },
+
+  telemetry: false,
+
+  nitro: {
+    prerender: {
+      crawlLinks: false,
+      routes: [],
+    },
+  },
+
+  vite: {
+    build: {
+      chunkSizeWarningLimit: 2000,
+      rollupOptions: {
+        maxParallelFileOps: 2,
+      },
+    },
+  },
 
   // Global CSS
   css: [
