@@ -1,32 +1,41 @@
 <template>
-  <div class="space-y-6">
-    <div class="flex justify-between items-center">
+  <div class="space-y-4 text-sm">
+    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
       <div>
-        <h1 class="text-2xl font-bold text-slate-800 dark:text-white">Data Pegawai</h1>
-        <p class="text-slate-500 dark:text-slate-400">Kelola data kepegawaian dan riwayat karyawan.</p>
+        <h1 class="text-xl font-semibold text-slate-800 dark:text-white">Data Pegawai</h1>
+        <p class="text-xs text-slate-500 dark:text-slate-400">
+          Kelola data kepegawaian dan riwayat karyawan.
+          <span class="font-medium text-slate-700 dark:text-slate-200">Total: {{ employees.length }} pegawai</span>
+        </p>
       </div>
       <div class="flex gap-2">
-        <Button label="Import Data" icon="pi pi-upload" severity="secondary" outlined @click="showImportDialog = true" />
-        <Button label="Tambah Pegawai" icon="pi pi-plus" @click="showAddDialog = true" />
+        <Button label="Import Data" icon="pi pi-upload" severity="secondary" outlined size="small" @click="showImportDialog = true" />
+        <Button label="Tambah Pegawai" icon="pi pi-plus" size="small" @click="showAddDialog = true" />
       </div>
     </div>
 
     <!-- Filter Bar -->
-    <div class="card bg-white dark:bg-slate-900 shadow-sm rounded-xl p-4 border border-slate-200 dark:border-slate-800">
+    <div class="card bg-white dark:bg-slate-900 shadow-sm rounded-xl p-3 border border-slate-200 dark:border-slate-800">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div class="relative w-full">
-          <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <InputText v-model="filters.search" placeholder="Cari nama atau NIK..." class="w-full !pl-9" @input="debouncedFetch" />
+          <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+          <InputText v-model="filters.search" placeholder="Cari nama atau NIK..." size="small" class="w-full !pl-9" @input="debouncedFetch" />
         </div>
-        <Select v-model="filters.unit_id" :options="units" optionLabel="name" optionValue="id" placeholder="Semua Unit" showClear class="w-full" @change="fetchEmployees" />
-        <Select v-model="filters.employee_type" :options="['tetap', 'kontrak', 'honorer']" placeholder="Semua Jenis" showClear class="w-full" @change="fetchEmployees" />
-        <Select v-model="filters.is_active" :options="[{label: 'Aktif', value: true}, {label: 'Nonaktif', value: false}]" optionLabel="label" optionValue="value" placeholder="Status Aktif" showClear class="w-full" @change="fetchEmployees" />
+        <Select v-model="filters.unit_id" :options="units" optionLabel="name" optionValue="id" placeholder="Semua Unit" showClear size="small" class="w-full" @change="fetchEmployees" />
+        <Select v-model="filters.employee_type" :options="['tetap', 'kontrak', 'honorer']" placeholder="Semua Jenis" showClear size="small" class="w-full" @change="fetchEmployees" />
+        <Select v-model="filters.is_active" :options="[{label: 'Aktif', value: true}, {label: 'Nonaktif', value: false}]" optionLabel="label" optionValue="value" placeholder="Status Aktif" showClear size="small" class="w-full" @change="fetchEmployees" />
       </div>
     </div>
 
     <!-- Data Table -->
     <div class="card bg-white dark:bg-slate-900 shadow-sm rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden p-1">
-      <DataTable :value="employees" :loading="loading" paginator :rows="10" dataKey="id" class="p-datatable-sm" stripedRows responsiveLayout="scroll">
+      <DataTable
+        :value="employees" :loading="loading" dataKey="id" class="p-datatable-sm text-sm" stripedRows responsiveLayout="scroll"
+        paginator :rows="rowsPerPage" :rowsPerPageOptions="[20, 50, 100]"
+        paginatorTemplate="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+        currentPageReportTemplate="Menampilkan {first}–{last} dari {totalRecords} data"
+        @page="onPage"
+      >
           <Column field="nama_lengkap" header="Nama Pegawai" sortable>
             <template #body="{ data }">
               <div class="flex items-center gap-3">
@@ -323,6 +332,15 @@ const config = useRuntimeConfig()
 // State
 const employees = ref([])
 const units = ref([])
+const rowsPerPage = ref(20)
+if (import.meta.client) {
+  const saved = Number(localStorage.getItem("pegawai_rows_per_page"))
+  if ([20, 50, 100].includes(saved)) rowsPerPage.value = saved
+}
+const onPage = (e) => {
+  rowsPerPage.value = e.rows
+  if (import.meta.client) localStorage.setItem("pegawai_rows_per_page", String(e.rows))
+}
 const loading = ref(false)
 const showAddDialog = ref(false)
 const showSuccessDialog = ref(false)
