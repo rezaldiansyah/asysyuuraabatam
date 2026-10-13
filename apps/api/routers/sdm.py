@@ -634,6 +634,66 @@ async def get_employee_computed(employee_id: int, db: Session = Depends(get_db))
         "lama_kerja_pensiun": lama_pensiun
     }
 
+_DEGREE_RE = re.compile(r"\b(s\.?\s?pd(\.?\s?i)?|m\.?\s?pd(\.?\s?i)?|s\.?\s?e(\.?i)?|s\.?\s?si|s\.?\s?kom|s\.?\s?ag|m\.?\s?ag|s\.?\s?sos|m\.?\s?si|m\.?\s?m|lc|s\.?\s?h|s\.?\s?psi|s\.?\s?hum|s\.?\s?t|a\.?\s?md|gr|aud|dr|drs|hj|h)\b\.?", re.I)
+
+def _norm_person_name(name: Optional[str]) -> str:
+    if not name:
+        return ""
+    s = name.lower()
+    s = re.sub(r"[^a-z\s\.]", " ", s)
+    s = _DEGREE_RE.sub(" ", s)
+    s = re.sub(r"[^a-z\s]", " ", s)
+    return " ".join(s.split())
+
+@router.get("/employees/{employee_id}/documents")
+async def get_employee_documents(employee_id: int, db: Session = Depends(get_db)):
+    """Daftar SK/dokumen yang terkait dengan pegawai (via akun user, nama pegawai, atau judul dokumen)."""
+    emp = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    target = _norm_person_name(emp.nama_lengkap)
+    docs = db.query(models.Document).filter(models.Document.is_active == True).order_by(models.Document.effective_date.desc().nullslast(), models.Document.created_at.desc()).all()
+
+    results = []
+    relinked = False
+    for d in docs:
+        match = None
+        if emp.user_id and d.employee_id == emp.user_id:
+            match = "terhubung"
+        elif target and len(target) >= 4:
+            dn = _norm_person_name(d.employee_name)
+            if dn and dn == target:
+                match = "nama"
+            elif not d.employee_name and not d.employee_id and d.category == "sk_yayasan" and target in _norm_person_name(d.title):
+                match = "judul"
+        if not match:
+            continue
+        # Simpan tautan permanen ke akun pegawai agar tidak perlu dicocokkan ulang
+        if match != "terhubung" and emp.user_id and not d.employee_id:
+            d.employee_id = emp.user_id
+            if not d.employee_name:
+                d.employee_name = emp.nama_lengkap
+            relinked = True
+        results.append({
+            "id": d.id,
+            "title": d.title,
+            "document_number": d.document_number,
+            "category": d.category,
+            "sk_type": d.sk_type,
+            "position_title": d.position_title,
+            "effective_date": d.effective_date.isoformat() if d.effective_date else None,
+            "expired_date": d.expired_date.isoformat() if d.expired_date else None,
+            "term_start_date": d.term_start_date.isoformat() if d.term_start_date else None,
+            "term_end_date": d.term_end_date.isoformat() if d.term_end_date else None,
+            "file_url": d.file_url,
+            "file_name": d.file_name,
+            "match": match,
+        })
+    if relinked:
+        db.commit()
+    return results
+
 # --- Education & Position History Routes ---
 EDUCATION_LEVELS = ["SD", "SMP", "SMA/SMK", "D1", "D2", "D3", "D4", "S1", "S2", "S3"]
 

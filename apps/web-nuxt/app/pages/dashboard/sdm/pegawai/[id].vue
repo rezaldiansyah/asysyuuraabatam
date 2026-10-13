@@ -96,7 +96,44 @@
       </DataTable>
     </div>
 
+    <!-- SK & Dokumen terkait -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+          <i class="pi pi-file text-slate-400 text-xs"></i>SK &amp; Dokumen Terkait
+          <span class="text-xs font-normal bg-slate-100 dark:bg-slate-700 text-slate-500 rounded-full px-2 py-0.5">{{ documents.length }}</span>
+        </h3>
+        <Button label="Kelola di Pusat Dokumen" icon="pi pi-external-link" size="small" text @click="router.push('/dashboard/internal/dokumen')" />
+      </div>
+      <DataTable :value="documents" size="small" class="text-sm" :loading="loadingDocs">
+        <Column header="Dokumen">
+          <template #body="{ data }">
+            <div class="font-medium text-slate-800 dark:text-slate-100">{{ data.title }}</div>
+            <div class="text-xs text-slate-500">{{ data.document_number || 'Tanpa nomor' }}<span v-if="data.position_title"> • {{ data.position_title }}</span></div>
+          </template>
+        </Column>
+        <Column header="Jenis" style="width: 9rem">
+          <template #body="{ data }"><Tag :value="skTypeLabel(data.sk_type) || data.category || '-'" severity="secondary" class="!text-xs" /></template>
+        </Column>
+        <Column header="Berlaku" style="width: 9rem">
+          <template #body="{ data }">{{ formatDate(data.effective_date || data.term_start_date) }}</template>
+        </Column>
+        <Column header="Status" style="width: 8rem">
+          <template #body="{ data }"><Tag v-bind="docStatus(data)" class="!text-xs" /></template>
+        </Column>
+        <Column header="" style="width: 4rem">
+          <template #body="{ data }">
+            <a v-if="data.file_url" :href="data.file_url" target="_blank" rel="noopener" title="Buka berkas">
+              <Button icon="pi pi-eye" text rounded size="small" as="span" />
+            </a>
+          </template>
+        </Column>
+        <template #empty><div class="text-center py-3 text-slate-500">Belum ada SK/dokumen yang terhubung dengan pegawai ini.</div></template>
+      </DataTable>
+    </div>
+
     <!-- Riwayat jabatan -->
+
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
       <div class="flex justify-between items-center mb-2">
         <h3 class="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2"><i class="pi pi-briefcase text-slate-400 text-xs"></i>Riwayat Jabatan</h3>
@@ -215,6 +252,32 @@ const employee = ref<any>(null)
 const computedInfo = ref<any>(null)
 const units = ref<any[]>([])
 const saving = ref(false)
+const documents = ref<any[]>([])
+const loadingDocs = ref(false)
+
+const SK_LABELS: Record<string, string> = {
+  PENGANGKATAN: 'Pengangkatan', PROMOSI: 'Promosi', MUTASI: 'Mutasi', PEMBERHENTIAN: 'Pemberhentian',
+  PENGUNDURAN_DIRI: 'Pengunduran Diri', TUGAS_TAMBAHAN: 'Tugas Tambahan', UMUM: 'Umum',
+}
+const skTypeLabel = (t?: string) => (t ? SK_LABELS[t] || t : '')
+const docStatus = (d: any) => {
+  if (!d.expired_date) return { value: 'Berlaku', severity: 'success' }
+  const exp = new Date(d.expired_date).getTime()
+  const now = Date.now()
+  if (exp < now) return { value: 'Kedaluwarsa', severity: 'danger' }
+  if (exp - now < 90 * 86400000) return { value: 'Segera Berakhir', severity: 'warn' }
+  return { value: 'Berlaku', severity: 'success' }
+}
+const fetchDocuments = async () => {
+  loadingDocs.value = true
+  try {
+    documents.value = await $fetch<any[]>(`${base}/sdm/employees/${route.params.id}/documents`, { headers: headers() })
+  } catch {
+    documents.value = []
+  } finally {
+    loadingDocs.value = false
+  }
+}
 
 const showEdit = ref(false)
 const showEducation = ref(false)
@@ -413,7 +476,7 @@ const deletePosition = async (row: any) => {
 
 onMounted(async () => {
   if (route.params.id) {
-    await Promise.all([fetchEmployeeDetail(), fetchUnits()])
+    await Promise.all([fetchEmployeeDetail(), fetchUnits(), fetchDocuments()])
     if (route.query.edit === 'true' && employee.value) openEdit()
   }
 })
