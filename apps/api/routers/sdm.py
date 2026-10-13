@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import Response
 import csv
 import io
+import re
+import openpyxl
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from typing import List, Optional
@@ -65,153 +67,335 @@ async def get_employee_template():
         headers={"Content-Disposition": "attachment; filename=template_pegawai.csv"}
     )
 
+INDONESIAN_MONTHS = {
+    'januari': 1, 'jan': 1,
+    'februari': 2, 'feb': 2,
+    'maret': 3, 'mar': 3,
+    'april': 4, 'apr': 4,
+    'mei': 5,
+    'juni': 6, 'jun': 6,
+    'juli': 7, 'jul': 7,
+    'agustus': 8, 'agu': 8, 'agt': 8,
+    'september': 9, 'sep': 9,
+    'oktober': 10, 'okt': 10,
+    'november': 11, 'nopember': 11, 'nov': 11,
+    'desember': 12, 'des': 12
+}
+
+def _clean_str(val) -> str:
+    if val is None:
+        return ""
+    s = str(val).strip()
+    if s.endswith(".0"):
+        s = s[:-2]
+    return "" if s in ["-", "None", "nan", "null"] else s
+
+def _clean_phone_number(val) -> Optional[str]:
+    s = _clean_str(val)
+    if not s:
+        return None
+    s = s.split(".")[0].strip()
+    s = re.sub(r'[^0-9+]', '', s)
+    if s.startswith("8"):
+        s = "0" + s
+    return s if s else None
+
+def _parse_birth_date(val) -> Optional[date]:
+    if not val:
+        return None
+    if isinstance(val, (datetime, date)):
+        return val if isinstance(val, date) else val.date()
+    s = str(val).strip()
+    if len(s) >= 10 and s[4] == '-' and s[7] == '-':
+        try:
+            return datetime.strptime(s[:10], "%Y-%m-%d").date()
+        except Exception:
+            pass
+    m = re.search(r'(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})', s)
+    if m:
+        d = int(m.group(1))
+        m_name = m.group(2).lower()
+        y = int(m.group(3))
+        month_num = INDONESIAN_MONTHS.get(m_name)
+        if month_num:
+            try:
+                return date(y, month_num, d)
+            except Exception:
+                pass
+    return None
+
+def _parse_ttl_field(ttl_str) -> tuple[Optional[str], Optional[date]]:
+    if not ttl_str:
+        return None, None
+    s = str(ttl_str).strip()
+    m = re.search(r'^(.*?)[,\s]+(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})\s*$', s)
+    if m:
+        place = m.group(1).strip()
+        d = int(m.group(2))
+        m_name = m.group(3).lower()
+        y = int(m.group(4))
+        month_num = INDONESIAN_MONTHS.get(m_name)
+        if month_num:
+            try:
+                return place, date(y, month_num, d)
+            except Exception:
+                pass
+    return s, None
+
+def _parse_gender_val(val) -> Optional[str]:
+    if not val:
+        return None
+    s = str(val).strip().lower()
+    if s in ["l", "lk", "laki", "laki-laki", "pria", "male"]:
+        return "Laki-laki"
+    if s in ["p", "pr", "perempuan", "wanita", "female"]:
+        return "Perempuan"
+    return None
+
 @router.post("/employees/import")
 async def import_employees(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Hanya format CSV yang diperbolehkan")
-        
+    filename = (file.filename or "").lower()
     contents = await file.read()
-    try:
-        decoded = contents.decode('utf-8')
-    except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="File CSV harus berupa UTF-8")
-        
-    csv_reader = csv.DictReader(io.StringIO(decoded))
     
-    # Expected columns mappings
-    # Map CSV columns to field names
-    expected_cols = {
-        "Nama Lengkap": "nama_lengkap",
-        "NIK KTP": "no_ktp",
-        "NIK Kepegawaian": "nik_kepegawaian",
-        "Tanggal Lahir (YYYY-MM-DD)": "tanggal_lahir",
-        "No HP": "no_hp",
-        "Tempat Lahir": "tempat_lahir",
-        "Jenis Kelamin (Laki-laki/Perempuan)": "jenis_kelamin",
-        "Status Pernikahan (Kawin/Belum Kawin)": "status_pernikahan",
-        "Alamat": "alamat",
-        "Jabatan": "position",
-        "Jenis Pegawai (tetap/kontrak/honorer)": "employee_type",
-        "Unit ID": "unit_id",
-        "NIP": "nip",
-        "NUPTK": "nuptk"
-    }
+    rows_data = [] # List of dicts with normalized keys
     
-    if not csv_reader.fieldnames or not all(k in csv_reader.fieldnames for k in expected_cols.keys()):
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Format CSV tidak valid. Kolom yang dibutuhkan: {', '.join(expected_cols.keys())}"
-        )
+    if filename.endswith(".xlsx") or filename.endswith(".xls"):
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
+            sheet = wb.active
+            
+            # Auto-detect header row
+            header_row_idx = 1
+            for r in range(1, min(11, sheet.max_row + 1)):
+                txts = [re.sub(r'[^a-z0-9]', '', str(cell.value or '').lower()) for cell in sheet[r]]
+                if any(t in ['namalengkap', 'nama', 'nik', 'ttl'] for t in txts):
+                    header_row_idx = r
+                    break
+            
+            col_map = {}
+            for c in range(1, sheet.max_column + 1):
+                raw_h = sheet.cell(row=header_row_idx, column=c).value
+                if raw_h:
+                    norm_k = re.sub(r'[^a-z0-9]', '', str(raw_h).lower())
+                    col_map[c] = norm_k
+                    
+            for r in range(header_row_idx + 1, sheet.max_row + 1):
+                row_dict = {}
+                for c, norm_k in col_map.items():
+                    row_dict[norm_k] = sheet.cell(row=r, column=c).value
+                if any(row_dict.values()):
+                    rows_data.append(row_dict)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Gagal membaca file Excel (.xlsx): {str(e)}")
+            
+    elif filename.endswith(".csv"):
+        try:
+            decoded = contents.decode('utf-8-sig', errors='replace')
+            csv_reader = csv.reader(io.StringIO(decoded))
+            raw_rows = list(csv_reader)
+            if not raw_rows:
+                raise HTTPException(status_code=400, detail="File CSV kosong")
+                
+            header_row_idx = 0
+            for idx, r in enumerate(raw_rows[:10]):
+                txts = [re.sub(r'[^a-z0-9]', '', str(cell or '').lower()) for cell in r]
+                if any(t in ['namalengkap', 'nama', 'nik', 'ttl'] for t in txts):
+                    header_row_idx = idx
+                    break
+                    
+            header_keys = [re.sub(r'[^a-z0-9]', '', str(c or '').lower()) for c in raw_rows[header_row_idx]]
+            for r in raw_rows[header_row_idx + 1:]:
+                row_dict = {}
+                for idx, k in enumerate(header_keys):
+                    if idx < len(r) and k:
+                        row_dict[k] = r[idx]
+                if any(row_dict.values()):
+                    rows_data.append(row_dict)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Gagal membaca file CSV: {str(e)}")
+    else:
+        raise HTTPException(status_code=400, detail="Format file harus berupa .xlsx atau .csv")
+
+    if not rows_data:
+        raise HTTPException(status_code=400, detail="Tidak ada baris data yang ditemukan dalam file")
 
     success_count = 0
     errors = []
     
-    for row_idx, row in enumerate(csv_reader, start=1):
+    karyawan_role = db.query(models.Role).filter(models.Role.code == "karyawan").first()
+    role_id = karyawan_role.id if karyawan_role else None
+    
+    # Pre-cache units
+    units = db.query(models.Unit).all()
+    unit_code_map = {u.code.upper(): u.id for u in units}
+
+    for row_idx, row in enumerate(rows_data, start=1):
         try:
-            nama_lengkap = row["Nama Lengkap"].strip()
-            nik_ktp = row["NIK KTP"].strip()
-            nik_kepegawaian = row["NIK Kepegawaian"].strip()
-            
-            if not nama_lengkap or not nik_kepegawaian:
-                errors.append(f"Baris {row_idx}: Nama Lengkap dan NIK Kepegawaian wajib diisi")
+            nama_lengkap = _clean_str(row.get("namalengkap") or row.get("nama"))
+            nik_kepegawaian = _clean_str(row.get("nikkepegawaian") or row.get("nik") or row.get("username"))
+            nik_ktp = _clean_str(row.get("noktp") or row.get("ktp") or row.get("nikktp") or row.get("niknegara"))
+            email = _clean_str(row.get("email"))
+            if email and ("@" not in email or "." not in email):
+                email = None
+                
+            if not nama_lengkap:
+                continue # Skip blank rows
+                
+            if not nik_kepegawaian:
+                errors.append(f"Baris {row_idx} ({nama_lengkap}): NIK Kepegawaian tidak boleh kosong")
                 continue
                 
             # Check duplication
             if nik_ktp:
                 existing_ktp = db.query(models.Employee).filter(models.Employee.no_ktp == nik_ktp).first()
                 if existing_ktp:
-                    errors.append(f"Baris {row_idx}: NIK KTP {nik_ktp} sudah terdaftar")
+                    errors.append(f"Baris {row_idx} ({nama_lengkap}): NIK KTP {nik_ktp} sudah terdaftar")
                     continue
                     
             existing_nik = db.query(models.Employee).filter(models.Employee.nik_kepegawaian == nik_kepegawaian).first()
             if existing_nik:
-                errors.append(f"Baris {row_idx}: NIK Kepegawaian {nik_kepegawaian} sudah terdaftar")
+                errors.append(f"Baris {row_idx} ({nama_lengkap}): NIK Kepegawaian {nik_kepegawaian} sudah terdaftar")
                 continue
+
+            # TTL & Date parsing
+            tempat_lahir = _clean_str(row.get("tempatlahir"))
+            tanggal_lahir = _parse_birth_date(row.get("tanggallahir") or row.get("tgllahir"))
+            
+            raw_ttl = row.get("ttl") or row.get("tempattanggallahir")
+            if raw_ttl:
+                parsed_place, parsed_date = _parse_ttl_field(raw_ttl)
+                if not tempat_lahir and parsed_place:
+                    tempat_lahir = parsed_place
+                if not tanggal_lahir and parsed_date:
+                    tanggal_lahir = parsed_date
+
+            # Gender parsing
+            jk_val = _parse_gender_val(row.get("jk") or row.get("jeniskelamin"))
+            
+            # Phone & Admin
+            no_hp = _clean_phone_number(row.get("nohp") or row.get("hp") or row.get("telepon") or row.get("wa") or row.get("whatsapp"))
+            nuptk = _clean_str(row.get("nuptk")) or None
+            npwp = _clean_str(row.get("nonpwp") or row.get("npwp")) or None
+            bpjs_tk = _clean_str(row.get("nobpjsketenagakerjaan") or row.get("bpjsketenagakerjaan") or row.get("bpjstk") or row.get("nobpjstk")) or None
+            bpjs_kes = _clean_str(row.get("nobpjskesehatan") or row.get("bpjskesehatan") or row.get("bpjskes") or row.get("nobpjskes")) or None
+            tmt_date = _parse_birth_date(row.get("tmt") or row.get("tmtmulaikerja") or row.get("tanggalmulaitugas"))
+            
+            position = _clean_str(row.get("jabatan") or row.get("posisi")) or None
+            
+            # Employee type
+            raw_type = _clean_str(row.get("statuspegawai") or row.get("jenispegawai")).lower()
+            if "honorer" in raw_type:
+                employee_type = "honorer"
+            elif "kontrak" in raw_type:
+                employee_type = "kontrak"
+            else:
+                employee_type = "tetap" # GTY, Tetap, etc
                 
-            # Parse Date
-            tgl_lahir = None
-            if row["Tanggal Lahir (YYYY-MM-DD)"].strip():
-                try:
-                    tgl_lahir = datetime.strptime(row["Tanggal Lahir (YYYY-MM-DD)"].strip(), "%Y-%m-%d").date()
-                except ValueError:
-                    errors.append(f"Baris {row_idx}: Format tanggal lahir salah, harus YYYY-MM-DD")
-                    continue
+            # Unit ID auto-detection
+            unit_id = None
+            raw_unit = _clean_str(row.get("unitid") or row.get("unit"))
+            if raw_unit:
+                if raw_unit.isdigit():
+                    unit_id = int(raw_unit)
+                elif raw_unit.upper() in unit_code_map:
+                    unit_id = unit_code_map[raw_unit.upper()]
                     
-            # User creation with default role 'karyawan' (Opsi B)
+            if not unit_id and position:
+                pos_lower = position.lower()
+                if "ra" in pos_lower or "paud" in pos_lower:
+                    unit_id = unit_code_map.get("RA")
+                elif "sdit" in pos_lower or "sd" in pos_lower:
+                    unit_id = unit_code_map.get("SDIT")
+                elif "smpit" in pos_lower or "smp" in pos_lower:
+                    unit_id = unit_code_map.get("SMPIT")
+                elif any(k in pos_lower for k in ["yayasan", "kabid", "yys", "keuangan", "umum"]):
+                    unit_id = unit_code_map.get("YYS")
+
+            status_nikah = _clean_str(row.get("status") or row.get("statuspernikahan")) or None
+            raw_anak = _clean_str(row.get("jumlahanak"))
+            jml_anak = int(raw_anak) if raw_anak and raw_anak.isdigit() else 0
+            alamat = _clean_str(row.get("alamat")) or None
+            nip = _clean_str(row.get("nip")) or None
+
+            # Password generation (DDMMYYYY)
             generated_password = "password123"
-            if tgl_lahir:
-                generated_password = tgl_lahir.strftime("%d%m%Y")
-                
+            if tanggal_lahir:
+                generated_password = tanggal_lahir.strftime("%d%m%Y")
             hashed_password = passlib.hash.bcrypt.hash(generated_password)
-            karyawan_role = db.query(models.Role).filter(models.Role.code == "karyawan").first()
-            role_id = karyawan_role.id if karyawan_role else None
-                
+
+            # Check email duplication
+            user_email = email
+            if user_email:
+                existing_email = db.query(models.User).filter(models.User.email == user_email).first()
+                if existing_email:
+                    user_email = None # Don't conflict, fallback without email
+                    
             user = models.User(
                 nik=nik_kepegawaian,
                 full_name=nama_lengkap,
+                email=user_email,
                 password_hash=hashed_password,
                 must_change_password=True,
                 role_id=role_id
             )
             db.add(user)
-            db.flush() # get user.id
-            
-            # Unit ID parsing
-            unit_id = None
-            if row["Unit ID"].strip():
-                try:
-                    unit_id = int(row["Unit ID"].strip())
-                except ValueError:
-                    pass
-            
-            # Gender normalization & validation
-            raw_jk = row["Jenis Kelamin (Laki-laki/Perempuan)"].strip() if row.get("Jenis Kelamin (Laki-laki/Perempuan)") else ""
-            jk_val = None
-            if raw_jk:
-                jk_lower = raw_jk.lower()
-                if jk_lower in ["l", "lk", "laki", "laki-laki", "pria", "male"]:
-                    jk_val = "Laki-laki"
-                elif jk_lower in ["p", "pr", "perempuan", "wanita", "female"]:
-                    jk_val = "Perempuan"
-                else:
-                    errors.append(f"Baris {row_idx}: Jenis kelamin '{raw_jk}' tidak valid. Harap gunakan Laki-laki atau Perempuan")
-                    continue
+            db.flush()
 
-            # Employee creation
             emp = models.Employee(
                 user_id=user.id,
                 nama_lengkap=nama_lengkap,
                 no_ktp=nik_ktp if nik_ktp else None,
                 nik_kepegawaian=nik_kepegawaian,
-                tempat_lahir=row["Tempat Lahir"].strip() if row["Tempat Lahir"] else None,
-                tanggal_lahir=tgl_lahir,
+                tempat_lahir=tempat_lahir if tempat_lahir else None,
+                tanggal_lahir=tanggal_lahir,
                 jenis_kelamin=jk_val,
-                status_pernikahan=row["Status Pernikahan (Kawin/Belum Kawin)"].strip() if row["Status Pernikahan (Kawin/Belum Kawin)"] else None,
-                alamat=row["Alamat"].strip() if row["Alamat"] else None,
-                no_hp=row["No HP"].strip() if row["No HP"] else None,
-                position=row["Jabatan"].strip() if row["Jabatan"] else None,
-                employee_type=row["Jenis Pegawai (tetap/kontrak/honorer)"].strip() if row["Jenis Pegawai (tetap/kontrak/honorer)"] else "tetap",
+                status_pernikahan=status_nikah,
+                jumlah_anak=jml_anak,
+                alamat=alamat,
+                no_hp=no_hp,
+                npwp=npwp,
+                no_bpjs_tk=bpjs_tk,
+                no_bpjs_kes=bpjs_kes,
+                position=position,
+                employee_type=employee_type,
                 unit_id=unit_id,
-                nip=row["NIP"].strip() if row["NIP"] else None,
-                nuptk=row["NUPTK"].strip() if row["NUPTK"] else None
+                join_date=tmt_date,
+                nip=nip,
+                nuptk=nuptk
             )
-            
             db.add(emp)
+            db.flush()
+
+            # Education History if available
+            pendidikan = _clean_str(row.get("pendidikan") or row.get("tingkatpendidikan"))
+            jurusan = _clean_str(row.get("jurusan") or row.get("jurusanprodi") or row.get("prodi"))
+            thn_lulus = _clean_str(row.get("tahunlulus") or row.get("thnlulus"))
+            if pendidikan or jurusan or thn_lulus:
+                edu = models.EducationHistory(
+                    employee_id=emp.id,
+                    tingkat=pendidikan if pendidikan else "S1",
+                    jurusan=jurusan if jurusan else None,
+                    institusi=None,
+                    tahun_lulus=int(thn_lulus) if thn_lulus and thn_lulus.isdigit() else None
+                )
+                db.add(edu)
+
             success_count += 1
-            
         except Exception as e:
             errors.append(f"Baris {row_idx}: {str(e)}")
             continue
-            
+
     if success_count > 0:
         db.commit()
     else:
         db.rollback()
-        
+
     return {
         "success_count": success_count,
         "errors": errors,
-        "message": f"Berhasil impor {success_count} data." + (f" Terdapat {len(errors)} error." if errors else "")
+        "message": f"Berhasil mengimpor {success_count} data pegawai." + (f" Terdapat {len(errors)} kendala." if errors else "")
     }
 
 @router.get("/employees/{employee_id}", response_model=schemas.Employee)

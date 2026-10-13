@@ -42,3 +42,8 @@ venv.bak/
 
 # Database Dumps
 *.sql
+
+# Data uploads and spreadsheets
+*.xlsx
+*.xls
+*.csv

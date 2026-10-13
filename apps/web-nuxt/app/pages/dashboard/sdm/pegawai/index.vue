@@ -254,15 +254,15 @@
     </Dialog>
     
     <!-- Import Dialog -->
-    <Dialog v-model:visible="showImportDialog" modal header="Import Data Pegawai" :style="{ width: '600px' }">
+    <Dialog v-model:visible="showImportDialog" modal header="Import Data Pegawai (Excel / CSV)" :style="{ width: '600px' }">
       <div class="space-y-4">
         <Message severity="info" :closable="false">
-          <p class="font-bold">Panduan Import CSV:</p>
+          <p class="font-bold">Panduan Import Data:</p>
           <ul class="list-disc pl-5 mt-2 space-y-1 text-sm">
-            <li>Download template CSV dan isi data sesuai format header.</li>
-            <li>Kolom <b>Nama Lengkap</b> dan <b>NIK Kepegawaian</b> wajib diisi.</li>
-            <li>Gunakan format tanggal lahir <b>YYYY-MM-DD</b> (Contoh: 1990-01-31).</li>
-            <li>Sistem akan otomatis membuatkan akun dengan password tanggal lahir (atau password123 jika kosong/salah format).</li>
+            <li>Mendukung file <b>Excel (.xlsx)</b> maupun <b>CSV (.csv)</b>.</li>
+            <li>Kolom <b>Nama Lengkap</b> dan <b>NIK Kepegawaian</b> wajib ada.</li>
+            <li>Dilengkapi <b>Smart Auto-Detect</b>: Kolom <b>TTL</b> gabungan otomatis dipisahkan, singkatan <b>JK (LK/PR)</b> otomatis dinormalisasi, dan unit kerja otomatis diidentifikasi.</li>
+            <li>Sistem otomatis membuatkan akun login (role Karyawan) dengan password default format tanggal lahir <b>DDMMYYYY</b>.</li>
           </ul>
         </Message>
         
@@ -271,11 +271,11 @@
         </div>
         
         <div class="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-6 text-center mt-4">
-          <input type="file" ref="fileInput" accept=".csv" class="hidden" @change="onFileSelected" />
+          <input type="file" ref="fileInput" accept=".csv, .xlsx, .xls" class="hidden" @change="onFileSelected" />
           
           <div v-if="!importFile">
-            <i class="pi pi-file-excel text-4xl text-slate-400 mb-2"></i>
-            <p class="mb-4 text-slate-600 dark:text-slate-400">Pilih file CSV yang sudah diisi</p>
+            <i class="pi pi-file-excel text-4xl text-green-500 mb-2"></i>
+            <p class="mb-4 text-slate-600 dark:text-slate-400">Pilih file Excel (.xlsx) atau CSV yang sudah diisi</p>
             <Button label="Pilih File" icon="pi pi-search" @click="$refs.fileInput.click()" />
           </div>
           <div v-else class="flex flex-col items-center">
@@ -433,8 +433,9 @@ const onFileSelected = (event: Event) => {
   const target = event.target as HTMLInputElement
   if (target.files && target.files.length > 0) {
     const file = target.files[0]
-    if (!file.name.endsWith('.csv')) {
-      toast.add({ severity: 'error', summary: 'Format Salah', detail: 'Harap unggah file CSV.' })
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
+    if (!['.csv', '.xlsx', '.xls'].includes(ext)) {
+      toast.add({ severity: 'error', summary: 'Format Salah', detail: 'Harap unggah file Excel (.xlsx) atau CSV (.csv).' })
       return
     }
     importFile.value = file
