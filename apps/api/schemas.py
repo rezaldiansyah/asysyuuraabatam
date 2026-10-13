@@ -26,8 +26,8 @@ class Role(RoleBase):
 
 # --- User/Teacher Schemas ---
 class UserBase(BaseModel):
-    email: str
-    full_name: str
+    email: Optional[str] = None
+    full_name: Optional[str] = None
     nik: Optional[str] = None
 
 class TeacherCreate(UserBase):
@@ -49,8 +49,8 @@ class UserUpdate(BaseModel):
 
 class User(UserBase):
     id: int
-    is_active: bool
-    role_id: int
+    is_active: Optional[bool] = True
+    role_id: Optional[int] = None
     role: Optional[Role] = None
     
     class Config:
