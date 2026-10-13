@@ -11,12 +11,11 @@ WORKDIR /app
 FROM base AS builder
 
 ENV NODE_OPTIONS="--max-old-space-size=2048"
-ENV NODE_ENV="production"
 ENV NITRO_PRESET="node-server"
 
 COPY apps/web-nuxt/package.json apps/web-nuxt/package-lock.json ./
-# Install dependencies (clean install)
-RUN npm ci
+# Install all dependencies required for building Nuxt
+RUN npm ci --include=dev
 
 COPY apps/web-nuxt .
 
