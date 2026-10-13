@@ -313,7 +313,7 @@ class UnitBase(BaseModel):
 
 class Unit(UnitBase):
     id: int
-    is_active: bool
+    is_active: Optional[bool] = True
 
     class Config:
         from_attributes = True
@@ -485,7 +485,7 @@ class Employee(EmployeeBase):
     id: int
     user_id: Optional[int] = None
     user: Optional[User] = None
-    unit: Optional[Any] = None # Or Unit schema if available
+    unit: Optional[Unit] = None
     education_history: List[EducationHistory] = []
     position_history: List[PositionHistory] = []
     
