@@ -100,15 +100,15 @@ def _clean_phone_number(val) -> Optional[str]:
         s = "0" + s
     return s if s else None
 
-def _parse_birth_date(val) -> Optional[date]:
+def _parse_birth_date(val) -> Optional[datetime]:
     if not val:
         return None
     if isinstance(val, (datetime, date)):
-        return val if isinstance(val, date) else val.date()
+        return val if isinstance(val, datetime) else datetime.combine(val, datetime.min.time())
     s = str(val).strip()
     if len(s) >= 10 and s[4] == '-' and s[7] == '-':
         try:
-            return datetime.strptime(s[:10], "%Y-%m-%d").date()
+            return datetime.strptime(s[:10], "%Y-%m-%d")
         except Exception:
             pass
     m = re.search(r'(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})', s)
@@ -119,12 +119,12 @@ def _parse_birth_date(val) -> Optional[date]:
         month_num = INDONESIAN_MONTHS.get(m_name)
         if month_num:
             try:
-                return date(y, month_num, d)
+                return datetime(y, month_num, d)
             except Exception:
                 pass
     return None
 
-def _parse_ttl_field(ttl_str) -> tuple[Optional[str], Optional[date]]:
+def _parse_ttl_field(ttl_str) -> tuple[Optional[str], Optional[datetime]]:
     if not ttl_str:
         return None, None
     s = str(ttl_str).strip()
@@ -137,7 +137,7 @@ def _parse_ttl_field(ttl_str) -> tuple[Optional[str], Optional[date]]:
         month_num = INDONESIAN_MONTHS.get(m_name)
         if month_num:
             try:
-                return place, date(y, month_num, d)
+                return place, datetime(y, month_num, d)
             except Exception:
                 pass
     return s, None
@@ -232,6 +232,7 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
     unit_code_map = {u.code.upper(): u.id for u in units}
 
     for row_idx, row in enumerate(rows_data, start=1):
+        nama_lengkap = ""
         try:
             nama_lengkap = _clean_str(row.get("namalengkap") or row.get("nama"))
             nik_kepegawaian = _clean_str(row.get("nikkepegawaian") or row.get("nik") or row.get("username"))
@@ -247,17 +248,15 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
                 errors.append(f"Baris {row_idx} ({nama_lengkap}): NIK Kepegawaian tidak boleh kosong")
                 continue
                 
-            # Check duplication
+            # Check duplication for KTP against other employees
             if nik_ktp:
-                existing_ktp = db.query(models.Employee).filter(models.Employee.no_ktp == nik_ktp).first()
+                existing_ktp = db.query(models.Employee).filter(
+                    models.Employee.no_ktp == nik_ktp,
+                    models.Employee.nik_kepegawaian != nik_kepegawaian
+                ).first()
                 if existing_ktp:
-                    errors.append(f"Baris {row_idx} ({nama_lengkap}): NIK KTP {nik_ktp} sudah terdaftar")
+                    errors.append(f"Baris {row_idx} ({nama_lengkap}): NIK KTP {nik_ktp} sudah terdaftar pada {existing_ktp.nama_lengkap}")
                     continue
-                    
-            existing_nik = db.query(models.Employee).filter(models.Employee.nik_kepegawaian == nik_kepegawaian).first()
-            if existing_nik:
-                errors.append(f"Baris {row_idx} ({nama_lengkap}): NIK Kepegawaian {nik_kepegawaian} sudah terdaftar")
-                continue
 
             # TTL & Date parsing
             tempat_lahir = _clean_str(row.get("tempatlahir"))
@@ -325,66 +324,101 @@ async def import_employees(file: UploadFile = File(...), db: Session = Depends(g
                 generated_password = tanggal_lahir.strftime("%d%m%Y")
             hashed_password = passlib.hash.bcrypt.hash(generated_password)
 
-            # Check email duplication
-            user_email = email
-            if user_email:
-                existing_email = db.query(models.User).filter(models.User.email == user_email).first()
-                if existing_email:
-                    user_email = None # Don't conflict, fallback without email
-                    
-            user = models.User(
-                nik=nik_kepegawaian,
-                full_name=nama_lengkap,
-                email=user_email,
-                password_hash=hashed_password,
-                must_change_password=True,
-                role_id=role_id
-            )
-            db.add(user)
-            db.flush()
+            # Check existing User
+            existing_user = db.query(models.User).filter(models.User.nik == nik_kepegawaian).first()
+            if existing_user:
+                user = existing_user
+                if email and not user.email:
+                    existing_email = db.query(models.User).filter(models.User.email == email).first()
+                    if not existing_email:
+                        user.email = email
+            else:
+                user_email = email
+                if user_email:
+                    existing_email = db.query(models.User).filter(models.User.email == user_email).first()
+                    if existing_email:
+                        user_email = None # Don't conflict, fallback without email
+                        
+                user = models.User(
+                    nik=nik_kepegawaian,
+                    full_name=nama_lengkap,
+                    email=user_email,
+                    password_hash=hashed_password,
+                    must_change_password=True,
+                    role_id=role_id
+                )
+                db.add(user)
+                db.flush()
 
-            emp = models.Employee(
-                user_id=user.id,
-                nama_lengkap=nama_lengkap,
-                no_ktp=nik_ktp if nik_ktp else None,
-                nik_kepegawaian=nik_kepegawaian,
-                tempat_lahir=tempat_lahir if tempat_lahir else None,
-                tanggal_lahir=tanggal_lahir,
-                jenis_kelamin=jk_val,
-                status_pernikahan=status_nikah,
-                jumlah_anak=jml_anak,
-                alamat=alamat,
-                no_hp=no_hp,
-                npwp=npwp,
-                no_bpjs_tk=bpjs_tk,
-                no_bpjs_kes=bpjs_kes,
-                position=position,
-                employee_type=employee_type,
-                unit_id=unit_id,
-                join_date=tmt_date,
-                nip=nip,
-                nuptk=nuptk
-            )
-            db.add(emp)
-            db.flush()
+            # Upsert Employee
+            existing_emp = db.query(models.Employee).filter(models.Employee.nik_kepegawaian == nik_kepegawaian).first()
+            if existing_emp:
+                emp = existing_emp
+                emp.nama_lengkap = nama_lengkap
+                if nik_ktp: emp.no_ktp = nik_ktp
+                if tempat_lahir: emp.tempat_lahir = tempat_lahir
+                if tanggal_lahir: emp.tanggal_lahir = tanggal_lahir
+                if jk_val: emp.jenis_kelamin = jk_val
+                if status_nikah: emp.status_pernikahan = status_nikah
+                emp.jumlah_anak = jml_anak
+                if alamat: emp.alamat = alamat
+                if no_hp: emp.no_hp = no_hp
+                if npwp: emp.npwp = npwp
+                if bpjs_tk: emp.no_bpjs_tk = bpjs_tk
+                if bpjs_kes: emp.no_bpjs_kes = bpjs_kes
+                if position: emp.position = position
+                if employee_type: emp.employee_type = employee_type
+                if unit_id: emp.unit_id = unit_id
+                if tmt_date: emp.join_date = tmt_date
+                if nip: emp.nip = nip
+                if nuptk: emp.nuptk = nuptk
+            else:
+                emp = models.Employee(
+                    user_id=user.id,
+                    nama_lengkap=nama_lengkap,
+                    no_ktp=nik_ktp if nik_ktp else None,
+                    nik_kepegawaian=nik_kepegawaian,
+                    tempat_lahir=tempat_lahir if tempat_lahir else None,
+                    tanggal_lahir=tanggal_lahir,
+                    jenis_kelamin=jk_val,
+                    status_pernikahan=status_nikah,
+                    jumlah_anak=jml_anak,
+                    alamat=alamat,
+                    no_hp=no_hp,
+                    npwp=npwp,
+                    no_bpjs_tk=bpjs_tk,
+                    no_bpjs_kes=bpjs_kes,
+                    position=position,
+                    employee_type=employee_type,
+                    unit_id=unit_id,
+                    join_date=tmt_date,
+                    nip=nip,
+                    nuptk=nuptk
+                )
+                db.add(emp)
+                db.flush()
 
             # Education History if available
             pendidikan = _clean_str(row.get("pendidikan") or row.get("tingkatpendidikan"))
             jurusan = _clean_str(row.get("jurusan") or row.get("jurusanprodi") or row.get("prodi"))
             thn_lulus = _clean_str(row.get("tahunlulus") or row.get("thnlulus"))
             if pendidikan or jurusan or thn_lulus:
-                edu = models.EducationHistory(
-                    employee_id=emp.id,
-                    tingkat=pendidikan if pendidikan else "S1",
-                    jurusan=jurusan if jurusan else None,
-                    institusi=None,
-                    tahun_lulus=int(thn_lulus) if thn_lulus and thn_lulus.isdigit() else None
-                )
-                db.add(edu)
+                # Check if already added
+                existing_edu = db.query(models.EducationHistory).filter(models.EducationHistory.employee_id == emp.id).first()
+                if not existing_edu:
+                    edu = models.EducationHistory(
+                        employee_id=emp.id,
+                        tingkat=pendidikan if pendidikan else "S1",
+                        jurusan=jurusan if jurusan else None,
+                        institusi=None,
+                        tahun_lulus=int(thn_lulus) if thn_lulus and thn_lulus.isdigit() else None
+                    )
+                    db.add(edu)
 
             success_count += 1
         except Exception as e:
-            errors.append(f"Baris {row_idx}: {str(e)}")
+            db.rollback()
+            errors.append(f"Baris {row_idx} ({nama_lengkap}): {str(e)}")
             continue
 
     if success_count > 0:

@@ -1,5 +1,6 @@
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -27,8 +28,17 @@ app = FastAPI(
 )
 
 # CORS Configuration
-allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "*")
-origins = [o.strip() for o in allowed_origins_env.split(",")] if allowed_origins_env != "*" else ["*"]
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+if allowed_origins_env and allowed_origins_env != "*":
+    origins = [o.strip() for o in allowed_origins_env.split(",")]
+else:
+    origins = [
+        "https://asy-syuuraabatam.or.id",
+        "https://www.asy-syuuraabatam.or.id",
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "*"
+    ]
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,6 +47,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    traceback.print_exc()
+    origin = request.headers.get("origin") or "https://asy-syuuraabatam.or.id"
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Terjadi kesalahan di server: {str(exc)}"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
 
 # Mount Uploads Directory
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
