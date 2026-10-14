@@ -326,13 +326,60 @@ async def get_students(skip: int = 0, limit: int = 100, db: Session = Depends(ge
     return students
 
 @app.post("/academic/students", response_model=schemas.Student)
-async def create_student(student: schemas.StudentCreate, db: Session = Depends(get_db)):
-    # Simple creation for now
+async def create_student(
+    student: schemas.StudentCreate, 
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    from deps import check_user_perm
+    if not check_user_perm(current_user, "akademik.siswa:create"):
+        raise HTTPException(status_code=403, detail="Akses ditolak: Anda tidak memiliki izin untuk menambah data siswa.")
+
     db_student = models.Student(**student.dict())
     db.add(db_student)
     db.commit()
     db.refresh(db_student)
     return db_student
+
+@app.put("/academic/students/{student_id}", response_model=schemas.Student)
+async def update_student(
+    student_id: int,
+    student: schemas.StudentUpdate,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    from deps import check_user_perm
+    if not check_user_perm(current_user, "akademik.siswa:update"):
+        raise HTTPException(status_code=403, detail="Akses ditolak: Anda tidak memiliki izin untuk mengedit data siswa.")
+
+    db_student = db.query(models.Student).filter(models.Student.id == student_id).first()
+    if not db_student:
+        raise HTTPException(status_code=404, detail="Siswa tidak ditemukan")
+        
+    for key, value in student.dict(exclude_unset=True).items():
+        setattr(db_student, key, value)
+        
+    db.commit()
+    db.refresh(db_student)
+    return db_student
+
+@app.delete("/academic/students/{student_id}")
+async def delete_student(
+    student_id: int,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    from deps import check_user_perm
+    if not check_user_perm(current_user, "akademik.siswa:delete"):
+        raise HTTPException(status_code=403, detail="Akses ditolak: Anda tidak memiliki izin untuk menghapus data siswa.")
+
+    db_student = db.query(models.Student).filter(models.Student.id == student_id).first()
+    if not db_student:
+        raise HTTPException(status_code=404, detail="Siswa tidak ditemukan")
+        
+    db.delete(db_student)
+    db.commit()
+    return {"ok": True}
 
 @app.get("/academic/classrooms", response_model=List[schemas.Classroom])
 async def get_classrooms(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -858,6 +905,10 @@ def get_calendar_events(academic_year_id: Optional[int] = None, skip: int = 0, l
 
 @app.post("/academic-calendar", response_model=schemas.CalendarEvent)
 def create_calendar_event(event: schemas.CalendarEventCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    from deps import check_user_perm
+    if not check_user_perm(current_user, "akademik.kalender:create"):
+        raise HTTPException(status_code=403, detail="Akses ditolak: Anda tidak memiliki izin untuk menambah agenda kalender akademik.")
+
     # 1. Resolve academic year
     ay = None
     if event.academic_year_id:
@@ -889,6 +940,10 @@ def create_calendar_event(event: schemas.CalendarEventCreate, db: Session = Depe
 
 @app.put("/academic-calendar/{event_id}", response_model=schemas.CalendarEvent)
 def update_calendar_event(event_id: int, event: schemas.CalendarEventUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    from deps import check_user_perm
+    if not check_user_perm(current_user, "akademik.kalender:update"):
+        raise HTTPException(status_code=403, detail="Akses ditolak: Anda tidak memiliki izin untuk mengedit agenda kalender akademik.")
+
     db_event = db.query(models.AcademicCalendarEvent).filter(models.AcademicCalendarEvent.id == event_id).first()
     if not db_event:
         raise HTTPException(status_code=404, detail="Kegiatan tidak ditemukan")
@@ -910,6 +965,10 @@ def update_calendar_event(event_id: int, event: schemas.CalendarEventUpdate, db:
 
 @app.delete("/academic-calendar/{event_id}")
 def delete_calendar_event(event_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    from deps import check_user_perm
+    if not check_user_perm(current_user, "akademik.kalender:delete"):
+        raise HTTPException(status_code=403, detail="Akses ditolak: Anda tidak memiliki izin untuk menghapus agenda kalender akademik.")
+
     db_event = db.query(models.AcademicCalendarEvent).filter(models.AcademicCalendarEvent.id == event_id).first()
     if not db_event:
         raise HTTPException(status_code=404, detail="Kegiatan tidak ditemukan")

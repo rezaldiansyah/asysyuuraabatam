@@ -223,7 +223,7 @@ function handleSubmenuClick(label: string) {
   }
 }
 
-// Filter menu based on user role permissions
+// Filter menu based on user role permissions (supporting module keys and granular CRUD)
 const menuItems = computed(() => {
   const role = authStore.user?.role
   const userRole = (role && typeof role === 'object' ? role.code : role) || 'guest'
@@ -241,11 +241,39 @@ const menuItems = computed(() => {
     return navigation.filter(item => item.key === 'dashboard')
   }
   
-  // Filter by permissions
-  return navigation.filter(item => {
-    if (item.key === 'dashboard') return true // Dashboard always visible
-    return permissions.includes(item.key || '')
-  })
+  return navigation
+    .filter(item => {
+      if (item.key === 'dashboard') return true // Dashboard always visible
+      return permissions.includes(item.key || '') || permissions.some(p => p.startsWith(`${item.key}.`))
+    })
+    .map(item => {
+      if (!item.children || item.children.length === 0) return item
+
+      const filteredChildren = item.children.filter(child => {
+        if (!child.key) return true
+        if (permissions.includes(item.key || '')) {
+          const hasChildRules = permissions.some(p => p.startsWith(`${child.key}:`))
+          if (hasChildRules) {
+            return permissions.includes(`${child.key}:read`) || permissions.includes(`${child.key}:*`)
+          }
+          return true
+        }
+        return permissions.includes(child.key) || 
+               permissions.includes(`${child.key}:read`) || 
+               permissions.includes(`${child.key}:*`)
+      })
+
+      return {
+        ...item,
+        children: filteredChildren
+      }
+    })
+    .filter(item => {
+      if (item.children && item.children.length === 0 && !item.to) {
+        return false
+      }
+      return true
+    })
 })
 
 function toggleSubmenu(label: string) {

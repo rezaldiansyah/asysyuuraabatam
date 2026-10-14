@@ -17,7 +17,7 @@
           class="w-64"
           @change="onYearRowChange"
         />
-        <Button label="Tambah Kegiatan" icon="pi pi-plus" size="small" @click="openDialog()" />
+        <Button v-if="can('akademik.kalender', 'create')" label="Tambah Kegiatan" icon="pi pi-plus" size="small" @click="openDialog()" />
       </div>
     </div>
 
@@ -87,11 +87,11 @@
               <span v-else class="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full whitespace-nowrap"><i class="pi pi-check-circle text-[10px]"></i>KBM Aktif</span>
             </template>
           </Column>
-          <Column header="Aksi" style="width: 90px">
+          <Column v-if="can('akademik.kalender', 'update') || can('akademik.kalender', 'delete')" header="Aksi" style="width: 90px">
             <template #body="{ data }">
               <div class="flex items-center justify-end">
-                <Button icon="pi pi-pencil" size="small" text severity="secondary" @click="openDialog(data)" title="Edit" />
-                <Button icon="pi pi-trash" size="small" text severity="danger" @click="confirmDelete(data)" title="Hapus" />
+                <Button v-if="can('akademik.kalender', 'update')" icon="pi pi-pencil" size="small" text severity="secondary" @click="openDialog(data)" title="Edit" />
+                <Button v-if="can('akademik.kalender', 'delete')" icon="pi pi-trash" size="small" text severity="danger" @click="confirmDelete(data)" title="Hapus" />
               </div>
             </template>
           </Column>
@@ -268,6 +268,7 @@ import { useToast } from "primevue/usetoast"
 definePageMeta({ layout: 'dashboard' })
 
 const api = useApi()
+const { can } = usePermission()
 const confirm = useConfirm()
 const toast = useToast()
 

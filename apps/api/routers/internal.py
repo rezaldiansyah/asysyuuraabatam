@@ -178,6 +178,10 @@ async def create_document(
     db: Session = Depends(get_db)
 ):
     """Create a new document entry with target units, attachments, and employee career metadata."""
+    from deps import check_user_perm
+    if not check_user_perm(current_user, "internal.dokumen:create"):
+        raise HTTPException(status_code=403, detail="Akses ditolak: Anda tidak memiliki izin untuk mengunggah dokumen baru.")
+
     emp_id = data.get("employee_id")
     emp_name = data.get("employee_name")
     if emp_id and not emp_name:
@@ -224,6 +228,10 @@ async def update_document(
     db: Session = Depends(get_db)
 ):
     """Update a document entry including attachments and career metadata."""
+    from deps import check_user_perm
+    if not check_user_perm(current_user, "internal.dokumen:update"):
+        raise HTTPException(status_code=403, detail="Akses ditolak: Anda tidak memiliki izin untuk mengedit dokumen.")
+
     doc = db.query(models.Document).filter(models.Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
@@ -330,6 +338,10 @@ async def delete_document(
     db: Session = Depends(get_db)
 ):
     """Soft-delete a document."""
+    from deps import check_user_perm
+    if not check_user_perm(current_user, "internal.dokumen:delete"):
+        raise HTTPException(status_code=403, detail="Akses ditolak: Anda tidak memiliki izin untuk menghapus dokumen.")
+
     doc = db.query(models.Document).filter(models.Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")

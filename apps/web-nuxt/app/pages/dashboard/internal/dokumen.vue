@@ -6,8 +6,8 @@
         <p class="text-slate-500 dark:text-slate-400">Kelola dokumen SK, SOP, Juknis, Lampiran Formulir, serta Riwayat Karir Pegawai.</p>
       </div>
       <div class="flex items-center gap-2 flex-wrap">
-        <Button label="Upload Dokumen" icon="pi pi-upload" @click="openDialog()" />
-        <Button label="+ SK Karir Pegawai" severity="secondary" icon="pi pi-user-plus" @click="openCareerSkDialog()" />
+        <Button v-if="can('internal.dokumen', 'create')" label="Upload Dokumen" icon="pi pi-upload" @click="openDialog()" />
+        <Button v-if="can('internal.dokumen', 'create')" label="+ SK Karir Pegawai" severity="secondary" icon="pi pi-user-plus" @click="openCareerSkDialog()" />
       </div>
     </div>
 
@@ -341,10 +341,10 @@
                 <button @click="openHistoryDialog(data)" class="p-1.5 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition" title="Riwayat Versi">
                   <i class="pi pi-history text-sm"></i>
                 </button>
-                <button @click="openDialog(data)" class="p-1.5 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition" title="Edit">
+                <button v-if="can('internal.dokumen', 'update')" @click="openDialog(data)" class="p-1.5 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition" title="Edit">
                   <i class="pi pi-pencil text-sm"></i>
                 </button>
-                <button @click="deleteDoc(data)" class="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition" title="Hapus">
+                <button v-if="can('internal.dokumen', 'delete')" @click="deleteDoc(data)" class="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition" title="Hapus">
                   <i class="pi pi-trash text-sm"></i>
                 </button>
               </div>
@@ -1346,6 +1346,7 @@ import { useConfirm } from 'primevue/useconfirm'
 definePageMeta({ layout: 'dashboard' })
 
 const api = useApi()
+const { can } = usePermission()
 const toast = useToast()
 const loading = ref(false)
 const saving = ref(false)

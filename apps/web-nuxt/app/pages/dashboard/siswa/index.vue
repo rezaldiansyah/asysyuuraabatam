@@ -7,7 +7,7 @@
           <h1 class="text-2xl font-bold text-slate-800 dark:text-white">Data Siswa</h1>
           <p class="text-slate-500 dark:text-slate-400">Manajemen data siswa aktif.</p>
         </div>
-        <Button severity="success" @click="openAddDialog">
+        <Button v-if="can('akademik.siswa', 'create')" severity="success" @click="openAddDialog">
           <i class="pi pi-plus mr-2"></i>
           Tambah Siswa
         </Button>
@@ -67,11 +67,11 @@
 
           <Column field="unit_name" header="Unit" />
 
-          <Column header="Aksi" style="width: 120px">
+          <Column v-if="can('akademik.siswa', 'update') || can('akademik.siswa', 'delete')" header="Aksi" style="width: 120px">
             <template #body="{ data }">
               <div class="flex gap-2">
-                <Button icon="pi pi-pencil" severity="secondary" size="small" text rounded @click="editStudent(data)" />
-                <Button icon="pi pi-trash" severity="danger" size="small" text rounded @click="confirmDelete(data)" />
+                <Button v-if="can('akademik.siswa', 'update')" icon="pi pi-pencil" severity="secondary" size="small" text rounded @click="editStudent(data)" />
+                <Button v-if="can('akademik.siswa', 'delete')" icon="pi pi-trash" severity="danger" size="small" text rounded @click="confirmDelete(data)" />
               </div>
             </template>
           </Column>
@@ -272,6 +272,7 @@ import { useToast } from 'primevue/usetoast'
 definePageMeta({ layout: false })
 
 const api = useApi()
+const { can } = usePermission()
 const confirm = useConfirm()
 const toast = useToast()
 
