@@ -155,9 +155,19 @@
 
       <div class="overflow-x-auto">
         <div id="kalender-print" class="kp-paper">
-          <div class="kp-head">
-            <h2>KALENDER PENDIDIKAN</h2>
-            <p>Yayasan Asy-Syuuraa Batam</p>
+          <div class="kp-head" :style="{ borderColor: letterheadConfig?.line_color || '#059669' }">
+            <div class="kp-kop-wrap">
+              <img v-if="letterheadConfig?.logo_url" :src="letterheadConfig.logo_url" class="kp-logo" alt="Logo" />
+              <div class="kp-kop-info">
+                <div class="kp-org">{{ letterheadConfig?.nama_yayasan || 'YAYASAN ASY-SYUURAA BATAM' }}</div>
+                <div class="kp-suborg" :style="{ color: letterheadConfig?.line_color || '#059669' }">
+                  {{ letterheadConfig?.nama_unit || 'SEKOLAH ISLAM TERPADU ASY-SYUURAA' }}
+                </div>
+                <div v-if="letterheadConfig?.alamat" class="kp-addr">{{ letterheadConfig.alamat }}</div>
+              </div>
+            </div>
+            <div class="kp-head-divider" :style="{ backgroundColor: letterheadConfig?.line_color || '#059669' }"></div>
+            <h2 class="kp-doc-title">KALENDER PENDIDIKAN</h2>
             <p><b>{{ viewTitle }}</b></p>
           </div>
 
@@ -673,11 +683,31 @@ const totals = computed(() => {
   }
 })
 
-// ---- Print / PDF ----
+// ---- Letterhead & Print / PDF ----
+const letterheadConfig = ref<any>(null)
+
+async function fetchLetterhead() {
+  try {
+    const res = await api.get<any>('/public/content/settings_letterhead')
+    if (res?.content_json) {
+      letterheadConfig.value = JSON.parse(res.content_json)
+    }
+  } catch (e) {
+    // Keep defaults
+  }
+}
+
 const PRINT_CSS = `
 .kp-paper{background:#fff;color:#1e293b;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:12px;padding:18px;border:1px solid #e2e8f0;border-radius:12px;min-width:640px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.kp-head{text-align:center;border-bottom:2px solid #0f766e;padding-bottom:8px;margin-bottom:8px}
-.kp-head h2{font-size:17px;margin:0;font-weight:700;letter-spacing:.5px}
+.kp-head{text-align:center;padding-bottom:8px;margin-bottom:8px}
+.kp-kop-wrap{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:6px}
+.kp-logo{width:52px;height:52px;object-fit:contain}
+.kp-kop-info{text-align:center}
+.kp-org{font-size:13px;font-weight:800;letter-spacing:.5px;color:#0f172a;text-transform:uppercase;line-height:1.2}
+.kp-suborg{font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;margin-top:2px}
+.kp-addr{font-size:9px;color:#64748b;margin-top:2px;line-height:1.25}
+.kp-head-divider{width:100%;height:2px;background:#059669;margin:8px 0 6px}
+.kp-head h2{font-size:15px;margin:4px 0 0;font-weight:700;letter-spacing:.5px}
 .kp-head p{margin:2px 0 0;font-size:11px;color:#475569}
 .kp-legend{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;font-size:10px;margin:6px 0 10px;color:#475569}
 .kp-dot{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:5px;vertical-align:-1px;border:1px solid rgba(0,0,0,.08)}
@@ -730,7 +760,10 @@ function printCalendar() {
 
 onMounted(async () => {
   printedAt.value = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-  await fetchAcademicYears()
-  await refreshAll()
+  await Promise.all([
+    fetchAcademicYears(),
+    fetchLetterhead(),
+    refreshAll()
+  ])
 })
 </script>

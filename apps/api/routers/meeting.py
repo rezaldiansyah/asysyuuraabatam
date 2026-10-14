@@ -948,17 +948,17 @@ async def export_meeting_minute_pdf(
 
     elements = []
     
-    # 1. Header / Kop Surat
-    instansi = "YAYASAN ASY-SYUURAA BATAM"
-    sub_instansi = "SEKOLAH ISLAM TERPADU ASY-SYUURAA"
-    if m.scope == "unit" and m.unit:
-        sub_instansi = f"UNIT {m.unit.name.upper()}"
-        
-    elements.append(Paragraph(instansi, header_style))
-    elements.append(Paragraph(sub_instansi, header_style))
-    elements.append(Paragraph("Komplek Asy-Syuuraa, Batam, Kepulauan Riau — https://asy-syuuraabatam.or.id", sub_header_style))
-    elements.append(Spacer(1, 6))
-    elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#059669'), spaceAfter=12))
+    # 1. Header / Kop Surat Terpusat (Standard Institutional Letterhead)
+    from letterhead import get_letterhead_flowables
+    sub_title = f"UNIT {m.unit.name.upper()}" if (m.scope == "unit" and m.unit) else None
+    kop_elements = get_letterhead_flowables(
+        db=db,
+        unit_id=m.unit_id if m.scope == "unit" else None,
+        scope=m.scope,
+        custom_sub_title=sub_title,
+        printable_width=515
+    )
+    elements.extend(kop_elements)
     
     # 2. Judul Dokumen & Nomor Notulen
     elements.append(Paragraph("RISALAH & NOTULEN RAPAT RESMI", doc_title_style))
