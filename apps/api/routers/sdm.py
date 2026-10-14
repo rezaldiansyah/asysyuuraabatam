@@ -3,6 +3,8 @@ from fastapi.responses import Response
 import csv
 import io
 import re
+import math
+import json
 import openpyxl
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
@@ -14,6 +16,7 @@ import passlib.hash
 
 import models, schemas
 from database import get_db
+from deps import get_current_user, check_user_perm
 
 router = APIRouter(prefix="/sdm", tags=["sdm"])
 
@@ -779,7 +782,260 @@ async def delete_position(id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"ok": True}
 
-# --- Employee Attendance Routes ---
+# --- Employee Attendance & Geofencing Routes ---
+
+DEFAULT_GEOFENCE = {
+    "is_enabled": True,
+    "latitude": 1.123456,
+    "longitude": 104.012345,
+    "radius_meters": 30.0,
+    "location_name": "Komplek Sekolah Asy-Syuuraa Batam",
+    "work_start_time": "07:30",
+    "work_end_time": "16:00"
+}
+
+def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Returns distance in meters between two lat/lon coordinates."""
+    R = 6371000.0  # Earth radius in meters
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    
+    a = math.sin(delta_phi / 2.0) ** 2 + \
+        math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2.0) ** 2
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+    return R * c
+
+def get_geofence_config(db: Session) -> dict:
+    row = db.query(models.PageContent).filter(models.PageContent.section_key == "settings_geofence").first()
+    if row and row.content_json:
+        try:
+            data = json.loads(row.content_json)
+            merged = {**DEFAULT_GEOFENCE, **data}
+            return merged
+        except Exception:
+            pass
+    return DEFAULT_GEOFENCE.copy()
+
+@router.get("/settings/geofence")
+async def get_geofence_settings(db: Session = Depends(get_db)):
+    """Retrieve geofencing & work hours configuration."""
+    return get_geofence_config(db)
+
+@router.put("/settings/geofence")
+async def update_geofence_settings(
+    settings: schemas.GeofenceSettingsSchema,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update geofencing & work hours configuration (Superadmin or Admin)."""
+    if current_user.role and current_user.role.code != "superadmin":
+        if not check_user_perm(current_user, "pengaturan.sekolah:update"):
+            raise HTTPException(status_code=403, detail="Tidak memiliki hak akses mengubah pengaturan lokasi presensi.")
+            
+    row = db.query(models.PageContent).filter(models.PageContent.section_key == "settings_geofence").first()
+    content_data = settings.dict()
+    if not row:
+        row = models.PageContent(
+            section_key="settings_geofence",
+            title="Pengaturan Geofence Presensi",
+            content_json=json.dumps(content_data)
+        )
+        db.add(row)
+    else:
+        row.content_json = json.dumps(content_data)
+        
+    db.commit()
+    return content_data
+
+@router.get("/attendance/today")
+async def get_today_employee_attendance(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get today's attendance record & geofence settings for the logged-in employee."""
+    employee = db.query(models.Employee).filter(models.Employee.user_id == current_user.id).first()
+    if not employee:
+        employee = db.query(models.Employee).filter(
+            (models.Employee.nik_kepegawaian == current_user.nik) |
+            (models.Employee.nip == current_user.nik)
+        ).first()
+
+    today_date = date.today()
+    geofence = get_geofence_config(db)
+    
+    attendance = None
+    if employee:
+        attendance = db.query(models.EmployeeAttendance).filter(
+            models.EmployeeAttendance.employee_id == employee.id,
+            models.EmployeeAttendance.date == today_date
+        ).first()
+        
+    return {
+        "today": today_date.isoformat(),
+        "has_employee_profile": employee is not None,
+        "employee": {
+            "id": employee.id,
+            "nama_lengkap": employee.nama_lengkap,
+            "nip": employee.nip,
+            "position": employee.position,
+            "unit_id": employee.unit_id
+        } if employee else None,
+        "attendance": {
+            "id": attendance.id,
+            "status": attendance.status.value if hasattr(attendance.status, "value") else str(attendance.status),
+            "check_in": attendance.check_in.isoformat() if attendance.check_in else None,
+            "check_out": attendance.check_out.isoformat() if attendance.check_out else None,
+            "notes": attendance.notes,
+            "check_in_distance": attendance.check_in_distance,
+            "check_out_distance": attendance.check_out_distance,
+        } if attendance else None,
+        "geofence": geofence
+    }
+
+@router.post("/attendance/check-in")
+async def employee_check_in(
+    req: schemas.EmployeeCheckInRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Employee self check-in with GPS Geofencing validation."""
+    employee = db.query(models.Employee).filter(models.Employee.user_id == current_user.id).first()
+    if not employee:
+        employee = db.query(models.Employee).filter(
+            (models.Employee.nik_kepegawaian == current_user.nik) |
+            (models.Employee.nip == current_user.nik)
+        ).first()
+    if not employee:
+        raise HTTPException(status_code=400, detail="Data pegawai tidak ditemukan untuk akun ini. Silakan hubungi bagian Tata Usaha.")
+
+    today_date = date.today()
+    now_dt = datetime.now()
+    
+    existing = db.query(models.EmployeeAttendance).filter(
+        models.EmployeeAttendance.employee_id == employee.id,
+        models.EmployeeAttendance.date == today_date
+    ).first()
+    
+    if existing and existing.check_in:
+        raise HTTPException(status_code=400, detail=f"Anda sudah melakukan Check-in hari ini pada pukul {existing.check_in.strftime('%H:%M:%S')}.")
+        
+    geofence = get_geofence_config(db)
+    dist_meters = 0.0
+    if geofence.get("is_enabled", True):
+        school_lat = float(geofence.get("latitude", 1.123456))
+        school_lng = float(geofence.get("longitude", 104.012345))
+        allowed_radius = float(geofence.get("radius_meters", 30.0))
+        dist_meters = round(calculate_haversine_distance(req.latitude, req.longitude, school_lat, school_lng), 1)
+        
+        if dist_meters > allowed_radius:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Presensi ditolak. Anda berada di luar radius sekolah. Jarak Anda: {dist_meters:.1f} meter (Maksimal: {allowed_radius:.0f} meter)."
+            )
+
+    # Determine status (PRESENT or LATE)
+    status_val = models.AttendanceStatus.PRESENT
+    work_start = geofence.get("work_start_time", "07:30")
+    try:
+        sh, sm = map(int, work_start.split(":"))
+        if (now_dt.hour > sh) or (now_dt.hour == sh and now_dt.minute > sm):
+            status_val = models.AttendanceStatus.LATE
+    except Exception:
+        pass
+
+    if existing:
+        existing.status = status_val
+        existing.check_in = now_dt
+        existing.check_in_lat = req.latitude
+        existing.check_in_lng = req.longitude
+        existing.check_in_distance = dist_meters
+        existing.device_info = req.device_info
+        if req.notes:
+            existing.notes = (existing.notes or "") + " " + req.notes
+        db_att = existing
+    else:
+        db_att = models.EmployeeAttendance(
+            employee_id=employee.id,
+            date=today_date,
+            status=status_val,
+            check_in=now_dt,
+            check_in_lat=req.latitude,
+            check_in_lng=req.longitude,
+            check_in_distance=dist_meters,
+            device_info=req.device_info,
+            notes=req.notes
+        )
+        db.add(db_att)
+        
+    db.commit()
+    db.refresh(db_att)
+    return {
+        "message": f"Berhasil Check-in pada {now_dt.strftime('%H:%M:%S')} ({'Tepat Waktu' if status_val == models.AttendanceStatus.PRESENT else 'Terlambat'}).",
+        "distance_meters": dist_meters,
+        "status": status_val.value,
+        "check_in": now_dt.isoformat()
+    }
+
+@router.post("/attendance/check-out")
+async def employee_check_out(
+    req: schemas.EmployeeCheckOutRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Employee self check-out with GPS Geofencing validation."""
+    employee = db.query(models.Employee).filter(models.Employee.user_id == current_user.id).first()
+    if not employee:
+        employee = db.query(models.Employee).filter(
+            (models.Employee.nik_kepegawaian == current_user.nik) |
+            (models.Employee.nip == current_user.nik)
+        ).first()
+    if not employee:
+        raise HTTPException(status_code=400, detail="Data pegawai tidak ditemukan untuk akun ini.")
+
+    today_date = date.today()
+    now_dt = datetime.now()
+    
+    existing = db.query(models.EmployeeAttendance).filter(
+        models.EmployeeAttendance.employee_id == employee.id,
+        models.EmployeeAttendance.date == today_date
+    ).first()
+    
+    if not existing or not existing.check_in:
+        raise HTTPException(status_code=400, detail="Anda belum melakukan Check-in masuk hari ini.")
+        
+    if existing.check_out:
+        raise HTTPException(status_code=400, detail=f"Anda sudah melakukan Check-out pada pukul {existing.check_out.strftime('%H:%M:%S')}.")
+        
+    geofence = get_geofence_config(db)
+    dist_meters = 0.0
+    if geofence.get("is_enabled", True):
+        school_lat = float(geofence.get("latitude", 1.123456))
+        school_lng = float(geofence.get("longitude", 104.012345))
+        allowed_radius = float(geofence.get("radius_meters", 30.0))
+        dist_meters = round(calculate_haversine_distance(req.latitude, req.longitude, school_lat, school_lng), 1)
+        
+        if dist_meters > allowed_radius:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Presensi ditolak. Anda berada di luar radius sekolah saat Check-out. Jarak Anda: {dist_meters:.1f} meter (Maksimal: {allowed_radius:.0f} meter)."
+            )
+
+    existing.check_out = now_dt
+    existing.check_out_lat = req.latitude
+    existing.check_out_lng = req.longitude
+    existing.check_out_distance = dist_meters
+    if req.notes:
+        existing.notes = (existing.notes or "") + " " + req.notes
+        
+    db.commit()
+    db.refresh(existing)
+    return {
+        "message": f"Berhasil Check-out pada {now_dt.strftime('%H:%M:%S')}. Selamat beristirahat!",
+        "distance_meters": dist_meters,
+        "check_out": now_dt.isoformat()
+    }
 
 @router.get("/attendance", response_model=List[schemas.EmployeeAttendance])
 async def get_employee_attendances(
@@ -826,9 +1082,11 @@ async def create_bulk_employee_attendance(request: schemas.BulkEmployeeAttendanc
             models.EmployeeAttendance.date == request.date
         ).first()
         
+        status_val = item.status.value if hasattr(item.status, "value") else str(item.status)
+        
         if existing:
             # Update existing
-            existing.status = item.status.value
+            existing.status = status_val
             existing.check_in = item.check_in
             existing.check_out = item.check_out
             existing.notes = item.notes
@@ -838,7 +1096,7 @@ async def create_bulk_employee_attendance(request: schemas.BulkEmployeeAttendanc
             db_att = models.EmployeeAttendance(
                 employee_id=item.employee_id,
                 date=request.date,
-                status=item.status.value,
+                status=status_val,
                 check_in=item.check_in,
                 check_out=item.check_out,
                 notes=item.notes
@@ -857,7 +1115,6 @@ async def get_employee_attendance_recap(
 ):
     from datetime import datetime as dt
     import calendar
-    from sqlalchemy import func
     
     try:
         target_month = dt.strptime(month, "%Y-%m")
@@ -890,19 +1147,26 @@ async def get_employee_attendance_recap(
     for emp in employees:
         emp_att = [a for a in attendances if a.employee_id == emp.id]
         
-        h = sum(1 for a in emp_att if a.status == 'PRESENT')
-        s = sum(1 for a in emp_att if a.status == 'SICK')
-        i = sum(1 for a in emp_att if a.status == 'PERMIT')
-        a = sum(1 for a in emp_att if a.status == 'ABSENT')
-        total = h + s + i + a
+        def status_str(att):
+            return att.status.value if hasattr(att.status, "value") else str(att.status)
+
+        h = sum(1 for a in emp_att if status_str(a) in ['PRESENT', 'LATE'])
+        terlambat = sum(1 for a in emp_att if status_str(a) == 'LATE')
+        s = sum(1 for a in emp_att if status_str(a) == 'SICK')
+        i = sum(1 for a in emp_att if status_str(a) in ['PERMIT', 'DISPENSATION'])
+        cuti = sum(1 for a in emp_att if status_str(a).startswith('LEAVE_'))
+        a = sum(1 for a in emp_att if status_str(a) == 'ABSENT')
+        total = h + s + i + cuti + a
         
         results.append({
             "employee_id": emp.id,
             "nama_lengkap": emp.nama_lengkap,
             "nip": emp.nip,
             "hadir": h,
+            "terlambat": terlambat,
             "sakit": s,
             "izin": i,
+            "cuti": cuti,
             "alpa": a,
             "total": total,
             "persentase": f"{(h/total*100):.1f}%" if total > 0 else "0.0%"

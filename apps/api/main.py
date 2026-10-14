@@ -76,6 +76,17 @@ app.include_router(sdm.router)
 app.include_router(schedule_import.router)
 app.include_router(meeting.router)
 
+@app.on_event("startup")
+def run_migrations_on_startup():
+    try:
+        from alembic.config import Config
+        from alembic import command
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+        print("[Startup] Alembic auto-migration executed to head.")
+    except Exception as e:
+        print(f"[Startup] Alembic auto-migration note: {e}")
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):

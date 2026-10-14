@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, DateTime, Enum, Text
+from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, DateTime, Enum, Text, Float
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -317,10 +317,18 @@ class PageContent(Base):
 # --- SDM/Employee Models ---
 
 class AttendanceStatus(str, enum.Enum):
-    PRESENT = "PRESENT"   # Hadir
-    SICK = "SICK"         # Sakit
-    PERMIT = "PERMIT"     # Izin
-    ABSENT = "ABSENT"     # Alpa
+    PRESENT = "PRESENT"                   # Hadir
+    LATE = "LATE"                         # Terlambat
+    SICK = "SICK"                         # Sakit
+    PERMIT = "PERMIT"                     # Izin Biasa
+    DISPENSATION = "DISPENSATION"         # Dispensasi / Tugas Luar
+    LEAVE_ANNUAL = "LEAVE_ANNUAL"         # Cuti Tahunan
+    LEAVE_MATERNITY = "LEAVE_MATERNITY"   # Cuti Melahirkan
+    LEAVE_MARRIAGE = "LEAVE_MARRIAGE"     # Cuti Menikah
+    LEAVE_BEREAVEMENT = "LEAVE_BEREAVEMENT" # Cuti Berkabung (Kedukaan)
+    LEAVE_PILGRIMAGE = "LEAVE_PILGRIMAGE" # Cuti Ibadah (Haji / Umroh)
+    LEAVE_UNPAID = "LEAVE_UNPAID"         # Cuti di Luar Tanggungan
+    ABSENT = "ABSENT"                     # Alpa
 
 class Employee(Base):
     __tablename__ = "employees"
@@ -420,6 +428,15 @@ class EmployeeAttendance(Base):
     check_out = Column(DateTime, nullable=True)
     notes = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Geolocation & Device Tracking
+    check_in_lat = Column(Float, nullable=True)
+    check_in_lng = Column(Float, nullable=True)
+    check_in_distance = Column(Float, nullable=True) # distance from school center in meters
+    check_out_lat = Column(Float, nullable=True)
+    check_out_lng = Column(Float, nullable=True)
+    check_out_distance = Column(Float, nullable=True) # distance from school center in meters
+    device_info = Column(String, nullable=True)
     
     # Relationships
     employee = relationship("Employee", back_populates="attendances")

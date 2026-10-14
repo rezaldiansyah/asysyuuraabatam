@@ -39,7 +39,12 @@
           <Column field="nip" header="NIP" sortable></Column>
           <Column field="hadir" header="Hadir" sortable>
             <template #body="{ data }">
-              <span class="font-semibold text-green-600">{{ data.hadir }}</span>
+              <span class="font-semibold text-emerald-600">{{ data.hadir }}</span>
+            </template>
+          </Column>
+          <Column field="terlambat" header="Terlambat" sortable>
+            <template #body="{ data }">
+              <span class="font-semibold text-amber-600">{{ data.terlambat || 0 }}</span>
             </template>
           </Column>
           <Column field="sakit" header="Sakit" sortable>
@@ -52,12 +57,17 @@
               <span class="font-semibold text-blue-600">{{ data.izin }}</span>
             </template>
           </Column>
-          <Column field="alpa" header="Alpa" sortable>
+          <Column field="cuti" header="Cuti" sortable>
             <template #body="{ data }">
-              <span class="font-semibold text-red-600">{{ data.alpa }}</span>
+              <span class="font-semibold text-purple-600">{{ data.cuti || 0 }}</span>
             </template>
           </Column>
-          <Column field="total" header="Total Hari" sortable></Column>
+          <Column field="alpa" header="Alpa" sortable>
+            <template #body="{ data }">
+              <span class="font-semibold text-rose-600">{{ data.alpa }}</span>
+            </template>
+          </Column>
+          <Column field="total" header="Total Tercatat" sortable></Column>
           <Column field="persentase" header="Persentase Hadir" sortable>
             <template #body="{ data }">
               <ProgressBar :value="parseFloat(data.persentase)" :showValue="true" />
@@ -135,16 +145,18 @@ const fetchData = async () => {
 
 const exportExcel = () => {
   // Simple CSV export for now
-  const headers = ['Nama Pegawai', 'NIP', 'Hadir', 'Sakit', 'Izin', 'Alpa', 'Total Hari Kerja', 'Persentase']
-  const rows = recapData.value.map(r => [
-    r.nama_lengkap, 
-    r.nip || '-', 
+  const headers = ['Nama Pegawai', 'NIP', 'Hadir', 'Terlambat', 'Sakit', 'Izin', 'Cuti', 'Alpa', 'Total Hari Tercatat', 'Persentase Hadir']
+  const rows = recapData.value.map((r: any) => [
+    `"${r.nama_lengkap}"`, 
+    `"${r.nip || '-'}"`, 
     r.hadir, 
+    r.terlambat || 0,
     r.sakit, 
     r.izin, 
+    r.cuti || 0,
     r.alpa, 
     r.total, 
-    r.persentase
+    `"${r.persentase}"`
   ])
   
   const csvContent = "data:text/csv;charset=utf-8," 

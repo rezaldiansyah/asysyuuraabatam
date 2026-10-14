@@ -414,8 +414,16 @@ class ResetPasswordRequest(BaseModel):
 # --- SDM/Employee Schemas ---
 class AttendanceStatusEnum(str, Enum):
     PRESENT = "PRESENT"
+    LATE = "LATE"
     SICK = "SICK"
     PERMIT = "PERMIT"
+    DISPENSATION = "DISPENSATION"
+    LEAVE_ANNUAL = "LEAVE_ANNUAL"
+    LEAVE_MATERNITY = "LEAVE_MATERNITY"
+    LEAVE_MARRIAGE = "LEAVE_MARRIAGE"
+    LEAVE_BEREAVEMENT = "LEAVE_BEREAVEMENT"
+    LEAVE_PILGRIMAGE = "LEAVE_PILGRIMAGE"
+    LEAVE_UNPAID = "LEAVE_UNPAID"
     ABSENT = "ABSENT"
 
 class EmployeeBase(BaseModel):
@@ -520,6 +528,13 @@ class EmployeeAttendanceBase(BaseModel):
     check_in: Optional[datetime] = None
     check_out: Optional[datetime] = None
     notes: Optional[str] = None
+    check_in_lat: Optional[float] = None
+    check_in_lng: Optional[float] = None
+    check_in_distance: Optional[float] = None
+    check_out_lat: Optional[float] = None
+    check_out_lng: Optional[float] = None
+    check_out_distance: Optional[float] = None
+    device_info: Optional[str] = None
 
 class EmployeeAttendanceCreate(EmployeeAttendanceBase):
     pass
@@ -531,6 +546,28 @@ class EmployeeAttendance(EmployeeAttendanceBase):
     
     class Config:
         from_attributes = True
+
+# Geofence & Check-in/out Schemas
+class GeofenceSettingsSchema(BaseModel):
+    is_enabled: bool = True
+    latitude: float = 1.123456
+    longitude: float = 104.012345
+    radius_meters: float = 30.0
+    location_name: str = "Komplek Sekolah Asy-Syuuraa Batam"
+    work_start_time: str = "07:30"
+    work_end_time: str = "16:00"
+
+class EmployeeCheckInRequest(BaseModel):
+    latitude: float
+    longitude: float
+    device_info: Optional[str] = None
+    notes: Optional[str] = None
+
+class EmployeeCheckOutRequest(BaseModel):
+    latitude: float
+    longitude: float
+    device_info: Optional[str] = None
+    notes: Optional[str] = None
 
 # Bulk Attendance Schema
 class BulkStudentAttendanceItem(BaseModel):

@@ -62,8 +62,10 @@ export const navigation: MenuItem[] = [
         icon: 'pi pi-users',
         key: 'kepegawaian',
         children: [
+            { label: 'Presensi Mandiri (GPS)', to: '/dashboard/sdm/presensi/mandiri', key: 'kepegawaian.presensi' },
+            { label: 'Presensi Harian', to: '/dashboard/sdm/presensi', key: 'kepegawaian.presensi' },
+            { label: 'Rekap Presensi', to: '/dashboard/sdm/presensi/rekap', key: 'kepegawaian.presensi' },
             { label: 'Data Pegawai', to: '/dashboard/sdm/pegawai', key: 'kepegawaian.pegawai' },
-            { label: 'Presensi Pegawai', to: '/dashboard/sdm/presensi', key: 'kepegawaian.presensi' },
         ],
     },
     {
