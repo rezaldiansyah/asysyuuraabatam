@@ -988,7 +988,7 @@ async def export_meeting_minute_pdf(
     elements.append(Spacer(1, 12))
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#CBD5E1'), spaceAfter=10))
 
-    # Helper for JSON list
+    # Helper for JSON list and User Name Resolution
     def _parse_list(val):
         if not val:
             return []
@@ -999,17 +999,105 @@ async def export_meeting_minute_pdf(
         except Exception:
             return []
 
-    # 4. Agenda Rapat
+    # Dynamic Roman numeral counter
+    romans = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"]
+    sec_num = 0
+    def _next_roman():
+        nonlocal sec_num
+        idx = sec_num
+        sec_num += 1
+        return romans[idx] if idx < len(romans) else str(idx + 1)
+
+    raw_attendees = _parse_list(m.attendees)
+    raw_absent = _parse_list(m.absent_members)
+
+    def _extract_numeric_ids(items):
+        ids = []
+        for x in items:
+            if isinstance(x, int):
+                ids.append(x)
+            elif isinstance(x, str) and x.isdigit():
+                ids.append(int(x))
+            elif isinstance(x, dict) and "id" in x and str(x["id"]).isdigit():
+                ids.append(int(x["id"]))
+        return ids
+
+    all_user_ids = list(set(_extract_numeric_ids(raw_attendees) + _extract_numeric_ids(raw_absent)))
+    user_lookup = {}
+    if all_user_ids:
+        users = db.query(models.User).options(joinedload(models.User.role)).filter(models.User.id.in_(all_user_ids)).all()
+        user_lookup = {u.id: u for u in users}
+
+    def _resolve_names(items):
+        results = []
+        for x in items:
+            if isinstance(x, int) and x in user_lookup:
+                u = user_lookup[x]
+                role_str = f" ({u.role.name})" if u.role else ""
+                results.append(f"{u.full_name}{role_str}")
+            elif isinstance(x, str) and x.isdigit() and int(x) in user_lookup:
+                u = user_lookup[int(x)]
+                role_str = f" ({u.role.name})" if u.role else ""
+                results.append(f"{u.full_name}{role_str}")
+            elif isinstance(x, dict):
+                name = x.get("full_name") or x.get("name") or str(x.get("id"))
+                role = x.get("role_name") or x.get("role")
+                if role and role != "-":
+                    results.append(f"{name} ({role})")
+                else:
+                    results.append(name)
+            elif isinstance(x, str) and x.strip():
+                results.append(x.strip())
+        return results
+
+    attendee_names = _resolve_names(raw_attendees)
+    absent_names = _resolve_names(raw_absent)
+
+    # 4. Daftar Kehadiran Peserta
+    if attendee_names or absent_names:
+        r_title = _next_roman()
+        elements.append(Paragraph(f"{r_title}. DAFTAR KEHADIRAN PESERTA", section_h2))
+        elements.append(Spacer(1, 4))
+
+        hadir_text = "<br/>".join([f"{idx}. {n}" for idx, n in enumerate(attendee_names, 1)]) if attendee_names else "<i>(Tidak ada catatan kehadiran)</i>"
+        izin_text = "<br/>".join([f"{idx}. {n}" for idx, n in enumerate(absent_names, 1)]) if absent_names else "<i>(Semua peserta hadir / nihil)</i>"
+
+        att_table_data = [
+            [
+                Paragraph(f"<b>PESERTA HADIR ({len(attendee_names)})</b>", meta_key),
+                Paragraph(f"<b>BERHALANGAN / IZIN ({len(absent_names)})</b>", meta_key)
+            ],
+            [
+                Paragraph(hadir_text, body_style),
+                Paragraph(izin_text, body_style)
+            ]
+        ]
+        att_table = Table(att_table_data, colWidths=[255, 260])
+        att_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F1F5F9')),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('LEFTPADDING', (0,0), (-1,-1), 6),
+            ('RIGHTPADDING', (0,0), (-1,-1), 6),
+        ]))
+        elements.append(att_table)
+        elements.append(Spacer(1, 10))
+
+    # 5. Agenda Rapat
     agenda_list = _parse_list(m.agenda)
     if agenda_list:
-        elements.append(Paragraph("I. AGENDA PEMBAHASAN", section_h2))
+        r_title = _next_roman()
+        elements.append(Paragraph(f"{r_title}. AGENDA PEMBAHASAN", section_h2))
         elements.append(Spacer(1, 4))
         for idx, ag in enumerate(agenda_list, 1):
             elements.append(Paragraph(f"{idx}. {ag}", body_style))
         elements.append(Spacer(1, 10))
 
-    # 5. Isi Notulensi / Pembahasan
-    elements.append(Paragraph("II. JALANNYA RAPAT / PEMBAHASAN", section_h2))
+    # 6. Isi Notulensi / Pembahasan
+    r_title = _next_roman()
+    elements.append(Paragraph(f"{r_title}. JALANNYA RAPAT / PEMBAHASAN", section_h2))
     elements.append(Spacer(1, 4))
     content_flowables = _render_notulen_content_to_flowables(
         m.content, body_style, section_h2, meta_key, colors, Table, TableStyle, Paragraph, Spacer
@@ -1017,18 +1105,20 @@ async def export_meeting_minute_pdf(
     elements.extend(content_flowables)
     elements.append(Spacer(1, 10))
 
-    # 6. Keputusan / Kesimpulan Rapat
+    # 7. Keputusan / Kesimpulan Rapat
     decisions_list = _parse_list(m.decisions)
     if decisions_list:
-        elements.append(Paragraph("III. KEPUTUSAN & KESIMPULAN", section_h2))
+        r_title = _next_roman()
+        elements.append(Paragraph(f"{r_title}. KEPUTUSAN & KESIMPULAN", section_h2))
         elements.append(Spacer(1, 4))
         for idx, dec in enumerate(decisions_list, 1):
             elements.append(Paragraph(f"{idx}. {dec}", body_style))
         elements.append(Spacer(1, 10))
 
-    # 7. Action Items / Tindak Lanjut
+    # 8. Action Items / Tindak Lanjut
     if m.action_items:
-        elements.append(Paragraph("IV. TINDAK LANJUT / ACTION ITEMS", section_h2))
+        r_title = _next_roman()
+        elements.append(Paragraph(f"{r_title}. TINDAK LANJUT / ACTION ITEMS", section_h2))
         elements.append(Spacer(1, 4))
         ai_table_data = [[
             Paragraph("No", meta_key),
