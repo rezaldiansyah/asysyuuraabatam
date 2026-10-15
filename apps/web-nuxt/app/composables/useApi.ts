@@ -64,15 +64,57 @@ export function useApi() {
             headers['Authorization'] = `Bearer ${token}`
         }
 
-        const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`
+        // Build candidate URLs with same-origin prioritized on client
+        // This completely eliminates CORS preflight failures and browser adblocker interference
+        const isClient = typeof window !== 'undefined'
+        const candidateUrls: string[] = []
 
-        const response = await $fetch<{ url: string }>(url, {
-            method: 'POST',
-            headers,
-            body: formData,
-        })
+        if (endpoint === '/cms/upload' || endpoint === 'cms/upload') {
+            if (isClient) {
+                candidateUrls.push('/api/upload')
+                candidateUrls.push('/api-proxy/cms/upload')
+            }
+            const directUrl = `${baseUrl}/cms/upload`
+            if (!candidateUrls.includes(directUrl)) {
+                candidateUrls.push(directUrl)
+            }
+        } else if (endpoint === '/cms/upload/batch' || endpoint === 'cms/upload/batch') {
+            if (isClient) {
+                candidateUrls.push('/api/upload-batch')
+                candidateUrls.push('/api-proxy/cms/upload/batch')
+            }
+            const directUrl = `${baseUrl}/cms/upload/batch`
+            if (!candidateUrls.includes(directUrl)) {
+                candidateUrls.push(directUrl)
+            }
+        } else {
+            const resolvedUrl = endpoint.startsWith('http')
+                ? endpoint
+                : `${baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`
+            candidateUrls.push(resolvedUrl)
+        }
 
-        return response
+        let lastError: any = null
+        for (const url of candidateUrls) {
+            try {
+                const response = await $fetch<{ url: string }>(url, {
+                    method: 'POST',
+                    headers,
+                    body: formData,
+                })
+                return response
+            } catch (err: any) {
+                lastError = err
+                const status = err?.statusCode || err?.status || err?.response?.status
+                // If it's a 4xx validation or auth error (not network error/404), throw immediately
+                if (status && status >= 400 && status < 500 && status !== 404) {
+                    throw err
+                }
+                console.warn(`[useApi.upload] Failed on ${url}:`, err?.message || err)
+            }
+        }
+
+        throw lastError
     }
 
     return {

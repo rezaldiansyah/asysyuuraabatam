@@ -17,6 +17,11 @@ export default defineNuxtConfig({
       crawlLinks: false,
       routes: [],
     },
+    routeRules: {
+      '/api-proxy/**': {
+        proxy: `${process.env.INTERNAL_API_URL || process.env.NUXT_PUBLIC_API_BASE || 'https://api.asy-syuuraabatam.or.id'}/**`,
+      },
+    },
   },
 
   vite: {
