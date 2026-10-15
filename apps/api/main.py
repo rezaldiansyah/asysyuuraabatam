@@ -29,21 +29,27 @@ app = FastAPI(
 )
 
 # CORS Configuration
+default_origins = [
+    "https://asy-syuuraabatam.or.id",
+    "https://www.asy-syuuraabatam.or.id",
+    "http://asy-syuuraabatam.or.id",
+    "http://www.asy-syuuraabatam.or.id",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+]
 allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
 if allowed_origins_env and allowed_origins_env != "*":
-    origins = [o.strip() for o in allowed_origins_env.split(",")]
+    env_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+    origins = list(dict.fromkeys(default_origins + env_origins))
 else:
-    origins = [
-        "https://asy-syuuraabatam.or.id",
-        "https://www.asy-syuuraabatam.or.id",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "*"
-    ]
+    origins = default_origins
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"^https?://([a-zA-Z0-9-]+\.)*asy-syuuraabatam\.or\.id(:\d+)?$|^https?://localhost(:\d+)?$|^https?://127\.0\.0\.1(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

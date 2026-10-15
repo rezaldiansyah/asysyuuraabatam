@@ -149,32 +149,19 @@ async function uploadFile(file: File) {
   formData.append('file', file)
 
   try {
-    const { $api } = useNuxtApp()
-    // Using direct fetch to handle FormData properly if Nuxt $api wrapper has issues with it
-    // But attempting with default fetch first
-    
-    // Auth Store for Token
-    const authStore = useAuthStore()
-    
-    const response = await $fetch<{ url: string }>(`${apiBase}/cms/upload`, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      }
-    })
+    const api = useApi()
+    const response = await api.upload('/cms/upload', file)
 
     emit('update:modelValue', response.url)
-    toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Gambar berhasil diupload', life: 3000 })
+    toast.add({ severity: 'success', summary: 'Berhasil', detail: 'File berhasil diupload', life: 3000 })
     
-  } catch (e) {
+  } catch (e: any) {
     console.error('Upload failed', e)
-    toast.add({ severity: 'error', summary: 'Gagal', detail: 'Gagal mengupload gambar', life: 3000 })
+    const errorDetail = e?.data?.detail || e?.message || 'Gagal mengupload file'
+    toast.add({ severity: 'error', summary: 'Gagal Upload', detail: String(errorDetail), life: 5000 })
   } finally {
     uploading.value = false
     if (fileInput.value) fileInput.value.value = '' // Reset input
   }
 }
-
-import { useAuthStore } from '~/stores/auth'
 </script>

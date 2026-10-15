@@ -10,7 +10,25 @@ export function useApi() {
     const config = useRuntimeConfig()
     const authStore = useAuthStore()
 
-    const baseUrl = config.public.apiBase
+    const baseUrl = (config.public.apiBase || '').replace(/\/$/, '')
+
+    function resolveToken(): string | null {
+        if (authStore.token) return authStore.token
+        if (import.meta.client) {
+            const lsToken = localStorage.getItem('token')
+            if (lsToken) {
+                authStore.initAuth()
+                return lsToken
+            }
+            const match = document.cookie.match(/(?:^|; )auth_token=([^;]*)/)
+            if (match && match[1]) {
+                const cookieToken = decodeURIComponent(match[1])
+                authStore.initAuth()
+                return cookieToken
+            }
+        }
+        return null
+    }
 
     async function fetch<T>(endpoint: string, options: FetchOptions = {}): Promise<T> {
         const headers: Record<string, string> = {
@@ -19,11 +37,14 @@ export function useApi() {
         }
 
         // Add auth token if available
-        if (authStore.token) {
-            headers['Authorization'] = `Bearer ${authStore.token}`
+        const token = resolveToken()
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`
         }
 
-        const response = await $fetch<T>(`${baseUrl}${endpoint}`, {
+        const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`
+
+        const response = await $fetch<T>(url, {
             method: options.method || 'GET',
             headers,
             body: options.body ? JSON.stringify(options.body) : undefined,
@@ -38,11 +59,14 @@ export function useApi() {
         formData.append('file', file)
 
         const headers: Record<string, string> = {}
-        if (authStore.token) {
-            headers['Authorization'] = `Bearer ${authStore.token}`
+        const token = resolveToken()
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`
         }
 
-        const response = await $fetch<{ url: string }>(`${baseUrl}${endpoint}`, {
+        const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`
+
+        const response = await $fetch<{ url: string }>(url, {
             method: 'POST',
             headers,
             body: formData,

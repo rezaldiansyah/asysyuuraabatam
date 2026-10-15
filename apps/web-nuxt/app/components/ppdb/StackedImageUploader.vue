@@ -104,9 +104,8 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits(['update:modelValue'])
 
 const toast = useToast()
-const config = useRuntimeConfig()
-const apiBase = config.public.apiBase
-const authStore = useAuthStore()
+const api = useApi()
+
 
 interface UploadItem {
   id: string
@@ -194,28 +193,22 @@ async function processFiles(files: File[]) {
 async function uploadFile(item: UploadItem) {
   if (!item.file) return
   
-  const formData = new FormData()
-  formData.append('file', item.file)
-  
   try {
-    const response = await $fetch<{ url: string }>(`${apiBase}/cms/upload`, {
-      method: 'POST',
-      body: formData,
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
+    const response = await api.upload('/cms/upload', item.file)
     
     const index = items.value.findIndex(i => i.id === item.id)
     if (index !== -1) {
       items.value[index].url = response.url
       items.value[index].uploading = false
     }
-  } catch (e) {
+  } catch (e: any) {
     const index = items.value.findIndex(i => i.id === item.id)
     if (index !== -1) {
       items.value[index].error = 'Gagal upload'
       items.value[index].uploading = false
     }
-    toast.add({ severity: 'error', summary: 'Gagal', detail: `Gagal mengupload ${item.file.name}`, life: 3000 })
+    const errorMsg = e?.data?.detail || e?.message || `Gagal mengupload ${item.file.name}`
+    toast.add({ severity: 'error', summary: 'Gagal', detail: String(errorMsg), life: 4000 })
   }
 }
 
