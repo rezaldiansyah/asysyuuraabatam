@@ -16,14 +16,64 @@
     </div>
 
     <!-- Header profil -->
-    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col sm:flex-row items-center sm:items-start gap-4">
-      <Avatar :image="employee.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(employee.nama_lengkap || '')}&size=128&background=random`" shape="circle" class="!w-16 !h-16 shrink-0" />
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 flex flex-col sm:flex-row items-center sm:items-start gap-5">
+      <!-- Pasfoto 4x6 cm Box (Rasio 2:3) -->
+      <div class="relative shrink-0 flex flex-col items-center">
+        <div class="w-24 h-36 rounded-xl border-2 border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-900 shadow-sm relative flex items-center justify-center">
+          <img 
+            v-if="employee.photo_url" 
+            :src="employee.photo_url" 
+            :alt="employee.nama_lengkap" 
+            class="w-full h-full object-cover"
+          />
+          <div v-else class="flex flex-col items-center justify-center text-slate-400 p-2 text-center">
+            <i class="pi pi-user text-3xl mb-1"></i>
+            <span class="text-[9px] font-medium leading-tight">Pasfoto 4x6</span>
+          </div>
+          <div v-if="uploadingPhoto" class="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white text-xs gap-1">
+            <i class="pi pi-spin pi-spinner text-xl"></i>
+            <span class="text-[10px]">Mengupload...</span>
+          </div>
+        </div>
+
+        <!-- Tombol Aksi Pasfoto Cepat -->
+        <div class="flex items-center gap-1 mt-2">
+          <input 
+            type="file" 
+            ref="photoFileInput" 
+            class="hidden" 
+            accept="image/png,image/jpeg,image/jpg,image/webp" 
+            @change="handlePhotoUpload"
+          />
+          <Button 
+            label="Ganti Foto" 
+            icon="pi pi-camera" 
+            size="small" 
+            outlined 
+            class="!text-[11px] !py-1 !px-2 font-medium" 
+            :loading="uploadingPhoto"
+            @click="triggerPhotoInput" 
+          />
+          <Button 
+            v-if="employee.photo_url"
+            icon="pi pi-trash" 
+            size="small" 
+            text 
+            severity="danger" 
+            class="!py-1 !px-1.5" 
+            title="Hapus Pasfoto"
+            @click="deletePhoto" 
+          />
+        </div>
+        <span class="text-[10px] text-slate-400 mt-0.5">Standar 4x6 (Maks 2MB)</span>
+      </div>
+
       <div class="text-center sm:text-left flex-1 min-w-0">
-        <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ employee.nama_lengkap }}</h2>
-        <div class="text-slate-600 dark:text-slate-300 mt-0.5">
+        <h2 class="text-xl font-bold text-slate-800 dark:text-white">{{ employee.nama_lengkap }}</h2>
+        <div class="text-slate-600 dark:text-slate-300 mt-0.5 text-sm">
           {{ employee.position || 'Jabatan belum diatur' }} <span class="text-slate-400">•</span> {{ employee.unit?.name || 'Unit belum diatur' }}
         </div>
-        <div class="flex flex-wrap gap-1.5 mt-2 justify-center sm:justify-start">
+        <div class="flex flex-wrap gap-1.5 mt-2.5 justify-center sm:justify-start">
           <Tag :value="employee.employee_type" severity="info" class="uppercase !text-xs" />
           <Tag :value="employee.is_active ? 'Aktif' : 'Nonaktif'" :severity="employee.is_active ? 'success' : 'danger'" class="!text-xs" />
           <Tag :value="`NIK: ${employee.nik_kepegawaian || '-'}`" severity="secondary" class="!text-xs" />
@@ -159,6 +209,26 @@
     <!-- Dialog edit pegawai -->
     <Dialog v-model:visible="showEdit" modal header="Edit Data Pegawai" :style="{ width: '760px' }" :breakpoints="{ '800px': '95vw' }">
       <div class="grid grid-cols-2 gap-3 text-sm">
+        <!-- Pasfoto 4x6 Field -->
+        <div class="col-span-2 flex items-center gap-4 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <div class="w-16 h-24 rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-800 flex items-center justify-center shrink-0 shadow-xs">
+            <img v-if="form.photo_url" :src="form.photo_url" class="w-full h-full object-cover" />
+            <div v-else class="flex flex-col items-center justify-center text-slate-300 dark:text-slate-600 text-center">
+              <i class="pi pi-user text-2xl"></i>
+              <span class="text-[8px] font-medium mt-0.5">4x6</span>
+            </div>
+          </div>
+          <div class="space-y-1 flex-1 min-w-0">
+            <div class="font-bold text-xs text-slate-700 dark:text-slate-300">Pasfoto Pegawai (Standar 4x6 cm)</div>
+            <p class="text-[11px] text-slate-400 leading-tight">Disarankan foto formal berlatar belakang polos. Maksimal ukuran file 2MB (otomatis dikompresi ke WebP).</p>
+            <div class="flex items-center gap-2 pt-1">
+              <input type="file" ref="dialogPhotoInput" class="hidden" accept="image/png,image/jpeg,image/jpg,image/webp" @change="handleDialogPhotoUpload" />
+              <Button label="Pilih Pasfoto" icon="pi pi-upload" size="small" outlined class="!text-xs !py-1 !px-2.5 font-medium" :loading="uploadingDialogPhoto" @click="dialogPhotoInput?.click()" />
+              <Button v-if="form.photo_url" label="Hapus Foto" icon="pi pi-trash" size="small" text severity="danger" class="!text-xs !py-1 !px-2" @click="form.photo_url = null" />
+            </div>
+          </div>
+        </div>
+
         <div class="col-span-2 sm:col-span-1"><label class="lbl">Nama Lengkap</label><InputText v-model="form.nama_lengkap" fluid size="small" /></div>
         <div class="col-span-2 sm:col-span-1"><label class="lbl">Email (opsional)</label><InputText v-model="form.email" type="email" placeholder="nama@email.com" fluid size="small" /></div>
         <div class="col-span-2 sm:col-span-1"><label class="lbl">NIK Kepegawaian (username login)</label><InputText v-model="form.nik_kepegawaian" fluid size="small" /></div>
@@ -247,6 +317,86 @@ const router = useRouter()
 const toast = useToast()
 const config = useRuntimeConfig()
 const apiToken = useCookie('auth_token')
+const api = useApi()
+
+const uploadingPhoto = ref(false)
+const photoFileInput = ref<HTMLInputElement | null>(null)
+const uploadingDialogPhoto = ref(false)
+const dialogPhotoInput = ref<HTMLInputElement | null>(null)
+
+function triggerPhotoInput() {
+  photoFileInput.value?.click()
+}
+
+async function handlePhotoUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  if (!input.files || input.files.length === 0) return
+  const file = input.files[0]
+
+  if (!file.type.startsWith('image/')) {
+    toast.add({ severity: 'warn', summary: 'Format Salah', detail: 'Harap upload file gambar (JPG, PNG, WEBP)', life: 3000 })
+    return
+  }
+
+  if (file.size > 2 * 1024 * 1024) {
+    toast.add({ severity: 'warn', summary: 'File Terlalu Besar', detail: 'Ukuran foto maksimal 2MB', life: 4000 })
+    return
+  }
+
+  uploadingPhoto.value = true
+  try {
+    const res = await api.upload('/cms/upload', file)
+    await api.put(`/sdm/employees/${route.params.id}`, { photo_url: res.url })
+    employee.value.photo_url = res.url
+    toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Pasfoto berhasil diupload ke Cloudflare R2', life: 3500 })
+  } catch (e: any) {
+    console.error('Upload photo error:', e)
+    toast.add({ severity: 'error', summary: 'Gagal Upload', detail: e?.data?.detail || e?.message || 'Gagal mengupload pasfoto', life: 4000 })
+  } finally {
+    uploadingPhoto.value = false
+    if (photoFileInput.value) photoFileInput.value.value = ''
+  }
+}
+
+async function handleDialogPhotoUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  if (!input.files || input.files.length === 0) return
+  const file = input.files[0]
+
+  if (!file.type.startsWith('image/')) {
+    toast.add({ severity: 'warn', summary: 'Format Salah', detail: 'Harap upload file gambar (JPG, PNG, WEBP)', life: 3000 })
+    return
+  }
+
+  if (file.size > 2 * 1024 * 1024) {
+    toast.add({ severity: 'warn', summary: 'File Terlalu Besar', detail: 'Ukuran foto maksimal 2MB', life: 4000 })
+    return
+  }
+
+  uploadingDialogPhoto.value = true
+  try {
+    const res = await api.upload('/cms/upload', file)
+    form.value.photo_url = res.url
+    toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Pasfoto terpilih dan siap disimpan', life: 3000 })
+  } catch (e: any) {
+    console.error('Upload photo dialog error:', e)
+    toast.add({ severity: 'error', summary: 'Gagal Upload', detail: e?.data?.detail || e?.message || 'Gagal mengupload pasfoto', life: 4000 })
+  } finally {
+    uploadingDialogPhoto.value = false
+    if (dialogPhotoInput.value) dialogPhotoInput.value.value = ''
+  }
+}
+
+async function deletePhoto() {
+  if (!confirm('Hapus pasfoto pegawai ini?')) return
+  try {
+    await api.put(`/sdm/employees/${route.params.id}`, { photo_url: null })
+    employee.value.photo_url = null
+    toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Pasfoto berhasil dihapus', life: 3000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Gagal', detail: 'Gagal menghapus pasfoto', life: 3000 })
+  }
+}
 
 const employee = ref<any>(null)
 const computedInfo = ref<any>(null)
@@ -367,6 +517,7 @@ const openEdit = () => {
     position: e.position, employee_type: e.employee_type, unit_id: e.unit_id, join_date: toDateObj(e.join_date),
     nip: e.nip, nuptk: e.nuptk, npwp: e.npwp, no_bpjs_tk: e.no_bpjs_tk, no_bpjs_kes: e.no_bpjs_kes,
     nama_bank: e.nama_bank, no_rekening: e.no_rekening,
+    photo_url: e.photo_url || null,
   }
   showEdit.value = true
 }

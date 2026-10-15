@@ -62,11 +62,27 @@
         </div>
 
         <!-- Employee Info Card -->
-        <div v-if="todayData.employee" class="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-          <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Identitas Pegawai</div>
-          <div class="font-bold text-slate-800 dark:text-white">{{ todayData.employee.nama_lengkap }}</div>
-          <div class="text-xs text-slate-500 mt-0.5">NIP: {{ todayData.employee.nip || '-' }}</div>
-          <div class="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">{{ todayData.employee.position || 'Staf / Guru' }}</div>
+        <div v-if="todayData.employee" class="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center gap-3.5">
+          <div class="w-14 h-20 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-900 shrink-0 shadow-xs flex items-center justify-center">
+            <img 
+              v-if="todayData.employee.photo_url" 
+              :src="todayData.employee.photo_url" 
+              :alt="todayData.employee.nama_lengkap" 
+              class="w-full h-full object-cover" 
+            />
+            <Avatar 
+              v-else 
+              :image="`https://ui-avatars.com/api/?name=${encodeURIComponent(todayData.employee.nama_lengkap || '')}&background=random`" 
+              shape="circle" 
+              size="normal" 
+            />
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Identitas Pegawai</div>
+            <div class="font-bold text-slate-800 dark:text-white truncate">{{ todayData.employee.nama_lengkap }}</div>
+            <div class="text-xs text-slate-500 mt-0.5 truncate">NIP: {{ todayData.employee.nip || '-' }}</div>
+            <div class="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1 truncate">{{ todayData.employee.position || 'Staf / Guru' }}</div>
+          </div>
         </div>
 
         <!-- Radar Status Card -->

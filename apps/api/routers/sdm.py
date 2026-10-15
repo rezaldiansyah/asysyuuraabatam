@@ -1087,9 +1087,12 @@ async def create_bulk_employee_attendance(request: schemas.BulkEmployeeAttendanc
         if existing:
             # Update existing
             existing.status = status_val
-            existing.check_in = item.check_in
-            existing.check_out = item.check_out
-            existing.notes = item.notes
+            if item.check_in is not None:
+                existing.check_in = item.check_in
+            if item.check_out is not None:
+                existing.check_out = item.check_out
+            if item.notes:
+                existing.notes = item.notes
             updated += 1
         else:
             # Create new
