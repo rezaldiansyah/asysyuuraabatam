@@ -53,6 +53,48 @@ export function useApi() {
         return response
     }
 
+    function xhrUpload(url: string, file: File, token: string | null): Promise<{ url: string }> {
+        return new Promise((resolve, reject) => {
+            if (typeof XMLHttpRequest === 'undefined') {
+                return reject(new Error('XMLHttpRequest not available'))
+            }
+            const xhr = new XMLHttpRequest()
+            const formData = new FormData()
+            formData.append('file', file)
+
+            xhr.open('POST', url, true)
+            if (token) {
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+            }
+
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const json = JSON.parse(xhr.responseText)
+                        resolve(json)
+                    } catch {
+                        reject(new Error('Respon server tidak valid'))
+                    }
+                } else {
+                    let errMsg = `Server error (${xhr.status})`
+                    try {
+                        const errJson = JSON.parse(xhr.responseText)
+                        errMsg = errJson.detail || errMsg
+                    } catch {}
+                    const err: any = new Error(errMsg)
+                    err.statusCode = xhr.status
+                    reject(err)
+                }
+            }
+
+            xhr.onerror = () => {
+                reject(new Error('Upload gagal: Terblokir oleh ekstensi browser (AdBlock) atau koneksi terputus.'))
+            }
+
+            xhr.send(formData)
+        })
+    }
+
     // Upload file (multipart/form-data)
     async function upload(endpoint: string, file: File): Promise<{ url: string }> {
         const formData = new FormData()
@@ -65,12 +107,13 @@ export function useApi() {
         }
 
         // Build candidate URLs with same-origin prioritized on client
-        // This completely eliminates CORS preflight failures and browser adblocker interference
+        // /api/assets/store uses neutral naming to bypass adblocker filter rules (e.g. EasyList /upload filters)
         const isClient = typeof window !== 'undefined'
         const candidateUrls: string[] = []
 
         if (endpoint === '/cms/upload' || endpoint === 'cms/upload') {
             if (isClient) {
+                candidateUrls.push('/api/assets/store')
                 candidateUrls.push('/api/upload')
                 candidateUrls.push('/api-proxy/cms/upload')
             }
@@ -96,6 +139,7 @@ export function useApi() {
 
         let lastError: any = null
         for (const url of candidateUrls) {
+            // Attempt 1: Standard fetch
             try {
                 const response = await $fetch<{ url: string }>(url, {
                     method: 'POST',
@@ -110,8 +154,28 @@ export function useApi() {
                 if (status && status >= 400 && status < 500 && status !== 404) {
                     throw err
                 }
-                console.warn(`[useApi.upload] Failed on ${url}:`, err?.message || err)
+                console.warn(`[useApi.upload:fetch] Failed on ${url}:`, err?.message || err)
             }
+
+            // Attempt 2: XMLHttpRequest fallback (bypasses some browser extension fetch intercepts)
+            if (isClient) {
+                try {
+                    const response = await xhrUpload(url, file, token)
+                    return response
+                } catch (xhrErr: any) {
+                    lastError = xhrErr
+                    const status = xhrErr?.statusCode
+                    if (status && status >= 400 && status < 500 && status !== 404) {
+                        throw xhrErr
+                    }
+                    console.warn(`[useApi.upload:xhr] Failed on ${url}:`, xhrErr?.message || xhrErr)
+                }
+            }
+        }
+
+        // If error is caused by browser blocking
+        if (lastError && (lastError.message?.includes('Failed to fetch') || lastError.message?.includes('ekstensi'))) {
+            throw new Error('Upload gagal dikirim. Terdeteksi ekstensi browser (AdBlock/Privacy) memblokir request. Mohon nonaktifkan AdBlock untuk domain ini atau gunakan Tab Incognito.')
         }
 
         throw lastError
