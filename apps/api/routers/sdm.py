@@ -1738,7 +1738,8 @@ def _save_single_employee_punches(
     target_date: date,
     sh: int,
     sm: int,
-    tol_mins: int = 0
+    tol_mins: int = 0,
+    auto_commit: bool = True
 ) -> tuple[str, str, Optional[str], Optional[str]]:
     """Save a single employee's grouped punches to DB and return (action, status_str, check_in_str, check_out_str)."""
     punches.sort()
@@ -1796,7 +1797,11 @@ def _save_single_employee_punches(
         db.add(db_att)
         action = "created"
 
-    db.commit()
+    if auto_commit:
+        db.commit()
+    else:
+        db.flush()
+
     return (
         action,
         status_val.value,
@@ -1942,17 +1947,21 @@ async def sync_fingerprint_attendance(
 
     for emp_id, punches in emp_punches.items():
         try:
-            action, _, _, _ = _save_single_employee_punches(db, emp_id, punches, target_date, sh, sm, tol_mins)
+            action, _, _, _ = _save_single_employee_punches(db, emp_id, punches, target_date, sh, sm, tol_mins, auto_commit=False)
             if action == "created":
                 created_count += 1
             else:
                 updated_count += 1
-            time.sleep(0.05)  # Gentle pacing so database & server CPU are never spiked
         except Exception as ex:
             db.rollback()
             failed_count += 1
             emp_name = emp_map[emp_id].nama_lengkap if emp_id in emp_map else f"ID {emp_id}"
             errors_detail.append(f"{emp_name}: {str(ex)}")
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
 
     # Mark remaining active employees who had NO fingerprint data on target_date
     try:

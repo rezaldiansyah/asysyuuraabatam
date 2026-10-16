@@ -129,13 +129,23 @@
 
             <Button 
               icon="pi pi-cloud-download" 
-              label="Tarik Fingerprint" 
+              label="Tarik Tanggal Ini" 
               severity="info" 
               size="small" 
               class="text-xs font-semibold shadow-sm shrink-0 !px-3" 
-              title="Tarik data presensi dari mesin fingerprint (sdit.asysyuuraa.my.id) satu per satu"
+              :title="`Tarik data presensi dari mesin fingerprint untuk tanggal terpilih (${formattedDate})`"
               :loading="syncingFingerprint" 
               @click="syncFingerprint" 
+            />
+
+            <Button 
+              icon="pi pi-calendar-plus" 
+              label="Tarik Massal (Bulan / Tahun)" 
+              severity="warn" 
+              size="small" 
+              class="text-xs font-semibold shadow-sm shrink-0 !px-3" 
+              title="Tarik data presensi 1 bulan penuh, 1 tahun (sejak 1 Jan 2026), atau rentang kustom dari mesin fingerprint"
+              @click="openBulkSyncModal" 
             />
 
             <!-- Icon-only Log Sinkronisasi with Badge & Hint -->
@@ -589,6 +599,215 @@
         </DataTable>
       </template>
     </Card>
+
+    <!-- Dialog Tarik Data Mesin Fingerprint Massal (1 Bulan / 1 Tahun / Kustom) -->
+    <Dialog
+      v-model:visible="showBulkSyncModal"
+      header="Tarik Data Mesin Fingerprint Massal"
+      modal
+      :style="{ width: '580px', maxWidth: '95vw' }"
+      :closable="!bulkSyncRunning"
+    >
+      <div class="space-y-4 text-xs">
+        <!-- Informasi Mesin & Periode -->
+        <div class="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 space-y-1">
+          <div class="font-bold flex items-center gap-1.5">
+            <i class="pi pi-server text-blue-600"></i>
+            <span>Mesin Fingerprint (sdit.asysyuuraa.my.id)</span>
+          </div>
+          <p class="text-[11px] leading-relaxed text-blue-800/80 dark:text-blue-300">
+            Tarik riwayat tap kehadiran langsung dari database mesin presensi untuk periode waktu tertentu. Data diproses secara aman per tanggal tanpa membebani server.
+          </p>
+        </div>
+
+        <!-- Pilihan Opsi Periode Penarikan (Tampil saat tidak sedang running) -->
+        <div v-if="!bulkSyncRunning && !bulkSyncFinished" class="space-y-3">
+          <div class="font-bold text-slate-700 dark:text-slate-200">Pilih Periode Penarikan:</div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <!-- Mode 1: 1 Bulan Penuh -->
+            <div 
+              class="p-3 rounded-xl border cursor-pointer transition flex flex-col justify-between"
+              :class="bulkSyncMode === 'month' 
+                ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/40 shadow-xs' 
+                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'"
+              @click="bulkSyncMode = 'month'"
+            >
+              <div>
+                <div class="font-bold text-slate-800 dark:text-white flex items-center gap-1.5 mb-1">
+                  <i class="pi pi-calendar text-emerald-600"></i>
+                  <span>1 Bulan Penuh</span>
+                </div>
+                <div class="text-[11px] text-slate-500">Tarik seluruh tanggal dalam 1 bulan kalender.</div>
+              </div>
+              <div class="mt-2 text-[10px] font-semibold text-emerald-600">Paling Sering Digunakan</div>
+            </div>
+
+            <!-- Mode 2: 1 Tahun 2026 -->
+            <div 
+              class="p-3 rounded-xl border cursor-pointer transition flex flex-col justify-between"
+              :class="bulkSyncMode === 'year' 
+                ? 'border-amber-500 bg-amber-50/60 dark:bg-amber-950/40 shadow-xs' 
+                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'"
+              @click="bulkSyncMode = 'year'"
+            >
+              <div>
+                <div class="font-bold text-slate-800 dark:text-white flex items-center gap-1.5 mb-1">
+                  <i class="pi pi-history text-amber-600"></i>
+                  <span>Tahun 2026</span>
+                </div>
+                <div class="text-[11px] text-slate-500">Dari 01 Januari 2026 s/d Hari ini.</div>
+              </div>
+              <div class="mt-2 text-[10px] font-semibold text-amber-600">Sinkronisasi Penuh</div>
+            </div>
+
+            <!-- Mode 3: Rentang Kustom -->
+            <div 
+              class="p-3 rounded-xl border cursor-pointer transition flex flex-col justify-between"
+              :class="bulkSyncMode === 'custom' 
+                ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/40 shadow-xs' 
+                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'"
+              @click="bulkSyncMode = 'custom'"
+            >
+              <div>
+                <div class="font-bold text-slate-800 dark:text-white flex items-center gap-1.5 mb-1">
+                  <i class="pi pi-sliders-h text-blue-600"></i>
+                  <span>Rentang Kustom</span>
+                </div>
+                <div class="text-[11px] text-slate-500">Tentukan tanggal awal dan akhir bebas.</div>
+              </div>
+              <div class="mt-2 text-[10px] font-semibold text-blue-600">Fleksibel</div>
+            </div>
+          </div>
+
+          <!-- Parameter Input Detail Sesuai Mode Terpilih -->
+          <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
+            <!-- Jika Mode Bulan -->
+            <div v-if="bulkSyncMode === 'month'" class="flex flex-wrap items-center gap-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Pilih Bulan &amp; Tahun:</label>
+                <Calendar v-model="bulkSyncSelectedMonth" view="month" dateFormat="mm/yy" class="w-44 text-xs" :showIcon="true" />
+              </div>
+              <div class="text-slate-500 text-[11px] pt-3">
+                Target: <b>{{ getDaysInMonthCount(bulkSyncSelectedMonth) }} hari</b> kalender
+              </div>
+            </div>
+
+            <!-- Jika Mode Tahun -->
+            <div v-else-if="bulkSyncMode === 'year'" class="space-y-1">
+              <div class="font-bold text-slate-800 dark:text-white">Periode: 01 Januari 2026 s/d {{ formatDisplayDate(new Date()) }}</div>
+              <div class="text-[11px] text-slate-500">
+                Sistem akan memproses seluruh hari sejak 1 Januari 2026 secara bertahap dengan progress bar di bawah ini.
+              </div>
+            </div>
+
+            <!-- Jika Mode Kustom -->
+            <div v-else class="flex flex-wrap items-center gap-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Dari Tanggal:</label>
+                <Calendar v-model="bulkSyncCustomStart" dateFormat="yy-mm-dd" class="w-36 text-xs" :showIcon="true" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Sampai Tanggal:</label>
+                <Calendar v-model="bulkSyncCustomEnd" dateFormat="yy-mm-dd" class="w-36 text-xs" :showIcon="true" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bagian Live Progress Saat Sedang Berjalan atau Selesai -->
+        <div v-if="bulkSyncRunning || bulkSyncFinished" class="space-y-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/50">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <i v-if="bulkSyncRunning" class="pi pi-spin pi-spinner text-emerald-600"></i>
+              <i v-else class="pi pi-check-circle text-emerald-600"></i>
+              <span>{{ bulkSyncStatusText }}</span>
+            </span>
+            <span class="font-mono font-bold text-emerald-600">{{ bulkSyncPercent }}%</span>
+          </div>
+
+          <ProgressBar :value="bulkSyncPercent" :showValue="false" class="!h-2.5" />
+
+          <!-- Statistik Ringkasan -->
+          <div class="grid grid-cols-4 gap-2 text-center text-[11px]">
+            <div class="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700">
+              <div class="text-slate-400 text-[10px]">Total Hari</div>
+              <div class="font-bold text-slate-700 dark:text-slate-200">{{ bulkSyncTotalDays }}</div>
+            </div>
+            <div class="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 text-emerald-800 dark:text-emerald-300">
+              <div class="text-[10px]">Ada Data</div>
+              <div class="font-bold">{{ bulkSyncSuccessDays }}</div>
+            </div>
+            <div class="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 text-amber-800 dark:text-amber-300">
+              <div class="text-[10px]">Libur/Kosong</div>
+              <div class="font-bold">{{ bulkSyncEmptyDays }}</div>
+            </div>
+            <div class="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200/60 text-rose-800 dark:text-rose-300">
+              <div class="text-[10px]">Gagal</div>
+              <div class="font-bold">{{ bulkSyncFailedDays }}</div>
+            </div>
+          </div>
+
+          <!-- Log Box Realtime -->
+          <div class="max-h-36 overflow-y-auto space-y-1 p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-[10px]">
+            <div 
+              v-for="(item, idx) in bulkSyncLogs" 
+              :key="idx" 
+              class="flex items-center justify-between py-0.5 border-b border-slate-100 dark:border-slate-800 last:border-none"
+            >
+              <span class="font-bold text-slate-700 dark:text-slate-300">{{ item.date }}</span>
+              <span :class="item.status === 'success' ? 'text-emerald-600 dark:text-emerald-400' : item.status === 'empty' ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'">
+                {{ item.msg }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex items-center justify-between w-full">
+          <Button 
+            v-if="bulkSyncRunning" 
+            label="Hentikan Proses" 
+            icon="pi pi-stop" 
+            severity="danger" 
+            size="small" 
+            text 
+            @click="bulkSyncCancelRequested = true" 
+          />
+          <div v-else></div>
+
+          <div class="flex items-center gap-2">
+            <Button 
+              label="Tutup" 
+              severity="secondary" 
+              size="small" 
+              text 
+              :disabled="bulkSyncRunning" 
+              @click="showBulkSyncModal = false" 
+            />
+            <Button 
+              v-if="!bulkSyncRunning && !bulkSyncFinished" 
+              label="Mulai Tarik Data" 
+              icon="pi pi-play" 
+              severity="warning" 
+              size="small" 
+              class="font-semibold" 
+              @click="startBulkSync" 
+            />
+            <Button 
+              v-if="bulkSyncFinished" 
+              label="Selesai &amp; Buka Tanggal Terpilih" 
+              icon="pi pi-check" 
+              severity="success" 
+              size="small" 
+              class="font-semibold" 
+              @click="finishBulkSync" 
+            />
+          </div>
+        </div>
+      </template>
+    </Dialog>
 
     <!-- Dialog Riwayat & Log Kegagalan Sinkronisasi Fingerprint -->
     <Dialog 
@@ -1792,6 +2011,144 @@ const syncCustomRange = () => {
   const sStr = formatLocalDate(customSyncStartDate.value)
   const eStr = formatLocalDate(customSyncEndDate.value)
   syncRangeExecutor(sStr, eStr, 'Rentang Kustom')
+}
+
+// --- Dedicated Bulk Sync Modal State & Operations ---
+const showBulkSyncModal = ref(false)
+const bulkSyncMode = ref<'month' | 'year' | 'custom'>('month')
+const bulkSyncSelectedMonth = ref(new Date())
+const bulkSyncCustomStart = ref(new Date(2026, 0, 1))
+const bulkSyncCustomEnd = ref(new Date())
+
+const bulkSyncRunning = ref(false)
+const bulkSyncFinished = ref(false)
+const bulkSyncCancelRequested = ref(false)
+const bulkSyncPercent = ref(0)
+const bulkSyncStatusText = ref('')
+const bulkSyncTotalDays = ref(0)
+const bulkSyncSuccessDays = ref(0)
+const bulkSyncEmptyDays = ref(0)
+const bulkSyncFailedDays = ref(0)
+const bulkSyncLogs = ref<{ date: string, status: string, msg: string }[]>([])
+
+const openBulkSyncModal = () => {
+  if (filterDate.value) {
+    bulkSyncSelectedMonth.value = new Date(filterDate.value)
+  }
+  bulkSyncFinished.value = false
+  bulkSyncRunning.value = false
+  bulkSyncLogs.value = []
+  bulkSyncPercent.value = 0
+  bulkSyncStatusText.value = 'Siap melakukan penarikan data massal.'
+  showBulkSyncModal.value = true
+}
+
+const getDaysInMonthCount = (d: Date | null) => {
+  if (!d) return 31
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+}
+
+const startBulkSync = async () => {
+  const dates: string[] = []
+  
+  if (bulkSyncMode.value === 'month') {
+    const m = bulkSyncSelectedMonth.value || new Date()
+    const y = m.getFullYear()
+    const mon = m.getMonth()
+    const totalDays = new Date(y, mon + 1, 0).getDate()
+    for (let day = 1; day <= totalDays; day++) {
+      const d = new Date(y, mon, day)
+      dates.push(formatLocalDate(d))
+    }
+  } else if (bulkSyncMode.value === 'year') {
+    let curr = new Date(2026, 0, 1)
+    const today = new Date()
+    while (curr <= today) {
+      dates.push(formatLocalDate(curr))
+      curr.setDate(curr.getDate() + 1)
+    }
+  } else {
+    if (!bulkSyncCustomStart.value || !bulkSyncCustomEnd.value) {
+      toast.add({ severity: 'warn', summary: 'Pilih Tanggal', detail: 'Pilih tanggal mulai dan tanggal akhir', life: 3000 })
+      return
+    }
+    let curr = new Date(bulkSyncCustomStart.value)
+    const endD = new Date(bulkSyncCustomEnd.value)
+    while (curr <= endD) {
+      dates.push(formatLocalDate(curr))
+      curr.setDate(curr.getDate() + 1)
+    }
+  }
+
+  if (dates.length === 0) {
+    toast.add({ severity: 'warn', summary: 'Periode Kosong', detail: 'Tidak ada tanggal yang dapat diproses', life: 3000 })
+    return
+  }
+
+  bulkSyncRunning.value = true
+  bulkSyncFinished.value = false
+  bulkSyncCancelRequested.value = false
+  bulkSyncTotalDays.value = dates.length
+  bulkSyncSuccessDays.value = 0
+  bulkSyncEmptyDays.value = 0
+  bulkSyncFailedDays.value = 0
+  bulkSyncLogs.value = []
+  bulkSyncPercent.value = 0
+
+  for (let i = 0; i < dates.length; i++) {
+    if (bulkSyncCancelRequested.value) {
+      toast.add({ severity: 'warn', summary: 'Proses Dihentikan', detail: 'Penarikan dihentikan oleh pengguna.', life: 3000 })
+      break
+    }
+
+    const dStr = dates[i]
+    bulkSyncPercent.value = Math.round(((i + 1) / dates.length) * 100)
+    bulkSyncStatusText.value = `Menarik data: ${dStr} (${i + 1} dari ${dates.length} hari)...`
+
+    try {
+      const res = await api.post<any>('/sdm/attendance/sync-fingerprint', {
+        date: dStr,
+        mode: 'all',
+        source: 'manual'
+      })
+
+      if (res?.status === 'empty') {
+        bulkSyncEmptyDays.value++
+        bulkSyncLogs.value.unshift({ date: dStr, status: 'empty', msg: 'Data kosong / Libur' })
+      } else {
+        bulkSyncSuccessDays.value++
+        bulkSyncLogs.value.unshift({ 
+          date: dStr, 
+          status: 'success', 
+          msg: `${res?.raw_count || 0} tap, ${res?.synced_employees || 0} pegawai` 
+        })
+      }
+    } catch (err: any) {
+      bulkSyncFailedDays.value++
+      bulkSyncLogs.value.unshift({ 
+        date: dStr, 
+        status: 'failed', 
+        msg: err?.data?.detail || err?.message || 'Gagal koneksi' 
+      })
+    }
+  }
+
+  bulkSyncRunning.value = false
+  bulkSyncFinished.value = true
+  bulkSyncStatusText.value = `Selesai: ${bulkSyncSuccessDays.value} hari ada data, ${bulkSyncEmptyDays.value} hari libur/kosong.`
+  await fetchSyncLogs()
+}
+
+const finishBulkSync = async () => {
+  showBulkSyncModal.value = false
+  bulkSyncFinished.value = false
+  await fetchData()
+  toast.add({
+    severity: 'success',
+    summary: 'Data Berhasil Disinkronkan',
+    detail: 'Data presensi pegawai telah diperbarui dari mesin fingerprint.',
+    life: 4000
+  })
 }
 
 onMounted(() => {
