@@ -852,7 +852,7 @@
 
         <div class="space-y-1.5">
           <label class="font-bold text-slate-700 dark:text-slate-200 block">Pilih Pegawai di Database Asy-Syuuraa:</label>
-          <Select
+          <Dropdown
             v-model="pinMappingForm.employee_id"
             :options="employeeSelectOptions"
             optionLabel="label"
@@ -1202,6 +1202,7 @@ const fetchData = async () => {
       return {
         employee_id: emp.id,
         nama_lengkap: emp.nama_lengkap,
+        nip: emp.nip,
         position: emp.position,
         unit_name: emp.unit?.name,
         photo_url: emp.photo_url,
@@ -1484,14 +1485,34 @@ const pinMappingForm = reactive({
   employee_id: null as number | null
 })
 
-const employeeSelectOptions = computed(() =>
-  attendances.value.map(a => ({
-    label: `${a.employee?.nama_lengkap} (${a.employee?.nik_kepegawaian || a.employee?.nip || 'Tanpa NIK'})`,
-    value: a.employee_id
-  }))
-)
+const allEmployees = ref<any[]>([])
 
-const openPinMappingModal = (rawItem: string) => {
+const fetchAllEmployees = async () => {
+  try {
+    const data = await api.get<any[]>('/sdm/employees?is_active=true')
+    allEmployees.value = data || []
+  } catch (e) {
+    console.error('Failed to fetch all employees', e)
+  }
+}
+
+const employeeSelectOptions = computed(() => {
+  const source = allEmployees.value.length > 0 ? allEmployees.value : attendances.value
+  return source.map((emp: any) => {
+    const empId = emp.id != null ? emp.id : emp.employee_id
+    const nama = emp.nama_lengkap || emp.name || 'Tanpa Nama'
+    const nip = emp.nip || emp.nik_kepegawaian || '-'
+    const unit = emp.unit?.name || emp.unit_name || ''
+    const unitStr = unit ? ` • ${unit}` : ''
+    return {
+      label: `${nama} (NIP: ${nip}${unitStr})`,
+      value: empId,
+      nama
+    }
+  }).sort((a, b) => a.nama.localeCompare(b.nama))
+})
+
+const openPinMappingModal = async (rawItem: string) => {
   pinMappingForm.rawLabel = rawItem
   // Parse format "NAMA (PIN)"
   const match = rawItem.match(/^(.*)\(([^)]+)\)\s*$/)
@@ -1503,6 +1524,11 @@ const openPinMappingModal = (rawItem: string) => {
     pinMappingForm.fp_nik = rawItem.trim()
   }
   pinMappingForm.employee_id = null
+
+  if (allEmployees.value.length === 0) {
+    await fetchAllEmployees()
+  }
+
   showPinMappingModal.value = true
 }
 
@@ -1603,6 +1629,7 @@ const syncMonthToDate = async () => {
 onMounted(() => {
   fetchGeofenceConfig()
   fetchUnits()
+  fetchAllEmployees()
   fetchData()
   fetchSyncLogs()
 })
