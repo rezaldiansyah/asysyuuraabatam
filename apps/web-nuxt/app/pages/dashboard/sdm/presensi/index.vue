@@ -102,6 +102,16 @@
               class="w-40 text-xs shrink-0" 
               @date-select="fetchData" 
             />
+
+            <!-- Badge jika Memilih Hari Ahad / Libur -->
+            <span 
+              v-if="filterDate && filterDate.getDay() === 0" 
+              class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs font-bold shrink-0"
+              title="Hari Ahad biasanya libur sekolah, presensi dicatat sebagai penugasan / kegiatan khusus"
+            >
+              <i class="pi pi-sun text-amber-600"></i>
+              Hari Ahad (Kegiatan Khusus)
+            </span>
           </div>
 
           <!-- Right: Unit Selector & Compact Action Buttons with Icon + Tooltip -->
@@ -522,7 +532,7 @@
             </template>
           </Column>
 
-          <Column header="Jam Pulang" style="width: 135px">
+          <Column header="Jam Pulang" style="width: 145px">
             <template #body="{ data }">
               <Calendar 
                 v-model="data.check_out" 
@@ -532,6 +542,14 @@
                 class="w-full text-xs"
                 :disabled="isLockedBySystem(data) || !isAttendancePhysical(data.status)"
               />
+              <div 
+                v-if="data.check_out && data.check_out.getHours() >= 18" 
+                class="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 mt-1 flex items-center gap-1 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-900"
+                title="Pulang larut malam di atas jam 18:00 (Lembur)"
+              >
+                <i class="pi pi-moon text-[9px]"></i>
+                Lembur (>18:00)
+              </div>
             </template>
           </Column>
 

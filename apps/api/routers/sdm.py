@@ -1207,6 +1207,24 @@ async def get_employee_attendance_recap(
     def status_str(att):
         return att.status.value if hasattr(att.status, "value") else str(att.status)
 
+    def extract_activity_category(text: str) -> str:
+        if not text:
+            return "Lainnya / Umum"
+        lower = text.lower()
+        if "[lomba]" in lower or "lomba" in lower or "olimpiade" in lower or "tahfidz" in lower or "futsal" in lower:
+            return "Pendampingan Lomba"
+        if "[mabit]" in lower or "mabit" in lower or "keagamaan" in lower or "pesantren" in lower or "halaqah" in lower or "tarbiyah" in lower:
+            return "Kegiatan Keagamaan / Mabit"
+        if "[rapat]" in lower or "rapat" in lower or "dinas" in lower or "yayasan" in lower or "musyawarah" in lower:
+            return "Rapat Dinas / Yayasan"
+        if "[akreditasi]" in lower or "akreditasi" in lower or "rapor" in lower or "asesmen" in lower or "anbk" in lower or "ujian" in lower:
+            return "Akreditasi / Asesmen"
+        if "[piket]" in lower or "piket" in lower or "spmb" in lower or "open house" in lower:
+            return "Piket Sekolah / SPMB"
+        return "Lainnya / Umum"
+
+    day_names_id = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Ahad"]
+
     # Group by employee
     results = []
     for emp in employees:
@@ -1220,12 +1238,19 @@ async def get_employee_attendance_recap(
         a = sum(1 for a in emp_att if status_str(a) == 'ABSENT')
         total = h + s + i + cuti + a
 
-        # Monthly breakdown for trend analysis
+        # Monthly breakdown for trend analysis & Overtime/Sunday logs
         monthly_trend = {}
+        overtime_records = []
+        total_lembur = 0
+        total_ahad = 0
+
         for att in emp_att:
             m_key = att.date.strftime("%Y-%m")
             if m_key not in monthly_trend:
-                monthly_trend[m_key] = {"hadir": 0, "terlambat": 0, "sakit": 0, "izin": 0, "cuti": 0, "alpa": 0, "total": 0}
+                monthly_trend[m_key] = {
+                    "hadir": 0, "terlambat": 0, "sakit": 0, "izin": 0, 
+                    "cuti": 0, "alpa": 0, "total": 0, "lembur": 0, "ahad": 0
+                }
             st = status_str(att)
             if st in ['PRESENT', 'LATE']:
                 monthly_trend[m_key]["hadir"] += 1
@@ -1240,6 +1265,39 @@ async def get_employee_attendance_recap(
             elif st == 'ABSENT':
                 monthly_trend[m_key]["alpa"] += 1
             monthly_trend[m_key]["total"] += 1
+
+            # Check Overtime (Checkout >= 18:00) and Sunday (weekday == 6)
+            is_sunday = att.date.weekday() == 6
+            is_late_checkout = bool(att.check_out and att.check_out.time() >= dt.strptime("18:00", "%H:%M").time())
+            is_active_present = st in ['PRESENT', 'LATE', 'DISPENSATION'] or att.check_in is not None
+
+            if is_sunday and is_active_present:
+                total_ahad += 1
+                monthly_trend[m_key]["ahad"] += 1
+
+            if is_late_checkout:
+                total_lembur += 1
+                monthly_trend[m_key]["lembur"] += 1
+
+            if (is_sunday and is_active_present) or is_late_checkout:
+                combined_text = f"{att.notes or ''} {att.duty_reason or ''}"
+                cat = extract_activity_category(combined_text)
+                overtime_records.append({
+                    "attendance_id": att.id,
+                    "date": att.date.strftime("%Y-%m-%d"),
+                    "day_name": day_names_id[att.date.weekday()],
+                    "is_sunday": is_sunday,
+                    "is_overtime": is_late_checkout,
+                    "check_in": att.check_in.strftime("%H:%M") if att.check_in else "-",
+                    "check_out": att.check_out.strftime("%H:%M") if att.check_out else "-",
+                    "category": cat,
+                    "notes": att.notes or att.duty_reason or "",
+                    "is_duty_outside": bool(att.is_duty_outside),
+                    "status": st
+                })
+
+        # Sort overtime records descending by date
+        overtime_records.sort(key=lambda x: x["date"], reverse=True)
 
         results.append({
             "employee_id": emp.id,
@@ -1256,7 +1314,10 @@ async def get_employee_attendance_recap(
             "alpa": a,
             "total": total,
             "persentase": f"{(h/total*100):.1f}%" if total > 0 else "0.0%",
-            "monthly_trend": monthly_trend
+            "monthly_trend": monthly_trend,
+            "total_lembur": total_lembur,
+            "total_ahad": total_ahad,
+            "overtime_records": overtime_records
         })
 
     return results

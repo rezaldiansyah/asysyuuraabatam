@@ -225,6 +225,17 @@
             </div>
           </div>
 
+          <!-- Banner Peringatan Hari Ahad (Libur) -->
+          <div v-if="!isFullyCompleted && isSunday" class="p-3.5 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
+            <i class="pi pi-info-circle text-amber-600 text-base shrink-0 mt-0.5"></i>
+            <div>
+              <div class="font-bold">Presensi Khusus Hari Ahad (Libur)</div>
+              <div class="mt-0.5 text-slate-600 dark:text-slate-300">
+                Hari ini adalah akhir pekan. Pastikan Anda memilih <b>Kategori Kegiatan</b> di bawah agar kehadiran lembur/penugasan tercatat resmi untuk evaluasi manajemen yayasan.
+              </div>
+            </div>
+          </div>
+
           <!-- Opsi Checkbox Tugas Luar / Dinas / Lomba di Luar Sekolah -->
           <div v-if="!isFullyCompleted" class="p-3.5 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-950/30 space-y-3">
             <div class="flex items-center gap-2.5">
@@ -249,6 +260,27 @@
                 <i class="pi pi-map-marker text-blue-600 mr-1"></i>
                 Koordinat GPS perangkat Anda (<span class="font-mono">{{ userCoords.lat ? userCoords.lat.toFixed(5) + ', ' + userCoords.lng?.toFixed(5) : 'Mendeteksi...' }}</span>) akan dicatat sebagai bukti kehadiran tugas luar dan status otomatis dicatat sebagai <b>Dispensasi / Tugas Luar</b>.
               </div>
+            </div>
+          </div>
+
+          <!-- Kategori Kegiatan (Pilihan Cepat untuk Ahad / Tugas Luar / Lembur) -->
+          <div v-if="!isFullyCompleted" class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Kategori Kegiatan <span class="text-slate-400 font-normal">(Opsional / Penugasan Khusus)</span>
+              </label>
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-for="cat in categoryList"
+                :key="cat.value"
+                type="button"
+                class="px-2.5 py-1 rounded-lg text-xs font-semibold border transition"
+                :class="selectedCategory === cat.value ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'"
+                @click="toggleCategory(cat.value)"
+              >
+                {{ cat.label }}
+              </button>
             </div>
           </div>
 
@@ -344,6 +376,28 @@ const detectingGPS = ref(false)
 const attendanceNotes = ref('')
 const isDutyOutside = ref(false)
 const dutyReason = ref('')
+const selectedCategory = ref('')
+
+const isSunday = computed(() => {
+  return new Date().getDay() === 0
+})
+
+const categoryList = [
+  { label: '🏆 Lomba / Ekskul', value: '[LOMBA]' },
+  { label: '🕌 Mabit / Keagamaan', value: '[MABIT]' },
+  { label: '🏛️ Rapat Dinas / Yayasan', value: '[RAPAT]' },
+  { label: '📝 Akreditasi / Asesmen', value: '[AKREDITASI]' },
+  { label: '🏢 Piket Sekolah / SPMB', value: '[PIKET]' },
+]
+
+function toggleCategory(val: string) {
+  if (selectedCategory.value === val) {
+    selectedCategory.value = ''
+  } else {
+    selectedCategory.value = val
+  }
+}
+
 const currentTime = ref('00:00:00')
 const currentDate = ref('')
 let timerInterval: any = null
@@ -494,13 +548,30 @@ async function handleCheckIn() {
 
   submitting.value = true
   try {
+    let finalDuty = dutyReason.value.trim()
+    let finalNote = attendanceNotes.value.trim()
+
+    if (selectedCategory.value) {
+      if (isDutyOutside.value && finalDuty) {
+        if (!finalDuty.startsWith(selectedCategory.value)) {
+          finalDuty = `${selectedCategory.value} ${finalDuty}`
+        }
+      } else if (finalNote) {
+        if (!finalNote.startsWith(selectedCategory.value)) {
+          finalNote = `${selectedCategory.value} ${finalNote}`
+        }
+      } else {
+        finalNote = selectedCategory.value
+      }
+    }
+
     const res = await api.post<any>('/sdm/attendance/check-in', {
       latitude: userCoords.lat,
       longitude: userCoords.lng,
       device_info: typeof navigator !== 'undefined' ? navigator.userAgent : 'Web Browser',
-      notes: attendanceNotes.value.trim() || undefined,
+      notes: finalNote || undefined,
       is_duty_outside: isDutyOutside.value,
-      duty_reason: dutyReason.value.trim() || undefined
+      duty_reason: finalDuty || undefined
     })
     toast.add({
       severity: 'success',
@@ -510,6 +581,7 @@ async function handleCheckIn() {
     })
     attendanceNotes.value = ''
     dutyReason.value = ''
+    selectedCategory.value = ''
     isDutyOutside.value = false
     await fetchTodayData()
   } catch (e: any) {
@@ -529,13 +601,30 @@ async function handleCheckOut() {
 
   submitting.value = true
   try {
+    let finalDuty = dutyReason.value.trim()
+    let finalNote = attendanceNotes.value.trim()
+
+    if (selectedCategory.value) {
+      if (isDutyOutside.value && finalDuty) {
+        if (!finalDuty.startsWith(selectedCategory.value)) {
+          finalDuty = `${selectedCategory.value} ${finalDuty}`
+        }
+      } else if (finalNote) {
+        if (!finalNote.startsWith(selectedCategory.value)) {
+          finalNote = `${selectedCategory.value} ${finalNote}`
+        }
+      } else {
+        finalNote = selectedCategory.value
+      }
+    }
+
     const res = await api.post<any>('/sdm/attendance/check-out', {
       latitude: userCoords.lat,
       longitude: userCoords.lng,
       device_info: typeof navigator !== 'undefined' ? navigator.userAgent : 'Web Browser',
-      notes: attendanceNotes.value.trim() || undefined,
+      notes: finalNote || undefined,
       is_duty_outside: isDutyOutside.value,
-      duty_reason: dutyReason.value.trim() || undefined
+      duty_reason: finalDuty || undefined
     })
     toast.add({
       severity: 'success',
@@ -544,6 +633,8 @@ async function handleCheckOut() {
       life: 5000
     })
     attendanceNotes.value = ''
+    dutyReason.value = ''
+    selectedCategory.value = ''
     await fetchTodayData()
   } catch (e: any) {
     const msg = e?.data?.detail || 'Gagal melakukan check-out'
