@@ -1158,46 +1158,59 @@ async def create_bulk_employee_attendance(request: schemas.BulkEmployeeAttendanc
 
 @router.get("/attendance/recap")
 async def get_employee_attendance_recap(
-    month: str, # Format YYYY-MM
+    month: Optional[str] = None, # Format YYYY-MM
+    start_date: Optional[str] = None, # Format YYYY-MM-DD
+    end_date: Optional[str] = None, # Format YYYY-MM-DD
     unit_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     from datetime import datetime as dt
     import calendar
-    
-    try:
-        target_month = dt.strptime(month, "%Y-%m")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid month format, use YYYY-MM")
-        
-    start_date = target_month.date()
-    _, last_day = calendar.monthrange(start_date.year, start_date.month)
-    end_date = start_date.replace(day=last_day)
-    
+
+    # Determine date range
+    if start_date and end_date:
+        try:
+            s_date = dt.strptime(start_date, "%Y-%m-%d").date()
+            e_date = dt.strptime(end_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Format start_date/end_date tidak valid. Gunakan YYYY-MM-DD.")
+    elif month:
+        try:
+            target_month = dt.strptime(month, "%Y-%m")
+            s_date = target_month.date()
+            _, last_day = calendar.monthrange(s_date.year, s_date.month)
+            e_date = s_date.replace(day=last_day)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Format month tidak valid. Gunakan YYYY-MM.")
+    else:
+        # Default to current month
+        today = dt.today().date()
+        s_date = today.replace(day=1)
+        _, last_day = calendar.monthrange(today.year, today.month)
+        e_date = today.replace(day=last_day)
+
     # Get all employees
-    emp_query = db.query(models.Employee).filter(models.Employee.is_active == True)
+    emp_query = db.query(models.Employee).options(joinedload(models.Employee.unit)).filter(models.Employee.is_active == True)
     if unit_id:
         emp_query = emp_query.filter(models.Employee.unit_id == unit_id)
-        
     employees = emp_query.all()
-    
-    # Get all attendance records for the month
+
+    # Get all attendance records in date range
     att_query = db.query(models.EmployeeAttendance).filter(
-        models.EmployeeAttendance.date >= start_date,
-        models.EmployeeAttendance.date <= end_date
+        models.EmployeeAttendance.date >= s_date,
+        models.EmployeeAttendance.date <= e_date
     )
     if unit_id:
         att_query = att_query.join(models.Employee).filter(models.Employee.unit_id == unit_id)
-        
     attendances = att_query.all()
-    
+
+    def status_str(att):
+        return att.status.value if hasattr(att.status, "value") else str(att.status)
+
     # Group by employee
     results = []
     for emp in employees:
         emp_att = [a for a in attendances if a.employee_id == emp.id]
-        
-        def status_str(att):
-            return att.status.value if hasattr(att.status, "value") else str(att.status)
 
         h = sum(1 for a in emp_att if status_str(a) in ['PRESENT', 'LATE'])
         terlambat = sum(1 for a in emp_att if status_str(a) == 'LATE')
@@ -1206,11 +1219,35 @@ async def get_employee_attendance_recap(
         cuti = sum(1 for a in emp_att if status_str(a).startswith('LEAVE_'))
         a = sum(1 for a in emp_att if status_str(a) == 'ABSENT')
         total = h + s + i + cuti + a
-        
+
+        # Monthly breakdown for trend analysis
+        monthly_trend = {}
+        for att in emp_att:
+            m_key = att.date.strftime("%Y-%m")
+            if m_key not in monthly_trend:
+                monthly_trend[m_key] = {"hadir": 0, "terlambat": 0, "sakit": 0, "izin": 0, "cuti": 0, "alpa": 0, "total": 0}
+            st = status_str(att)
+            if st in ['PRESENT', 'LATE']:
+                monthly_trend[m_key]["hadir"] += 1
+            if st == 'LATE':
+                monthly_trend[m_key]["terlambat"] += 1
+            elif st == 'SICK':
+                monthly_trend[m_key]["sakit"] += 1
+            elif st in ['PERMIT', 'DISPENSATION']:
+                monthly_trend[m_key]["izin"] += 1
+            elif st.startswith('LEAVE_'):
+                monthly_trend[m_key]["cuti"] += 1
+            elif st == 'ABSENT':
+                monthly_trend[m_key]["alpa"] += 1
+            monthly_trend[m_key]["total"] += 1
+
         results.append({
             "employee_id": emp.id,
             "nama_lengkap": emp.nama_lengkap,
             "nip": emp.nip,
+            "unit_id": emp.unit_id,
+            "unit_name": emp.unit.name if emp.unit else "Tanpa Unit",
+            "position": emp.position or "Staf / Guru",
             "hadir": h,
             "terlambat": terlambat,
             "sakit": s,
@@ -1218,9 +1255,10 @@ async def get_employee_attendance_recap(
             "cuti": cuti,
             "alpa": a,
             "total": total,
-            "persentase": f"{(h/total*100):.1f}%" if total > 0 else "0.0%"
+            "persentase": f"{(h/total*100):.1f}%" if total > 0 else "0.0%",
+            "monthly_trend": monthly_trend
         })
-        
+
     return results
 
 

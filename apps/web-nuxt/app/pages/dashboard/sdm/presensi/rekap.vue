@@ -8,10 +8,10 @@
           Rekapitulasi Presensi Pegawai
         </h1>
         <p class="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
-          Laporan agregat kehadiran, keterlambatan, izin, dan cuti pegawai per bulan.
+          Laporan agregat kehadiran, tren disiplin, dan evaluasi berkala pegawai Asy-Syuuraa.
         </p>
       </div>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <NuxtLink 
           to="/dashboard/sdm/presensi"
           class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 rounded-xl shadow-sm transition"
@@ -20,6 +20,15 @@
           Presensi Harian
         </NuxtLink>
         <Button 
+          label="Analisis & Tren Grafik" 
+          icon="pi pi-chart-line" 
+          severity="primary" 
+          size="small"
+          class="text-xs font-semibold shadow-sm"
+          @click="openAnalyticsModal()" 
+          :disabled="recapData.length === 0" 
+        />
+        <Button 
           label="Export Excel (CSV)" 
           icon="pi pi-file-excel" 
           severity="success" 
@@ -27,57 +36,122 @@
           size="small"
           class="text-xs font-semibold"
           @click="exportExcel" 
-          :disabled="recapData.length === 0 || monthlyStats.totalTercatat === 0" 
+          :disabled="recapData.length === 0 || periodStats.totalTercatat === 0" 
         />
       </div>
     </div>
 
-    <!-- Filter Bar -->
-    <Card>
+    <!-- Filter Bar Card -->
+    <Card class="shadow-sm border border-slate-100 dark:border-slate-800">
       <template #content>
-        <div class="flex flex-wrap gap-4 items-end justify-between">
-          <div class="flex flex-wrap gap-4 items-end">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Pilih Bulan &amp; Tahun</label>
-              <Calendar 
-                v-model="filterMonth" 
-                view="month" 
-                dateFormat="mm/yy" 
-                :showIcon="true" 
-                class="w-48 text-xs" 
-                @date-select="fetchData" 
+        <div class="space-y-4">
+          <!-- Row 1: Mode Periode & Presets -->
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3.5">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Mode Rentang Waktu:</span>
+              <SelectButton
+                v-model="periodMode"
+                :options="periodOptions"
+                optionLabel="label"
+                optionValue="value"
+                :allowEmpty="false"
+                size="small"
+                @change="handlePeriodModeChange"
               />
             </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Pilih Unit Sekolah</label>
-              <Dropdown 
-                v-model="filterUnit" 
-                :options="units" 
-                optionLabel="name" 
-                optionValue="id" 
-                placeholder="Semua Unit" 
-                showClear 
-                class="w-56 text-xs" 
-                @change="fetchData" 
-              />
+            <div class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <i class="pi pi-calendar text-emerald-600"></i>
+              <span>Periode Aktif: <strong class="text-slate-800 dark:text-slate-100">{{ activePeriodLabel }}</strong></span>
             </div>
           </div>
 
-          <div>
-            <Button 
-              label="Tampilkan Laporan" 
-              icon="pi pi-search" 
-              size="small" 
-              class="text-xs font-semibold"
-              @click="fetchData" 
-              :loading="loading" 
-            />
+          <!-- Row 2: Dynamic Filters & Action -->
+          <div class="flex flex-wrap items-end justify-between gap-4">
+            <div class="flex flex-wrap items-end gap-3.5">
+              <!-- Mode 1 Bulan -->
+              <div v-if="periodMode === '1m'">
+                <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Pilih Bulan &amp; Tahun</label>
+                <Calendar 
+                  v-model="filterMonth" 
+                  view="month" 
+                  dateFormat="mm/yy" 
+                  :showIcon="true" 
+                  class="w-44 text-xs" 
+                  @date-select="fetchData" 
+                />
+              </div>
+
+              <!-- Mode 3 Bulan / 6 Bulan -->
+              <div v-else-if="periodMode === '3m' || periodMode === '6m'">
+                <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Sampai Bulan</label>
+                <Calendar 
+                  v-model="filterMonth" 
+                  view="month" 
+                  dateFormat="mm/yy" 
+                  :showIcon="true" 
+                  class="w-44 text-xs" 
+                  @date-select="fetchData" 
+                />
+              </div>
+
+              <!-- Mode Kustom Rentang -->
+              <div v-else-if="periodMode === 'custom'" class="flex items-center gap-2">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Dari Tanggal</label>
+                  <Calendar 
+                    v-model="filterStartDate" 
+                    dateFormat="dd/mm/yy" 
+                    :showIcon="true" 
+                    placeholder="Mulai" 
+                    class="w-36 text-xs" 
+                  />
+                </div>
+                <div class="pt-5 text-slate-400">s/d</div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Sampai Tanggal</label>
+                  <Calendar 
+                    v-model="filterEndDate" 
+                    dateFormat="dd/mm/yy" 
+                    :showIcon="true" 
+                    placeholder="Selesai" 
+                    class="w-36 text-xs" 
+                  />
+                </div>
+              </div>
+
+              <!-- Filter Unit Sekolah -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Pilih Unit Sekolah</label>
+                <Dropdown 
+                  v-model="filterUnit" 
+                  :options="units" 
+                  optionLabel="name" 
+                  optionValue="id" 
+                  placeholder="Semua Unit" 
+                  showClear 
+                  class="w-52 text-xs" 
+                  @change="fetchData" 
+                />
+              </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div>
+              <Button 
+                label="Tampilkan Rekap" 
+                icon="pi pi-search" 
+                size="small" 
+                class="text-xs font-semibold px-4"
+                @click="fetchData" 
+                :loading="loading" 
+              />
+            </div>
           </div>
         </div>
       </template>
     </Card>
 
-    <!-- Monthly KPI Cards -->
+    <!-- Period KPI Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5" v-if="recapData.length > 0">
       <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center shrink-0">
@@ -85,7 +159,7 @@
         </div>
         <div>
           <div class="text-[11px] text-slate-500 font-medium">Total Pegawai</div>
-          <div class="text-lg font-bold text-slate-800 dark:text-white mt-0.5">{{ monthlyStats.totalEmployees }} Orang</div>
+          <div class="text-lg font-bold text-slate-800 dark:text-white mt-0.5">{{ periodStats.totalEmployees }} Orang</div>
         </div>
       </div>
 
@@ -95,7 +169,7 @@
         </div>
         <div>
           <div class="text-[11px] text-slate-500 font-medium">Rata-rata Kehadiran</div>
-          <div class="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{{ monthlyStats.avgPresence }}%</div>
+          <div class="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{{ periodStats.avgPresence }}%</div>
         </div>
       </div>
 
@@ -107,18 +181,18 @@
           <div>
             <div class="text-[11px] text-slate-500 font-medium">Total Hari Hadir</div>
             <div class="text-lg font-bold text-slate-800 dark:text-white mt-0.5 flex items-center gap-1.5">
-              <span>{{ monthlyStats.totalHadir + monthlyStats.totalTerlambat }} Kali</span>
+              <span>{{ periodStats.totalHadir + periodStats.totalTerlambat }} Kali</span>
             </div>
-            <div v-if="monthlyStats.totalTerlambat > 0" class="text-[10px] text-amber-600 font-semibold">
-              {{ monthlyStats.totalTerlambat }}x Terlambat
+            <div v-if="periodStats.totalTerlambat > 0" class="text-[10px] text-amber-600 font-semibold">
+              {{ periodStats.totalTerlambat }}x Terlambat
             </div>
           </div>
         </div>
         <button
-          v-if="monthlyStats.totalTerlambat > 0"
+          v-if="periodStats.totalTerlambat > 0"
           type="button"
           class="w-7 h-7 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 flex items-center justify-center transition shrink-0"
-          title="Lihat pegawai yang pernah terlambat bulan ini"
+          title="Lihat pegawai yang pernah terlambat"
           @click="openRecapModal('terlambat')"
         >
           <i class="pi pi-eye text-xs"></i>
@@ -132,11 +206,11 @@
           </div>
           <div>
             <div class="text-[11px] text-slate-500 font-medium">Izin / Sakit / Cuti</div>
-            <div class="text-lg font-bold text-slate-800 dark:text-white mt-0.5">{{ monthlyStats.totalIzinSakitCuti }} Kali</div>
+            <div class="text-lg font-bold text-slate-800 dark:text-white mt-0.5">{{ periodStats.totalIzinSakitCuti }} Kali</div>
           </div>
         </div>
         <button
-          v-if="monthlyStats.totalIzinSakitCuti > 0"
+          v-if="periodStats.totalIzinSakitCuti > 0"
           type="button"
           class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition shrink-0"
           title="Lihat daftar pegawai Izin / Sakit / Cuti"
@@ -153,11 +227,11 @@
           </div>
           <div>
             <div class="text-[11px] text-rose-600 dark:text-rose-400 font-semibold">Total Alpa (Tanpa Ket.)</div>
-            <div class="text-lg font-bold text-rose-600 dark:text-rose-400 mt-0.5">{{ monthlyStats.totalAlpa }} Kali</div>
+            <div class="text-lg font-bold text-rose-600 dark:text-rose-400 mt-0.5">{{ periodStats.totalAlpa }} Kali</div>
           </div>
         </div>
         <button
-          v-if="monthlyStats.totalAlpa > 0"
+          v-if="periodStats.totalAlpa > 0"
           type="button"
           class="w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition shrink-0"
           title="Lihat daftar pegawai yang memiliki Alpa"
@@ -168,9 +242,9 @@
       </div>
     </div>
 
-    <!-- Empty State Alert when zero records found for the whole month -->
+    <!-- Empty State Alert when zero records found -->
     <div 
-      v-if="hasFetched && monthlyStats.totalTercatat === 0" 
+      v-if="hasFetched && periodStats.totalTercatat === 0" 
       class="p-6 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left"
     >
       <div class="flex items-center gap-4">
@@ -178,9 +252,9 @@
           <i class="pi pi-inbox text-2xl"></i>
         </div>
         <div>
-          <h3 class="font-bold text-slate-800 dark:text-white text-base">Belum Ada Presensi yang Tersimpan untuk Bulan {{ formattedMonth }}</h3>
+          <h3 class="font-bold text-slate-800 dark:text-white text-base">Belum Ada Presensi yang Tersimpan untuk Periode {{ activePeriodLabel }}</h3>
           <p class="text-xs text-amber-800 dark:text-amber-300 mt-1 max-w-xl">
-            Tabel rekap saat ini masih bernilai 0 karena belum ada rekaman kehadiran harian yang disimpan di menu <b>Presensi Harian</b> untuk bulan ini.
+            Tabel rekap saat ini masih bernilai 0 karena belum ada rekaman kehadiran harian yang tersimpan pada rentang waktu yang dipilih.
           </p>
         </div>
       </div>
@@ -193,17 +267,21 @@
       </NuxtLink>
     </div>
 
-    <!-- Data Table -->
+    <!-- Data Table Card with Page Size Options [20, 50, 100] -->
     <Card v-if="recapData.length > 0">
       <template #content>
         <div class="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
           <div>
-            <h2 class="font-bold text-base text-slate-800 dark:text-white">Laporan Presensi Bulan: {{ formattedMonth }}</h2>
-            <p class="text-xs text-slate-400 mt-0.5">Rekapitulasi otomatis dari check-in GPS mandiri dan verifikasi TU.</p>
+            <h2 class="font-bold text-base text-slate-800 dark:text-white">Laporan Presensi: {{ activePeriodLabel }}</h2>
+            <p class="text-xs text-slate-400 mt-0.5">
+              Rekapitulasi otomatis dari fingerprint &amp; presensi mandiri GPS. Pilih baris per halaman (20 / 50 / 100) di bawah.
+            </p>
           </div>
-          <span class="text-xs text-slate-500 font-medium bg-slate-100 dark:bg-slate-700 px-2.5 py-1 rounded-full">
-            {{ recapData.length }} Pegawai Aktif
-          </span>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-500 font-medium bg-slate-100 dark:bg-slate-700 px-2.5 py-1 rounded-full">
+              {{ recapData.length }} Pegawai Aktif
+            </span>
+          </div>
         </div>
         
         <DataTable 
@@ -211,15 +289,20 @@
           :loading="loading" 
           paginator 
           :rows="20" 
+          :rowsPerPageOptions="[20, 50, 100]"
           dataKey="employee_id" 
           class="p-datatable-sm" 
           stripedRows 
           responsiveLayout="scroll"
         >
-          <Column field="nama_lengkap" header="Nama Pegawai" sortable style="min-width: 220px">
+          <Column field="nama_lengkap" header="Nama Pegawai" sortable style="min-width: 240px">
             <template #body="{ data }">
               <div class="font-semibold text-slate-800 dark:text-white">{{ data.nama_lengkap }}</div>
-              <div class="text-xs text-slate-400">NIP: {{ data.nip || '-' }}</div>
+              <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                <span>NIP: {{ data.nip || '-' }}</span>
+                <span>&bull;</span>
+                <span class="text-emerald-700 dark:text-emerald-400 font-medium">{{ data.unit_name }}</span>
+              </div>
             </template>
           </Column>
 
@@ -259,13 +342,13 @@
             </template>
           </Column>
 
-          <Column field="total" header="Total Hari" sortable style="width: 110px">
+          <Column field="total" header="Total Hari" sortable style="width: 100px">
             <template #body="{ data }">
               <span class="font-bold text-slate-700 dark:text-slate-200">{{ data.total }}</span>
             </template>
           </Column>
 
-          <Column field="persentase" header="Tingkat Kehadiran" sortable style="min-width: 160px">
+          <Column field="persentase" header="Tingkat Kehadiran" sortable style="min-width: 150px">
             <template #body="{ data }">
               <div class="space-y-1">
                 <div class="flex justify-between text-[11px] font-semibold">
@@ -279,6 +362,19 @@
               </div>
             </template>
           </Column>
+
+          <Column header="Tren" style="width: 70px" bodyClass="text-center">
+            <template #body="{ data }">
+              <button 
+                type="button" 
+                class="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-700 transition"
+                title="Lihat grafik tren individu"
+                @click="openAnalyticsModal(data.employee_id)"
+              >
+                <i class="pi pi-chart-line text-sm"></i>
+              </button>
+            </template>
+          </Column>
         </DataTable>
       </template>
     </Card>
@@ -288,8 +384,7 @@
       v-model:visible="showRecapModal"
       :header="recapModalTitle"
       :modal="true"
-      :style="{ width: '36rem' }"
-      :breakpoints="{ '640px': '95vw' }"
+      :style="{ width: '38rem', maxWidth: '95vw' }"
     >
       <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
         <div
@@ -299,7 +394,11 @@
         >
           <div>
             <div class="font-bold text-sm text-slate-800 dark:text-white">{{ emp.nama_lengkap }}</div>
-            <div class="text-xs text-slate-400">NIP: {{ emp.nip || '-' }}</div>
+            <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+              <span>NIP: {{ emp.nip || '-' }}</span>
+              <span>&bull;</span>
+              <span class="text-slate-600 dark:text-slate-300 font-medium">{{ emp.unit_name }}</span>
+            </div>
           </div>
           <div class="flex items-center gap-1.5 text-xs font-bold">
             <span v-if="recapModalType === 'terlambat'" class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700">
@@ -320,6 +419,278 @@
         <Button label="Tutup" icon="pi pi-times" severity="secondary" text size="small" @click="showRecapModal = false" />
       </template>
     </Dialog>
+
+    <!-- Dialog Pop-Up Analisis & Tren Grafik Dinamis -->
+    <Dialog
+      v-model:visible="showAnalyticsModal"
+      :modal="true"
+      :style="{ width: '64rem', maxWidth: '96vw' }"
+      :breakpoints="{ '960px': '95vw', '640px': '98vw' }"
+    >
+      <template #header>
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <i class="pi pi-chart-line text-lg"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800 dark:text-white">Analisis &amp; Tren Presensi Pegawai</h3>
+            <p class="text-xs text-slate-400">Periode: {{ activePeriodLabel }}</p>
+          </div>
+        </div>
+      </template>
+
+      <div class="space-y-6 pt-1 max-h-[75vh] overflow-y-auto pr-1">
+        <!-- Controls Inside Analytics Modal: Filter Unit & Pegawai -->
+        <div class="bg-slate-50 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-3">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Filter Unit</label>
+              <Dropdown 
+                v-model="analyticsUnit" 
+                :options="analyticsUnitOptions" 
+                optionLabel="label" 
+                optionValue="value" 
+                placeholder="Semua Unit" 
+                class="w-48 text-xs" 
+                @change="onAnalyticsFilterChange"
+              />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Fokus Tampilan</label>
+              <Dropdown 
+                v-model="analyticsEmployeeId" 
+                :options="analyticsEmployeeOptions" 
+                optionLabel="label" 
+                optionValue="value" 
+                placeholder="Semua Pegawai (Tren Agregat)" 
+                filter 
+                filterPlaceholder="Cari nama pegawai..."
+                class="w-64 text-xs" 
+              />
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+              {{ filteredAnalyticsEmployees.length }} Pegawai Dianalisis
+            </span>
+          </div>
+        </div>
+
+        <!-- Detail Profile Card jika memilih 1 Pegawai Spesifik -->
+        <div v-if="selectedEmployeeDetail" class="p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+              {{ selectedEmployeeDetail.nama_lengkap.charAt(0) }}
+            </div>
+            <div>
+              <div class="font-bold text-base text-slate-800 dark:text-white">{{ selectedEmployeeDetail.nama_lengkap }}</div>
+              <div class="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                <span>NIP: {{ selectedEmployeeDetail.nip || '-' }}</span>
+                <span>&bull;</span>
+                <span class="font-semibold text-emerald-700 dark:text-emerald-400">{{ selectedEmployeeDetail.unit_name }}</span>
+                <span>&bull;</span>
+                <span>{{ selectedEmployeeDetail.position }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="text-right">
+              <div class="text-[11px] text-slate-500">Tingkat Kehadiran</div>
+              <div class="text-xl font-black text-emerald-600 dark:text-emerald-400">{{ selectedEmployeeDetail.persentase }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Metric Strip (Dynamic according to selection) -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center">
+            <div class="text-xs text-slate-500 font-medium">Rata-rata Kehadiran</div>
+            <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{{ analyticsStats.avgPresence }}%</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">{{ analyticsStats.totalHadir }} hari hadir</div>
+          </div>
+          <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center">
+            <div class="text-xs text-slate-500 font-medium">Total Terlambat</div>
+            <div class="text-2xl font-black text-amber-600 mt-1">{{ analyticsStats.totalTerlambat }}x</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">Rasio: {{ analyticsStats.lateRate }}%</div>
+          </div>
+          <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center">
+            <div class="text-xs text-slate-500 font-medium">Izin / Sakit / Cuti</div>
+            <div class="text-2xl font-black text-blue-600 mt-1">{{ analyticsStats.totalIzinSakitCuti }}x</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">Disetujui manajemen</div>
+          </div>
+          <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center">
+            <div class="text-xs text-slate-500 font-medium">Total Alpa (Bolos)</div>
+            <div class="text-2xl font-black text-rose-600 mt-1">{{ analyticsStats.totalAlpa }}x</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">Perlu perhatian</div>
+          </div>
+        </div>
+
+        <!-- Visual Multi-Month Bar Trend Chart -->
+        <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <h4 class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
+              <i class="pi pi-chart-bar text-emerald-600"></i>
+              Grafik Tren Presensi per Bulan
+            </h4>
+            <div class="flex items-center gap-3 text-[11px] text-slate-500">
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Hadir Tepat</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Terlambat</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Izin/Skt</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Alpa</span>
+            </div>
+          </div>
+
+          <!-- Trend Bars Container -->
+          <div class="space-y-3.5 pt-1">
+            <div 
+              v-for="monthItem in monthlyTrendList" 
+              :key="monthItem.monthKey"
+              class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 space-y-2"
+            >
+              <div class="flex items-center justify-between text-xs">
+                <div class="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                  <span>{{ monthItem.monthLabel }}</span>
+                  <span class="text-[10px] font-semibold text-emerald-700 bg-emerald-100 dark:bg-emerald-950/70 px-2 py-0.5 rounded-full">
+                    Kehadiran: {{ monthItem.presencePct }}%
+                  </span>
+                </div>
+                <div class="text-[11px] text-slate-500 font-medium flex items-center gap-3">
+                  <span class="text-emerald-600 font-bold">{{ monthItem.hadir }} Hadir</span>
+                  <span v-if="monthItem.terlambat > 0" class="text-amber-600 font-semibold">{{ monthItem.terlambat }} Telat</span>
+                  <span v-if="monthItem.izinSakit > 0" class="text-blue-600 font-semibold">{{ monthItem.izinSakit }} Izin/Skt</span>
+                  <span v-if="monthItem.alpa > 0" class="text-rose-600 font-bold">{{ monthItem.alpa }} Alpa</span>
+                </div>
+              </div>
+
+              <!-- Proportional Stacked Progress Bar -->
+              <div class="h-3.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden flex">
+                <div 
+                  :style="{ width: `${monthItem.hadirPct}%` }" 
+                  class="bg-emerald-500 transition-all duration-300" 
+                  title="Hadir Tepat"
+                ></div>
+                <div 
+                  :style="{ width: `${monthItem.terlambatPct}%` }" 
+                  class="bg-amber-400 transition-all duration-300" 
+                  title="Terlambat"
+                ></div>
+                <div 
+                  :style="{ width: `${monthItem.izinSakitPct}%` }" 
+                  class="bg-blue-400 transition-all duration-300" 
+                  title="Izin / Sakit / Cuti"
+                ></div>
+                <div 
+                  :style="{ width: `${monthItem.alpaPct}%` }" 
+                  class="bg-rose-500 transition-all duration-300" 
+                  title="Alpa"
+                ></div>
+              </div>
+            </div>
+
+            <div v-if="monthlyTrendList.length === 0" class="text-center py-6 text-slate-400 text-xs">
+              Belum ada riwayat per bulan pada periode ini.
+            </div>
+          </div>
+        </div>
+
+        <!-- Komparasi Antar Unit (Only when viewing All Employees) -->
+        <div v-if="!analyticsEmployeeId && unitComparisonList.length > 1" class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-3.5">
+          <div class="flex items-center justify-between">
+            <h4 class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
+              <i class="pi pi-building text-blue-600"></i>
+              Komparasi Tingkat Disiplin Antar Unit
+            </h4>
+            <span class="text-[11px] text-slate-400">Benchmark Kedisiplinan Staf</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div 
+              v-for="u in unitComparisonList" 
+              :key="u.unit_name" 
+              class="p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-2"
+            >
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-slate-800 dark:text-white">{{ u.unit_name }}</span>
+                <span class="font-extrabold text-emerald-600 dark:text-emerald-400">{{ u.avgPresence }}%</span>
+              </div>
+              <ProgressBar :value="parseFloat(u.avgPresence) || 0" :showValue="false" class="!h-2" />
+              <div class="flex items-center justify-between text-[10px] text-slate-500">
+                <span>{{ u.count }} Staf</span>
+                <span class="text-amber-600 font-semibold">{{ u.totalTerlambat }}x Terlambat</span>
+                <span class="text-rose-600 font-semibold">{{ u.totalAlpa }}x Alpa</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Peringkat Disiplin: Teladan & Perlu Pembinaan (Only when viewing All Employees) -->
+        <div v-if="!analyticsEmployeeId && filteredAnalyticsEmployees.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Top Kehadiran Teladan -->
+          <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
+            <div class="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+              <i class="pi pi-star-fill text-amber-500"></i>
+              <h4 class="font-bold text-xs uppercase tracking-wider">Top 5 Disiplin Tertinggi</h4>
+            </div>
+            <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
+              <div 
+                v-for="(emp, idx) in topDisciplineList" 
+                :key="emp.employee_id"
+                class="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 text-xs"
+              >
+                <div class="flex items-center gap-2.5">
+                  <span class="w-5 h-5 rounded-full bg-emerald-200 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center justify-center shrink-0">
+                    {{ idx + 1 }}
+                  </span>
+                  <div>
+                    <div class="font-bold text-slate-800 dark:text-white">{{ emp.nama_lengkap }}</div>
+                    <div class="text-[10px] text-slate-400">{{ emp.unit_name }} &bull; {{ emp.position }}</div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="font-bold text-emerald-600">{{ emp.persentase }}</div>
+                  <div class="text-[10px] text-slate-400">{{ emp.hadir }}x Hadir</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Perlu Pembinaan -->
+          <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
+            <div class="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+              <i class="pi pi-exclamation-triangle text-rose-500"></i>
+              <h4 class="font-bold text-xs uppercase tracking-wider">Perlu Perhatian / Pembinaan</h4>
+            </div>
+            <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
+              <div 
+                v-for="emp in needsAttentionList" 
+                :key="emp.employee_id"
+                class="flex items-center justify-between p-2.5 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/40 text-xs"
+              >
+                <div>
+                  <div class="font-bold text-slate-800 dark:text-white">{{ emp.nama_lengkap }}</div>
+                  <div class="text-[10px] text-slate-400">{{ emp.unit_name }} &bull; {{ emp.position }}</div>
+                </div>
+                <div class="flex items-center gap-1.5 font-bold">
+                  <span v-if="emp.alpa > 0" class="px-2 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px]">
+                    {{ emp.alpa }}x Alpa
+                  </span>
+                  <span v-if="emp.terlambat > 0" class="px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px]">
+                    {{ emp.terlambat }}x Telat
+                  </span>
+                </div>
+              </div>
+              <div v-if="needsAttentionList.length === 0" class="text-center py-4 text-xs text-emerald-600 font-semibold">
+                Tidak ada staf dengan catatan alpa atau keterlambatan berlebih pada periode ini.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <Button label="Tutup" icon="pi pi-times" severity="secondary" text size="small" @click="showAnalyticsModal = false" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -332,44 +703,74 @@ definePageMeta({ layout: 'dashboard' })
 const toast = useToast()
 const api = useApi()
 
+// Period Filter State
+const periodMode = ref<'1m' | '3m' | '6m' | 'custom'>('1m')
+const periodOptions = [
+  { label: '1 Bulan', value: '1m' },
+  { label: '3 Bulan (Kuartal)', value: '3m' },
+  { label: '6 Bulan (Semester)', value: '6m' },
+  { label: 'Kustom Rentang', value: 'custom' }
+]
+
 const filterMonth = ref(new Date())
-const filterUnit = ref(null)
+const filterStartDate = ref<Date | null>(null)
+const filterEndDate = ref<Date | null>(null)
+const filterUnit = ref<number | null>(null)
+
 const units = ref<any[]>([])
 const recapData = ref<any[]>([])
 const loading = ref(false)
 const hasFetched = ref(false)
 
+// Quick View Modal
 const showRecapModal = ref(false)
 const recapModalType = ref<'terlambat' | 'izin_sakit_cuti' | 'alpa'>('alpa')
 
-const recapModalTitle = computed(() => {
-  if (recapModalType.value === 'terlambat') return `Daftar Pegawai Terlambat — ${formattedMonth.value}`
-  if (recapModalType.value === 'izin_sakit_cuti') return `Daftar Pegawai Izin / Sakit / Cuti — ${formattedMonth.value}`
-  return `Daftar Pegawai Alpa (Tanpa Keterangan) — ${formattedMonth.value}`
-})
+// Analytics Modal State
+const showAnalyticsModal = ref(false)
+const analyticsUnit = ref<number | null>(null)
+const analyticsEmployeeId = ref<number | null>(null)
 
-const recapModalList = computed(() => {
-  const list = recapData.value || []
-  if (recapModalType.value === 'terlambat') {
-    return list.filter(i => (i.terlambat || 0) > 0).sort((a, b) => (b.terlambat || 0) - (a.terlambat || 0))
+function handlePeriodModeChange() {
+  if (periodMode.value === 'custom') {
+    if (!filterStartDate.value) {
+      const now = new Date()
+      filterStartDate.value = new Date(now.getFullYear(), now.getMonth(), 1)
+      filterEndDate.value = now
+    }
   }
-  if (recapModalType.value === 'izin_sakit_cuti') {
-    return list.filter(i => ((i.sakit || 0) + (i.izin || 0) + (i.cuti || 0)) > 0)
-  }
-  return list.filter(i => (i.alpa || 0) > 0).sort((a, b) => (b.alpa || 0) - (a.alpa || 0))
-})
-
-function openRecapModal(type: 'terlambat' | 'izin_sakit_cuti' | 'alpa') {
-  recapModalType.value = type
-  showRecapModal.value = true
+  fetchData()
 }
 
-const formattedMonth = computed(() => {
-  if (!filterMonth.value) return ''
-  return filterMonth.value.toLocaleDateString('id-ID', { year: 'numeric', month: 'long' })
+// Compute active period string for header/badge
+const activePeriodLabel = computed(() => {
+  const d = filterMonth.value || new Date()
+  const monthNames = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ]
+
+  if (periodMode.value === '1m') {
+    return `${monthNames[d.getMonth()]} ${d.getFullYear()}`
+  } else if (periodMode.value === '3m' || periodMode.value === '6m') {
+    const span = periodMode.value === '3m' ? 3 : 6
+    const eYear = d.getFullYear()
+    const eMonth = d.getMonth()
+    const startD = new Date(eYear, eMonth - span + 1, 1)
+    return `${monthNames[startD.getMonth()]} ${startD.getFullYear()} - ${monthNames[eMonth]} ${eYear} (${span} Bulan)`
+  } else if (periodMode.value === 'custom') {
+    if (filterStartDate.value && filterEndDate.value) {
+      const s = filterStartDate.value.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+      const e = filterEndDate.value.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+      return `${s} s/d ${e}`
+    }
+    return 'Kustom Rentang'
+  }
+  return ''
 })
 
-const monthlyStats = computed(() => {
+// Period summary statistics
+const periodStats = computed(() => {
   const list = recapData.value || []
   const totalEmployees = list.length
   let totalHadir = 0
@@ -396,6 +797,30 @@ const monthlyStats = computed(() => {
   return { totalEmployees, totalHadir, totalTerlambat, totalIzinSakitCuti, totalAlpa, totalTercatat, avgPresence }
 })
 
+// Quick View Modal helpers
+const recapModalTitle = computed(() => {
+  if (recapModalType.value === 'terlambat') return `Daftar Pegawai Terlambat — ${activePeriodLabel.value}`
+  if (recapModalType.value === 'izin_sakit_cuti') return `Daftar Pegawai Izin / Sakit / Cuti — ${activePeriodLabel.value}`
+  return `Daftar Pegawai Alpa (Tanpa Keterangan) — ${activePeriodLabel.value}`
+})
+
+const recapModalList = computed(() => {
+  const list = recapData.value || []
+  if (recapModalType.value === 'terlambat') {
+    return list.filter(i => (i.terlambat || 0) > 0).sort((a, b) => (b.terlambat || 0) - (a.terlambat || 0))
+  }
+  if (recapModalType.value === 'izin_sakit_cuti') {
+    return list.filter(i => ((i.sakit || 0) + (i.izin || 0) + (i.cuti || 0)) > 0)
+  }
+  return list.filter(i => (i.alpa || 0) > 0).sort((a, b) => (b.alpa || 0) - (a.alpa || 0))
+})
+
+function openRecapModal(type: 'terlambat' | 'izin_sakit_cuti' | 'alpa') {
+  recapModalType.value = type
+  showRecapModal.value = true
+}
+
+// Fetch Units
 const fetchUnits = async () => {
   try {
     const data = await api.get<any[]>('/units')
@@ -405,19 +830,47 @@ const fetchUnits = async () => {
   }
 }
 
+// Fetch Data with Multi-Month support
 const fetchData = async () => {
-  if (!filterMonth.value) return
-  
   loading.value = true
   try {
-    const d = filterMonth.value
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const monthStr = `${year}-${month}`
-    
-    const query = new URLSearchParams({ month: monthStr })
-    if (filterUnit.value) query.append('unit_id', filterUnit.value)
-    
+    const query = new URLSearchParams()
+    if (filterUnit.value) query.append('unit_id', String(filterUnit.value))
+
+    if (periodMode.value === '1m') {
+      const d = filterMonth.value || new Date()
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      query.append('month', `${year}-${month}`)
+    } else if (periodMode.value === '3m' || periodMode.value === '6m') {
+      const span = periodMode.value === '3m' ? 3 : 6
+      const endD = filterMonth.value || new Date()
+      const eYear = endD.getFullYear()
+      const eMonth = endD.getMonth()
+      const lastDay = new Date(eYear, eMonth + 1, 0).getDate()
+      const endDateStr = `${eYear}-${String(eMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+      const startD = new Date(eYear, eMonth - span + 1, 1)
+      const sYear = startD.getFullYear()
+      const sMonth = startD.getMonth()
+      const startDateStr = `${sYear}-${String(sMonth + 1).padStart(2, '0')}-01`
+
+      query.append('start_date', startDateStr)
+      query.append('end_date', endDateStr)
+    } else if (periodMode.value === 'custom') {
+      if (!filterStartDate.value || !filterEndDate.value) {
+        toast.add({ severity: 'warn', summary: 'Periode Belum Lengkap', detail: 'Pilih tanggal mulai dan tanggal akhir', life: 3000 })
+        loading.value = false
+        return
+      }
+      const sD = filterStartDate.value
+      const eD = filterEndDate.value
+      const sStr = `${sD.getFullYear()}-${String(sD.getMonth() + 1).padStart(2, '0')}-${String(sD.getDate()).padStart(2, '0')}`
+      const eStr = `${eD.getFullYear()}-${String(eD.getMonth() + 1).padStart(2, '0')}-${String(eD.getDate()).padStart(2, '0')}`
+      query.append('start_date', sStr)
+      query.append('end_date', eStr)
+    }
+
     const data = await api.get<any[]>(`/sdm/attendance/recap?${query.toString()}`)
     recapData.value = data || []
     hasFetched.value = true
@@ -429,11 +882,185 @@ const fetchData = async () => {
   }
 }
 
+// ------------------- ANALYTICS MODAL LOGIC -------------------
+function openAnalyticsModal(empId?: number) {
+  analyticsUnit.value = filterUnit.value || null
+  analyticsEmployeeId.value = empId || null
+  showAnalyticsModal.value = true
+}
+
+function onAnalyticsFilterChange() {
+  analyticsEmployeeId.value = null
+}
+
+const analyticsUnitOptions = computed(() => {
+  return [
+    { label: 'Semua Unit', value: null },
+    ...units.value.map(u => ({ label: u.name, value: u.id }))
+  ]
+})
+
+const analyticsEmployeeOptions = computed(() => {
+  let list = recapData.value || []
+  if (analyticsUnit.value) {
+    list = list.filter(e => e.unit_id === analyticsUnit.value)
+  }
+  return [
+    { label: 'Semua Pegawai (Tren Agregat)', value: null },
+    ...list.map(e => ({ label: `${e.nama_lengkap} (${e.unit_name})`, value: e.employee_id }))
+  ]
+})
+
+const filteredAnalyticsEmployees = computed(() => {
+  let list = recapData.value || []
+  if (analyticsUnit.value) {
+    list = list.filter(e => e.unit_id === analyticsUnit.value)
+  }
+  if (analyticsEmployeeId.value) {
+    list = list.filter(e => e.employee_id === analyticsEmployeeId.value)
+  }
+  return list
+})
+
+const selectedEmployeeDetail = computed(() => {
+  if (!analyticsEmployeeId.value) return null
+  return (recapData.value || []).find(e => e.employee_id === analyticsEmployeeId.value) || null
+})
+
+const analyticsStats = computed(() => {
+  const list = filteredAnalyticsEmployees.value
+  let totalHadir = 0
+  let totalTerlambat = 0
+  let totalIzinSakitCuti = 0
+  let totalAlpa = 0
+  let totalTercatat = 0
+  let sumPct = 0
+
+  for (const item of list) {
+    totalHadir += (item.hadir || 0)
+    totalTerlambat += (item.terlambat || 0)
+    totalIzinSakitCuti += (item.sakit || 0) + (item.izin || 0) + (item.cuti || 0)
+    totalAlpa += (item.alpa || 0)
+    totalTercatat += (item.total || 0)
+    sumPct += parseFloat(item.persentase) || 0
+  }
+
+  const avgPresence = list.length > 0 && totalTercatat > 0 ? (sumPct / list.length).toFixed(1) : '0.0'
+  const lateRate = (totalHadir + totalTerlambat) > 0 ? ((totalTerlambat / (totalHadir + totalTerlambat)) * 100).toFixed(1) : '0.0'
+
+  return { totalHadir, totalTerlambat, totalIzinSakitCuti, totalAlpa, totalTercatat, avgPresence, lateRate }
+})
+
+// Monthly Trend breakdown for visual chart
+const monthlyTrendList = computed(() => {
+  const list = filteredAnalyticsEmployees.value
+  const monthMap: Record<string, { hadir: number, terlambat: number, sakit: number, izin: number, cuti: number, alpa: number, total: number }> = {}
+
+  for (const emp of list) {
+    const trend = emp.monthly_trend || {}
+    for (const [mKey, val] of Object.entries<any>(trend)) {
+      if (!monthMap[mKey]) {
+        monthMap[mKey] = { hadir: 0, terlambat: 0, sakit: 0, izin: 0, cuti: 0, alpa: 0, total: 0 }
+      }
+      monthMap[mKey].hadir += (val.hadir || 0)
+      monthMap[mKey].terlambat += (val.terlambat || 0)
+      monthMap[mKey].sakit += (val.sakit || 0)
+      monthMap[mKey].izin += (val.izin || 0)
+      monthMap[mKey].cuti += (val.cuti || 0)
+      monthMap[mKey].alpa += (val.alpa || 0)
+      monthMap[mKey].total += (val.total || 0)
+    }
+  }
+
+  const sortedKeys = Object.keys(monthMap).sort()
+  const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+
+  return sortedKeys.map(key => {
+    const [yStr, mStr] = key.split('-')
+    const mIdx = parseInt(mStr, 10)
+    const mLabel = `${monthNames[mIdx] || mStr} ${yStr}`
+
+    const item = monthMap[key]
+    const hadirTepat = Math.max(0, item.hadir - item.terlambat)
+    const izinSakit = item.sakit + item.izin + item.cuti
+    const grandTotal = item.total > 0 ? item.total : (item.hadir + izinSakit + item.alpa)
+
+    const presencePct = grandTotal > 0 ? ((item.hadir / grandTotal) * 100).toFixed(1) : '0.0'
+
+    const hadirPct = grandTotal > 0 ? (hadirTepat / grandTotal) * 100 : 0
+    const terlambatPct = grandTotal > 0 ? (item.terlambat / grandTotal) * 100 : 0
+    const izinSakitPct = grandTotal > 0 ? (izinSakit / grandTotal) * 100 : 0
+    const alpaPct = grandTotal > 0 ? (item.alpa / grandTotal) * 100 : 0
+
+    return {
+      monthKey: key,
+      monthLabel: mLabel,
+      hadir: item.hadir,
+      terlambat: item.terlambat,
+      izinSakit,
+      alpa: item.alpa,
+      total: grandTotal,
+      presencePct,
+      hadirPct,
+      terlambatPct,
+      izinSakitPct,
+      alpaPct
+    }
+  })
+})
+
+// Unit comparison list
+const unitComparisonList = computed(() => {
+  const list = recapData.value || []
+  const group: Record<string, { unit_name: string, count: number, sumPct: number, totalTerlambat: number, totalAlpa: number }> = {}
+
+  for (const emp of list) {
+    const uName = emp.unit_name || 'Tanpa Unit'
+    if (!group[uName]) {
+      group[uName] = { unit_name: uName, count: 0, sumPct: 0, totalTerlambat: 0, totalAlpa: 0 }
+    }
+    group[uName].count += 1
+    group[uName].sumPct += parseFloat(emp.persentase) || 0
+    group[uName].totalTerlambat += (emp.terlambat || 0)
+    group[uName].totalAlpa += (emp.alpa || 0)
+  }
+
+  return Object.values(group).map(g => ({
+    unit_name: g.unit_name,
+    count: g.count,
+    avgPresence: g.count > 0 ? (g.sumPct / g.count).toFixed(1) : '0.0',
+    totalTerlambat: g.totalTerlambat,
+    totalAlpa: g.totalAlpa
+  })).sort((a, b) => parseFloat(b.avgPresence) - parseFloat(a.avgPresence))
+})
+
+// Top Discipline List
+const topDisciplineList = computed(() => {
+  return [...filteredAnalyticsEmployees.value]
+    .sort((a, b) => {
+      const diff = parseFloat(b.persentase) - parseFloat(a.persentase)
+      if (diff !== 0) return diff
+      return (a.terlambat || 0) - (b.terlambat || 0)
+    })
+    .slice(0, 5)
+})
+
+// Needs Attention List
+const needsAttentionList = computed(() => {
+  return [...filteredAnalyticsEmployees.value]
+    .filter(e => (e.alpa || 0) > 0 || (e.terlambat || 0) >= 3)
+    .sort((a, b) => ((b.alpa || 0) * 3 + (b.terlambat || 0)) - ((a.alpa || 0) * 3 + (a.terlambat || 0)))
+    .slice(0, 5)
+})
+
+// Export to Excel/CSV
 const exportExcel = () => {
-  const headers = ['Nama Pegawai', 'NIP', 'Hadir Tepat', 'Terlambat', 'Sakit', 'Izin', 'Cuti', 'Alpa', 'Total Hari', 'Persentase Hadir']
+  const headers = ['Nama Pegawai', 'NIP', 'Unit', 'Jabatan', 'Hadir Tepat', 'Terlambat', 'Sakit', 'Izin', 'Cuti', 'Alpa', 'Total Hari', 'Persentase Hadir']
   const rows = recapData.value.map((r: any) => [
     `"${r.nama_lengkap}"`, 
     `"${r.nip || '-'}"`, 
+    `"${r.unit_name || '-'}"`,
+    `"${r.position || '-'}"`,
     r.hadir, 
     r.terlambat || 0,
     r.sakit, 
@@ -451,7 +1078,7 @@ const exportExcel = () => {
   const encodedUri = encodeURI(csvContent)
   const link = document.createElement("a")
   link.setAttribute("href", encodedUri)
-  const filename = `Rekap_Presensi_${formattedMonth.value.replace(/\s+/g, '_')}.csv`
+  const filename = `Rekap_Presensi_${activePeriodLabel.value.replace(/[^a-zA-Z0-9]/g, '_')}.csv`
   link.setAttribute("download", filename)
   document.body.appendChild(link)
   link.click()
