@@ -597,6 +597,7 @@
       modal 
       :style="{ width: '780px', maxWidth: '95vw' }"
     >
+      <div class="space-y-4">
         <!-- Toolbar Penarikan Data Massal (Bulk Sync Range) -->
         <div class="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 text-xs">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
