@@ -1562,7 +1562,7 @@ const fetchData = async () => {
 const fetchSyncLogs = async () => {
   loadingSyncLogs.value = true
   try {
-    const data = await api.get<any[]>('/sdm/attendance/sync-logs?limit=30')
+    const data = await api.get<any[]>('/sdm/attendance/sync-logs?limit=100')
     syncLogs.value = data || []
   } catch (e) {
     console.error('Failed to fetch sync logs:', e)

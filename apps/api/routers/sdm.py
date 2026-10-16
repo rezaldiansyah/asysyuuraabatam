@@ -637,7 +637,7 @@ async def get_employee_computed(employee_id: int, db: Session = Depends(get_db))
         "lama_kerja_pensiun": lama_pensiun
     }
 
-_DEGREE_RE = re.compile(r"\b(s\.?\s?pd(\.?\s?i)?|m\.?\s?pd(\.?\s?i)?|s\.?\s?e(\.?i)?|s\.?\s?si|s\.?\s?kom|s\.?\s?ag|m\.?\s?ag|s\.?\s?sos|m\.?\s?si|m\.?\s?m|lc|s\.?\s?h|s\.?\s?psi|s\.?\s?hum|s\.?\s?t|a\.?\s?md|gr|aud|dr|drs|hj|h|ust|ustadz|ustadzah)\b\.?", re.I)
+_DEGREE_RE = re.compile(r"\b(s\.?\s?pd(\.?\s?i)?|m\.?\s?pd(\.?\s?i)?|s\.?\s?e(\.?i)?|s\.?\s?si|s\.?\s?kom|s\.?\s?ag|m\.?\s?ag|s\.?\s?sos|m\.?\s?si|m\.?\s?m|lc|s\.?\s?h|s\.?\s?psi|s\.?\s?hum|s\.?\s?t|s\.?\s?s|s\.?\s?p|s\.?\s?pt|s\.?\s?ked|s\.?\s?farm|a\.?\s?md|gr|aud|dr|drs|hj|h|ust|ustadz|ustadzah)\b\.?", re.I)
 
 def _norm_person_name(name: Optional[str]) -> str:
     if not name:
@@ -645,17 +645,29 @@ def _norm_person_name(name: Optional[str]) -> str:
     s = name.lower()
     # Strip apostrophes / glottal stops (e.g. Sa'adi -> Saadi, Syafi'i -> Syafii) without splitting the word
     s = re.sub(r"['’`‘ʼʻ]", "", s)
+    # Replace separators like commas, hyphens, slashes with spaces before degree stripping
+    s = re.sub(r"[,_/\-]", " ", s)
     s = re.sub(r"[^a-z\s\.]", " ", s)
     s = _DEGREE_RE.sub(" ", s)
     s = re.sub(r"[^a-z\s]", " ", s)
-    return " ".join(s.split())
+    # Standardize common Indonesian name abbreviations
+    parts = s.split()
+    standardized = []
+    for p in parts:
+        if p in ("m", "moh", "moch"):
+            standardized.append("muhammad")
+        else:
+            standardized.append(p)
+    return " ".join(standardized)
 
 def _phonetic_person_key(name: Optional[str]) -> str:
-    """Collapse spaces and repeated letters (e.g. 'Ahmad Sa'adi' / 'AHMAD SAADI' / 'Ahmad Sadi' -> 'ahmadsadi')."""
+    """Collapse spaces, common Indonesian phonetic variants, and repeated letters."""
     norm = _norm_person_name(name)
     if not norm:
         return ""
     collapsed = norm.replace(" ", "")
+    # Normalize common phonetics (dh -> d, sh -> s, th -> t, kh -> k)
+    collapsed = collapsed.replace("dh", "d").replace("sh", "s").replace("th", "t").replace("kh", "k")
     collapsed = re.sub(r"(.)\1+", r"\1", collapsed)
     return collapsed
 
@@ -1426,7 +1438,7 @@ def _append_fingerprint_sync_log(db: Session, entry: dict):
 
 @router.get("/attendance/sync-logs")
 async def get_fingerprint_sync_logs(
-    limit: int = 30,
+    limit: int = 100,
     db: Session = Depends(get_db)
 ):
     """Retrieve history of fingerprint attendance synchronization (manual & cron, success & failures)."""
