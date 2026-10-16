@@ -637,6 +637,20 @@ async def get_employee_computed(employee_id: int, db: Session = Depends(get_db))
         "lama_kerja_pensiun": lama_pensiun
     }
 
+def _to_date_val(val) -> Optional[date]:
+    if not val:
+        return None
+    if isinstance(val, datetime):
+        return val.date()
+    if isinstance(val, date):
+        return val
+    if isinstance(val, str):
+        try:
+            return datetime.strptime(val[:10], "%Y-%m-%d").date()
+        except Exception:
+            return None
+    return None
+
 _DEGREE_RE = re.compile(r"\b(s\.?\s?pd(\.?\s?i)?|m\.?\s?pd(\.?\s?i)?|s\.?\s?e(\.?i)?|s\.?\s?si|s\.?\s?kom|s\.?\s?ag|m\.?\s?ag|s\.?\s?sos|m\.?\s?si|m\.?\s?m|lc|s\.?\s?h|s\.?\s?psi|s\.?\s?hum|s\.?\s?t|s\.?\s?s|s\.?\s?p|s\.?\s?pt|s\.?\s?ked|s\.?\s?farm|a\.?\s?md|gr|aud|dr|drs|hj|h|ust|ustadz|ustadzah)\b\.?", re.I)
 
 def _norm_person_name(name: Optional[str]) -> str:
@@ -1277,15 +1291,16 @@ async def get_employee_attendance_recap(
     results = []
     has_cleanup = False
     for emp in employees:
-        emp_join = emp.join_date.date() if (emp.join_date and hasattr(emp.join_date, 'date')) else emp.join_date
-        emp_resign = emp.resign_date.date() if (emp.resign_date and hasattr(emp.resign_date, 'date')) else emp.resign_date
+        j_date = _to_date_val(emp.join_date)
+        r_date = _to_date_val(emp.resign_date)
 
         # Clean up any phantom automated 'Tidak ada data di Fingerprint' absences that were recorded before the employee joined
-        if emp_join:
+        if j_date:
             try:
+                j_dt = datetime.combine(j_date, datetime.min.time())
                 deleted = db.query(models.EmployeeAttendance).filter(
                     models.EmployeeAttendance.employee_id == emp.id,
-                    models.EmployeeAttendance.date < emp_join,
+                    models.EmployeeAttendance.date < j_dt,
                     models.EmployeeAttendance.notes == "Tidak ada data di Fingerprint"
                 ).delete(synchronize_session=False)
                 if deleted > 0:
@@ -1294,12 +1309,16 @@ async def get_employee_attendance_recap(
                 pass
 
         # Filter emp_att to only dates where the employee was legitimately employed
-        emp_att = [
-            a for a in attendances 
-            if a.employee_id == emp.id
-            and (not emp_join or a.date >= emp_join)
-            and (not emp_resign or a.date <= emp_resign)
-        ]
+        emp_att = []
+        for a in attendances:
+            if a.employee_id != emp.id:
+                continue
+            a_d = _to_date_val(a.date)
+            if j_date and a_d and a_d < j_date:
+                continue
+            if r_date and a_d and a_d > r_date:
+                continue
+            emp_att.append(a)
 
         h = sum(1 for a in emp_att if status_str(a) in ['PRESENT', 'LATE'])
         terlambat = sum(1 for a in emp_att if status_str(a) == 'LATE')
@@ -1390,8 +1409,8 @@ async def get_employee_attendance_recap(
             "unit_id": emp.unit_id,
             "unit_name": emp.unit.name if emp.unit else "Tanpa Unit",
             "position": emp.position or "Staf / Guru",
-            "join_date": emp.join_date.strftime("%Y-%m-%d") if (emp.join_date and hasattr(emp.join_date, "strftime")) else None,
-            "resign_date": emp.resign_date.strftime("%Y-%m-%d") if (emp.resign_date and hasattr(emp.resign_date, "strftime")) else None,
+            "join_date": j_date.strftime("%Y-%m-%d") if j_date else None,
+            "resign_date": r_date.strftime("%Y-%m-%d") if r_date else None,
             "hadir": h,
             "terlambat": terlambat,
             "sakit": s,
@@ -1499,19 +1518,18 @@ def _mark_missing_fingerprint_employees(db: Session, target_date: date) -> int:
     ).all()
     by_emp_id = {r.employee_id: r for r in existing_rows}
 
+    t_date = _to_date_val(target_date)
     marked_count = 0
     for emp in active_emps:
         # Skip if target_date is before employee joined (e.g. joined 3 months ago)
-        if emp.join_date:
-            j_date = emp.join_date.date() if hasattr(emp.join_date, 'date') else emp.join_date
-            if target_date < j_date:
-                continue
+        j_date = _to_date_val(emp.join_date)
+        if j_date and t_date and t_date < j_date:
+            continue
 
         # Skip if employee already resigned prior to target_date
-        if emp.resign_date:
-            r_date = emp.resign_date.date() if hasattr(emp.resign_date, 'date') else emp.resign_date
-            if target_date > r_date:
-                continue
+        r_date = _to_date_val(emp.resign_date)
+        if r_date and t_date and t_date > r_date:
+            continue
 
         row = by_emp_id.get(emp.id)
         if not row:
