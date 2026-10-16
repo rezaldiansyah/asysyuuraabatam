@@ -886,6 +886,20 @@
                 <InputText v-model="geofenceConfig.schedule_smpit_mon_thu" placeholder="15:30" class="w-full text-xs font-mono" />
               </div>
             </div>
+
+            <div class="pt-1.5">
+              <label class="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">
+                🏢 Unit Lainnya / Yayasan / Non-Unit (Senin - Kamis)
+              </label>
+              <InputText 
+                v-model="geofenceConfig.schedule_default_mon_thu" 
+                placeholder="15:30 (Otomatis ikuti unit terakhir pulang)" 
+                class="w-full text-xs font-mono" 
+              />
+              <span class="text-[10px] text-slate-400">
+                Jika dikosongkan, otomatis mengikuti unit sekolah yang paling terakhir pulang (default: 15:30).
+              </span>
+            </div>
           </div>
 
           <div class="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 grid grid-cols-2 gap-3">

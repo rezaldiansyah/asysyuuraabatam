@@ -802,14 +802,14 @@ DEFAULT_GEOFENCE = {
     "radius_meters": 30.0,
     "location_name": "Komplek Sekolah Asy-Syuuraa Batam",
     "work_start_time": "06:45",
-    "work_end_time": "16:00",
+    "work_end_time": "15:30",
     "late_tolerance_minutes": 5,
     "schedule_ra_mon_thu": "14:00",
     "schedule_sdit_mon_thu": "15:00",
     "schedule_smpit_mon_thu": "15:30",
     "schedule_friday": "11:30",
     "schedule_saturday": "12:00",
-    "schedule_default_mon_thu": "16:00"
+    "schedule_default_mon_thu": "15:30"
 }
 
 def get_expected_checkout_time(target_date: date, unit_name: Optional[str] = None, geofence: Optional[dict] = None) -> str:
@@ -823,13 +823,24 @@ def get_expected_checkout_time(target_date: date, unit_name: Optional[str] = Non
         return "Libur"
     else: # Senin - Kamis
         u_name = (unit_name or "").upper()
+        ra_time = cfg.get("schedule_ra_mon_thu") or "14:00"
+        sdit_time = cfg.get("schedule_sdit_mon_thu") or "15:00"
+        smpit_time = cfg.get("schedule_smpit_mon_thu") or "15:30"
+
+        # Unit yang paling terakhir pulang di antara unit-unit sekolah
+        defined_times = [t for t in [ra_time, sdit_time, smpit_time] if t]
+        latest_unit_time = max(defined_times) if defined_times else "15:30"
+
         if "RA" in u_name:
-            return cfg.get("schedule_ra_mon_thu", "14:00")
+            return ra_time
         elif "SDIT" in u_name or "SD" in u_name:
-            return cfg.get("schedule_sdit_mon_thu", "15:00")
+            return sdit_time
         elif "SMPIT" in u_name or "SMP" in u_name:
-            return cfg.get("schedule_smpit_mon_thu", "15:30")
-        return cfg.get("schedule_default_mon_thu", "16:00")
+            return smpit_time
+
+        # Unit lainnya / Yayasan / Non-unit jika tidak didefinisikan mengikuti unit yang paling terakhir pulang
+        default_val = cfg.get("schedule_default_mon_thu")
+        return default_val if default_val else latest_unit_time
 
 def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Returns distance in meters between two lat/lon coordinates."""
@@ -1270,56 +1281,69 @@ async def get_employee_attendance_recap(
         total_ahad = 0
 
         for att in emp_att:
-            m_key = att.date.strftime("%Y-%m")
-            if m_key not in monthly_trend:
-                monthly_trend[m_key] = {
-                    "hadir": 0, "terlambat": 0, "sakit": 0, "izin": 0, 
-                    "cuti": 0, "alpa": 0, "total": 0, "lembur": 0, "ahad": 0
-                }
-            st = status_str(att)
-            if st in ['PRESENT', 'LATE']:
-                monthly_trend[m_key]["hadir"] += 1
-            if st == 'LATE':
-                monthly_trend[m_key]["terlambat"] += 1
-            elif st == 'SICK':
-                monthly_trend[m_key]["sakit"] += 1
-            elif st in ['PERMIT', 'DISPENSATION']:
-                monthly_trend[m_key]["izin"] += 1
-            elif st.startswith('LEAVE_'):
-                monthly_trend[m_key]["cuti"] += 1
-            elif st == 'ABSENT':
-                monthly_trend[m_key]["alpa"] += 1
-            monthly_trend[m_key]["total"] += 1
+            try:
+                if not att.date:
+                    continue
+                m_key = att.date.strftime("%Y-%m") if hasattr(att.date, "strftime") else str(att.date)[:7]
+                if m_key not in monthly_trend:
+                    monthly_trend[m_key] = {
+                        "hadir": 0, "terlambat": 0, "sakit": 0, "izin": 0, 
+                        "cuti": 0, "alpa": 0, "total": 0, "lembur": 0, "ahad": 0
+                    }
+                st = status_str(att)
+                if st in ['PRESENT', 'LATE']:
+                    monthly_trend[m_key]["hadir"] += 1
+                if st == 'LATE':
+                    monthly_trend[m_key]["terlambat"] += 1
+                elif st == 'SICK':
+                    monthly_trend[m_key]["sakit"] += 1
+                elif st in ['PERMIT', 'DISPENSATION']:
+                    monthly_trend[m_key]["izin"] += 1
+                elif st.startswith('LEAVE_'):
+                    monthly_trend[m_key]["cuti"] += 1
+                elif st == 'ABSENT':
+                    monthly_trend[m_key]["alpa"] += 1
+                monthly_trend[m_key]["total"] += 1
 
-            # Check Overtime (Checkout >= 18:00) and Sunday (weekday == 6)
-            is_sunday = att.date.weekday() == 6
-            is_late_checkout = bool(att.check_out and att.check_out.time() >= dt.strptime("18:00", "%H:%M").time())
-            is_active_present = st in ['PRESENT', 'LATE', 'DISPENSATION'] or att.check_in is not None
+                # Check Overtime (Checkout >= 18:00) and Sunday (weekday == 6)
+                is_sunday = att.date.weekday() == 6 if hasattr(att.date, "weekday") else False
+                is_late_checkout = False
+                if att.check_out and hasattr(att.check_out, "time"):
+                    is_late_checkout = bool(att.check_out.time() >= dt.strptime("18:00", "%H:%M").time())
+                is_active_present = st in ['PRESENT', 'LATE', 'DISPENSATION'] or att.check_in is not None
 
-            if is_sunday and is_active_present:
-                total_ahad += 1
-                monthly_trend[m_key]["ahad"] += 1
+                if is_sunday and is_active_present:
+                    total_ahad += 1
+                    monthly_trend[m_key]["ahad"] += 1
 
-            if is_late_checkout:
-                total_lembur += 1
-                monthly_trend[m_key]["lembur"] += 1
+                if is_late_checkout:
+                    total_lembur += 1
+                    monthly_trend[m_key]["lembur"] += 1
 
-            if (is_sunday and is_active_present) or is_late_checkout:
-                combined_text = f"{att.notes or ''} {att.duty_reason or ''}"
-                cat = extract_activity_category(combined_text)
-                overtime_records.append({
-                    "attendance_id": att.id,
-                    "date": att.date.strftime("%Y-%m-%d"),
-                    "day_name": day_names_id[att.date.weekday()],
-                    "is_sunday": is_sunday,
-                    "is_overtime": is_late_checkout,
-                    "check_in": att.check_in.strftime("%H:%M") if att.check_in else "-",
-                    "check_out": att.check_out.strftime("%H:%M") if att.check_out else "-",
-                    "category": cat,
-                    "notes": att.notes or att.duty_reason or "",
-                    "is_duty_outside": bool(att.is_duty_outside),
-                    "status": st
-                })
+                if (is_sunday and is_active_present) or is_late_checkout:
+                    notes_text = att.notes or ""
+                    cat = extract_activity_category(notes_text)
+                    is_duty = "[tugas luar" in notes_text.lower() or "dinas" in notes_text.lower()
+                    date_str = att.date.strftime("%Y-%m-%d") if hasattr(att.date, "strftime") else str(att.date)[:10]
+                    day_idx = att.date.weekday() if hasattr(att.date, "weekday") else 0
+                    day_name = day_names_id[day_idx] if 0 <= day_idx < len(day_names_id) else "-"
+
+                    overtime_records.append({
+                        "attendance_id": att.id,
+                        "date": date_str,
+                        "day_name": day_name,
+                        "is_sunday": is_sunday,
+                        "is_overtime": is_late_checkout,
+                        "check_in": att.check_in.strftime("%H:%M") if (att.check_in and hasattr(att.check_in, "strftime")) else "-",
+                        "check_out": att.check_out.strftime("%H:%M") if (att.check_out and hasattr(att.check_out, "strftime")) else "-",
+                        "category": cat,
+                        "notes": notes_text,
+                        "is_duty_outside": is_duty,
+                        "status": st
+                    })
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Error processing attendance record {getattr(att, 'id', None)}: {e}")
 
         # Sort overtime records descending by date
         overtime_records.sort(key=lambda x: x["date"], reverse=True)

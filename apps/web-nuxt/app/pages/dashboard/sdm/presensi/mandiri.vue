@@ -449,16 +449,24 @@ const expectedCheckOutTime = computed(() => {
   }
   // Senin - Kamis
   const unit = (todayData.employee?.unit?.name || '').toUpperCase()
+  const raTime = cfg.schedule_ra_mon_thu || '14:00'
+  const sditTime = cfg.schedule_sdit_mon_thu || '15:00'
+  const smpitTime = cfg.schedule_smpit_mon_thu || '15:30'
+
   if (unit.includes('RA')) {
-    return cfg.schedule_ra_mon_thu || '14:00'
+    return raTime
   }
   if (unit.includes('SDIT') || unit.includes('SD')) {
-    return cfg.schedule_sdit_mon_thu || '15:00'
+    return sditTime
   }
   if (unit.includes('SMPIT') || unit.includes('SMP')) {
-    return cfg.schedule_smpit_mon_thu || '15:30'
+    return smpitTime
   }
-  return cfg.schedule_default_mon_thu || cfg.work_end_time || '16:00'
+
+  // Unit lainnya / Yayasan / Non-unit jika tidak didefinisikan mengikuti unit yang paling terakhir pulang
+  const definedTimes = [raTime, sditTime, smpitTime].filter(Boolean).sort()
+  const latestUnitTime = definedTimes[definedTimes.length - 1] || '15:30'
+  return cfg.schedule_default_mon_thu || latestUnitTime
 })
 
 // Haversine formula on client
