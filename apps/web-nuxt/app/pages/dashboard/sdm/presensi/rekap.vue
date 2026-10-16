@@ -297,17 +297,16 @@
         >
           <Column field="nama_lengkap" header="Nama Pegawai" sortable style="min-width: 240px">
             <template #body="{ data }">
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="font-semibold text-slate-800 dark:text-white">{{ data.nama_lengkap }}</span>
-                <span v-if="data.join_date" class="px-1.5 py-0.2 rounded text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium" :title="'Tanggal Mulai Masuk (TMT): ' + formatDateDisplay(data.join_date)">
-                  TMT: {{ formatDateDisplay(data.join_date) }}
-                </span>
-              </div>
-              <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+              <div class="font-semibold text-slate-800 dark:text-white">{{ data.nama_lengkap }}</div>
+              <div class="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5 flex-wrap">
                 <span>NIP: {{ data.nip || '-' }}</span>
                 <span>&bull;</span>
                 <span class="text-emerald-700 dark:text-emerald-400 font-medium">{{ data.unit_name }}</span>
                 <span v-if="data.position">&bull; {{ data.position }}</span>
+                <template v-if="formatMasaKerja(data.join_date)">
+                  <span>&bull;</span>
+                  <span class="text-slate-500 font-medium">Masa Kerja: {{ formatMasaKerja(data.join_date) }}</span>
+                </template>
               </div>
             </template>
           </Column>
@@ -428,17 +427,16 @@
           class="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60"
         >
           <div>
-            <div class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-1.5 flex-wrap">
-              <span>{{ emp.nama_lengkap }}</span>
-              <span v-if="emp.join_date" class="px-1.5 py-0.2 rounded text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold" :title="'Tanggal Mulai Masuk: ' + formatDateDisplay(emp.join_date)">
-                TMT: {{ formatDateDisplay(emp.join_date) }}
-              </span>
-            </div>
-            <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+            <div class="font-bold text-sm text-slate-800 dark:text-white">{{ emp.nama_lengkap }}</div>
+            <div class="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5 flex-wrap">
               <span>NIP: {{ emp.nip || '-' }}</span>
               <span>&bull;</span>
               <span class="text-slate-600 dark:text-slate-300 font-medium">{{ emp.unit_name }}</span>
               <span v-if="emp.position">&bull; {{ emp.position }}</span>
+              <template v-if="formatMasaKerja(emp.join_date)">
+                <span>&bull;</span>
+                <span class="text-slate-500 font-medium">Masa Kerja: {{ formatMasaKerja(emp.join_date) }}</span>
+              </template>
             </div>
           </div>
           <div class="flex items-center gap-1.5 text-xs font-bold">
@@ -929,26 +927,28 @@
                 :value="staffOvertimeSummaryList"
                 paginator
                 :rows="10"
+                v-model:first="staffSummaryFirst"
                 class="p-datatable-sm"
                 stripedRows
                 responsiveLayout="scroll"
               >
                 <Column header="No." style="width: 50px">
                   <template #body="{ index }">
-                    <span class="font-bold text-xs text-slate-500">{{ index + 1 }}</span>
+                    <span class="font-bold text-xs text-slate-500">{{ staffSummaryFirst + index + 1 }}</span>
                   </template>
                 </Column>
 
                 <Column header="Nama Pegawai" style="min-width: 200px">
                   <template #body="{ data }">
                     <div class="font-bold text-slate-800 dark:text-white text-xs">{{ data.nama_lengkap }}</div>
-                    <div class="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
+                    <div class="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5 flex-wrap">
                       <span>{{ data.unit_name }}</span>
                       <span>&bull;</span>
                       <span>{{ data.position }}</span>
-                      <span v-if="data.join_date" class="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px]">
-                        TMT: {{ formatDateDisplay(data.join_date) }}
-                      </span>
+                      <template v-if="formatMasaKerja(data.join_date)">
+                        <span>&bull;</span>
+                        <span class="text-slate-500 font-medium">Masa Kerja: {{ formatMasaKerja(data.join_date) }}</span>
+                      </template>
                     </div>
                   </template>
                 </Column>
@@ -1094,12 +1094,16 @@
             <div class="font-bold text-sm text-indigo-950 dark:text-indigo-200">
               {{ selectedStaffOvertimeDetail.nama_lengkap }}
             </div>
-            <div class="text-xs text-indigo-800/80 dark:text-indigo-300 flex items-center gap-2 mt-0.5">
+            <div class="text-xs text-indigo-800/80 dark:text-indigo-300 flex items-center gap-2 mt-0.5 flex-wrap">
               <span>NIP: {{ selectedStaffOvertimeDetail.nip || '-' }}</span>
               <span>&bull;</span>
               <span>{{ selectedStaffOvertimeDetail.unit_name }}</span>
               <span>&bull;</span>
               <span>{{ selectedStaffOvertimeDetail.position }}</span>
+              <template v-if="formatMasaKerja(selectedStaffOvertimeDetail.join_date)">
+                <span>&bull;</span>
+                <span>Masa Kerja: {{ formatMasaKerja(selectedStaffOvertimeDetail.join_date) }}</span>
+              </template>
             </div>
           </div>
           <div class="flex items-center gap-2">
@@ -1545,6 +1549,28 @@ const needsAttentionList = computed(() => {
 const overtimeSubTab = ref<'summary' | 'all_logs'>('summary')
 const showStaffOvertimeDetailModal = ref(false)
 const selectedStaffOvertimeDetail = ref<any | null>(null)
+const staffSummaryFirst = ref(0)
+
+function formatMasaKerja(joinDateStr: string | null): string {
+  if (!joinDateStr) return ''
+  try {
+    const join = new Date(joinDateStr)
+    if (isNaN(join.getTime())) return ''
+    const now = new Date()
+    let years = now.getFullYear() - join.getFullYear()
+    let months = now.getMonth() - join.getMonth()
+    if (months < 0) {
+      years--
+      months += 12
+    }
+    if (years <= 0 && months <= 0) return 'Baru Masuk'
+    if (years <= 0) return `${months} bulan`
+    if (months === 0) return `${years} tahun`
+    return `${years} tahun ${months} bulan`
+  } catch {
+    return ''
+  }
+}
 
 const openStaffOvertimeDetail = (staff: any) => {
   selectedStaffOvertimeDetail.value = staff
