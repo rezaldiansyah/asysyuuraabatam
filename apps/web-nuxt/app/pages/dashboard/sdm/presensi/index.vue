@@ -87,7 +87,7 @@
           </div>
 
           <!-- Unit Selector & Reload -->
-          <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          <div class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
             <Dropdown 
               v-model="filterUnit" 
               :options="units" 
@@ -95,8 +95,17 @@
               optionValue="id" 
               placeholder="Semua Unit Sekolah" 
               showClear 
-              class="w-full sm:w-56 text-xs" 
+              class="w-full sm:w-52 text-xs" 
               @change="fetchData" 
+            />
+            <Button 
+              icon="pi pi-cloud-download" 
+              label="Tarik Data Mesin (Fingerprint)" 
+              severity="info" 
+              size="small" 
+              class="text-xs font-semibold shadow-sm" 
+              :loading="syncingFingerprint" 
+              @click="syncFingerprint" 
             />
             <Button 
               icon="pi pi-refresh" 
@@ -405,6 +414,7 @@ const units = ref<any[]>([])
 const attendances = ref<any[]>([])
 const loading = ref(false)
 const saving = ref(false)
+const syncingFingerprint = ref(false)
 const isSavedInDb = ref(false)
 
 // Grouped status options with extended leave types
@@ -569,6 +579,44 @@ const fetchData = async () => {
     toast.add({ severity: 'error', summary: 'Error', detail: 'Gagal memuat data presensi', life: 3000 })
   } finally {
     loading.value = false
+  }
+}
+
+const syncFingerprint = async () => {
+  if (!filterDate.value) return
+  syncingFingerprint.value = true
+  try {
+    const dateStr = formatLocalDate(filterDate.value)
+    const res = await api.post<any>('/sdm/attendance/sync-fingerprint', { date: dateStr })
+    if (res?.status === 'empty') {
+      toast.add({
+        severity: 'warn',
+        summary: 'Data Kosong',
+        detail: res.message || `Tidak ada data tap mesin fingerprint pada tanggal ${dateStr}.`,
+        life: 4000
+      })
+    } else {
+      const extraInfo = res?.unmatched_logs?.length
+        ? ` (${res.unmatched_logs.length} log belum cocok NIK/Nama)`
+        : ''
+      toast.add({
+        severity: 'success',
+        summary: 'Sinkronisasi Berhasil',
+        detail: (res?.message || `Berhasil menarik data mesin presensi tanggal ${dateStr}.`) + extraInfo,
+        life: 4500
+      })
+      await fetchData()
+    }
+  } catch (error: any) {
+    console.error('Sync fingerprint error:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Gagal Sinkronisasi',
+      detail: error?.data?.detail || 'Gagal menarik data dari mesin presensi.',
+      life: 4000
+    })
+  } finally {
+    syncingFingerprint.value = false
   }
 }
 

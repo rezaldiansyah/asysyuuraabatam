@@ -1176,3 +1176,226 @@ async def get_employee_attendance_recap(
         })
         
     return results
+
+
+class FingerprintSyncRequest(BaseModel):
+    date: Optional[str] = None  # Format YYYY-MM-DD (default: hari ini WIB)
+
+
+@router.get("/attendance/sync-fingerprint")
+@router.post("/attendance/sync-fingerprint")
+async def sync_fingerprint_attendance(
+    req: Optional[FingerprintSyncRequest] = None,
+    date_param: Optional[str] = Query(default=None, alias="date"),
+    db: Session = Depends(get_db)
+):
+    """Sync employee attendance from external fingerprint API (sdit.asysyuuraa.my.id) for a specific date."""
+    import os
+    import ssl
+    import urllib.request
+    import urllib.parse
+    from datetime import timezone, timedelta
+
+    wib_now = datetime.now(timezone(timedelta(hours=7)))
+    date_str = (req.date if req and req.date else None) or date_param or wib_now.strftime("%Y-%m-%d")
+
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Format tanggal tidak valid. Gunakan YYYY-MM-DD.")
+
+    api_url = os.getenv(
+        "FINGERPRINT_API_URL",
+        "https://sdit.asysyuuraa.my.id/api/api_absensi_karyawan.php"
+    )
+    api_key = os.getenv(
+        "FINGERPRINT_API_KEY",
+        "CBT_ASY_8xK9mP2qV5nB7cJ4hF1zR6tY3wL0dG"
+    )
+
+    params = urllib.parse.urlencode({"tanggal": date_str, "api_key": api_key})
+    full_url = f"{api_url}?{params}"
+
+    try:
+        ssl_ctx = ssl._create_unverified_context()
+        http_req = urllib.request.Request(
+            full_url,
+            headers={
+                "x-api-key": api_key,
+                "User-Agent": "AsySyuuraa-ERP-Sync/1.0",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(http_req, timeout=25, context=ssl_ctx) as resp:
+            raw_body = resp.read().decode("utf-8", errors="replace")
+            payload = json.loads(raw_body)
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Gagal menghubungi API mesin presensi (sdit.asysyuuraa.my.id): {str(e)}"
+        )
+
+    if payload.get("status") != "success":
+        raise HTTPException(
+            status_code=400,
+            detail=payload.get("message") or "API mesin presensi mengembalikan status error."
+        )
+
+    raw_logs = payload.get("data") or []
+    if not raw_logs:
+        return {
+            "status": "empty",
+            "date": date_str,
+            "raw_count": 0,
+            "synced_employees": 0,
+            "unmatched_logs": [],
+            "message": f"Tidak ditemukan data tap fingerprint pada tanggal {date_str}."
+        }
+
+    # Preload active employees and build lookup maps (by NIK Kepegawaian and normalized Name)
+    employees = db.query(models.Employee).filter(
+        or_(models.Employee.is_active == True, models.Employee.is_active.is_(None))
+    ).all()
+
+    by_nik = {}
+    by_norm_name = {}
+    for emp in employees:
+        if emp.nik_kepegawaian:
+            by_nik[emp.nik_kepegawaian.strip()] = emp
+        if emp.nip:
+            by_nik[emp.nip.strip()] = emp
+        norm = _norm_person_name(emp.nama_lengkap)
+        if norm:
+            by_norm_name[norm] = emp
+
+    # Group logs per matched employee
+    emp_punches: dict[int, list[datetime]] = {}
+    emp_map: dict[int, models.Employee] = {}
+    unmatched_names = set()
+
+    for log in raw_logs:
+        raw_nik = str(log.get("nik") or log.get("Nik") or "").strip()
+        raw_name = str(log.get("nama") or log.get("namee") or "").strip()
+        raw_dt_str = str(log.get("tanggal") or "").strip()
+        raw_time_str = str(log.get("waktu") or log.get("timee") or "").strip()
+
+        emp = by_nik.get(raw_nik)
+        if not emp and raw_name:
+            norm_n = _norm_person_name(raw_name)
+            emp = by_norm_name.get(norm_n)
+            if not emp and norm_n:
+                # Substring fallback for names with slight spelling/title differences
+                for k_norm, candidate in by_norm_name.items():
+                    if len(norm_n) >= 5 and (norm_n in k_norm or k_norm in norm_n):
+                        emp = candidate
+                        break
+
+        if not emp:
+            unmatched_names.add(f"{raw_name} ({raw_nik})")
+            continue
+
+        # Parse timestamp
+        punch_dt = None
+        if raw_dt_str:
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+                try:
+                    punch_dt = datetime.strptime(raw_dt_str, fmt)
+                    break
+                except ValueError:
+                    pass
+        if not punch_dt and raw_time_str:
+            for fmt in ("%I:%M:%S %p", "%H:%M:%S", "%H:%M"):
+                try:
+                    t_parsed = datetime.strptime(raw_time_str, fmt).time()
+                    punch_dt = datetime.combine(target_date, t_parsed)
+                    break
+                except ValueError:
+                    pass
+
+        if punch_dt:
+            emp_map[emp.id] = emp
+            emp_punches.setdefault(emp.id, []).append(punch_dt)
+
+    geofence = get_geofence_config(db)
+    work_start = geofence.get("work_start_time", "07:30")
+    sh, sm = 7, 30
+    try:
+        sh, sm = map(int, work_start.split(":"))
+    except Exception:
+        pass
+
+    created_count = 0
+    updated_count = 0
+
+    for emp_id, punches in emp_punches.items():
+        punches.sort()
+        first_punch = punches[0]
+        last_punch = punches[-1]
+
+        # Determine check_in and check_out
+        check_in_dt = None
+        check_out_dt = None
+
+        if len(punches) == 1:
+            # If single punch is after 12:30 PM, treat as afternoon check-out (or afternoon session),
+            # but still record check_in if none exists so attendance is counted as PRESENT
+            if first_punch.hour >= 13:
+                check_out_dt = first_punch
+                check_in_dt = first_punch
+            else:
+                check_in_dt = first_punch
+        else:
+            check_in_dt = first_punch
+            if (last_punch - first_punch).total_seconds() >= 600:
+                check_out_dt = last_punch
+
+        # Determine PRESENT vs LATE (only if morning check-in is after work_start_time and before 12:00)
+        status_val = models.AttendanceStatus.PRESENT
+        if check_in_dt and check_in_dt.hour < 12:
+            if (check_in_dt.hour > sh) or (check_in_dt.hour == sh and check_in_dt.minute > sm):
+                status_val = models.AttendanceStatus.LATE
+
+        existing = db.query(models.EmployeeAttendance).filter(
+            models.EmployeeAttendance.employee_id == emp_id,
+            models.EmployeeAttendance.date == target_date
+        ).first()
+
+        note_tag = f"Sinkronisasi Fingerprint ({len(punches)}x tap)"
+
+        if existing:
+            # Preserve SICK / PERMIT / LEAVE if manually set, unless it was ABSENT/PRESENT/LATE
+            curr_status = existing.status.value if hasattr(existing.status, "value") else str(existing.status)
+            if curr_status in ("ABSENT", "PRESENT", "LATE"):
+                existing.status = status_val
+            if check_in_dt and (not existing.check_in or check_in_dt < existing.check_in):
+                existing.check_in = check_in_dt
+            if check_out_dt and (not existing.check_out or check_out_dt > existing.check_out):
+                existing.check_out = check_out_dt
+            if not existing.notes or "Sinkronisasi Fingerprint" in existing.notes:
+                existing.notes = note_tag
+            updated_count += 1
+        else:
+            db_att = models.EmployeeAttendance(
+                employee_id=emp_id,
+                date=target_date,
+                status=status_val,
+                check_in=check_in_dt,
+                check_out=check_out_dt,
+                notes=note_tag
+            )
+            db.add(db_att)
+            created_count += 1
+
+    db.commit()
+
+    return {
+        "status": "success",
+        "date": date_str,
+        "raw_count": len(raw_logs),
+        "synced_employees": len(emp_punches),
+        "created": created_count,
+        "updated": updated_count,
+        "unmatched_logs": sorted(list(unmatched_names)),
+        "message": f"Berhasil menyinkronkan {len(emp_punches)} pegawai dari {len(raw_logs)} log mesin fingerprint pada tanggal {date_str}."
+    }
+
