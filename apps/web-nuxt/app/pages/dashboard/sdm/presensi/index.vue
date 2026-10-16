@@ -640,8 +640,21 @@
               <b>Detail Kegagalan:</b> {{ log.error_detail }}
             </div>
 
-            <div v-if="log.unmatched_logs && log.unmatched_logs.length > 0" class="text-[11px] text-amber-700 dark:text-amber-300">
-              <b>Log Mesin Belum Cocok NIK/Nama ({{ log.unmatched_logs.length }}):</b> {{ log.unmatched_logs.join(', ') }}
+            <div v-if="log.unmatched_logs && log.unmatched_logs.length > 0" class="text-[11px] text-amber-800 dark:text-amber-300 space-y-1.5 pt-1">
+              <div class="font-bold">Log Mesin Belum Cocok NIK/Nama ({{ log.unmatched_logs.length }}) — Klik untuk Hubungkan ke Pegawai:</div>
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="rawItem in log.unmatched_logs"
+                  :key="rawItem"
+                  type="button"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-semibold transition cursor-pointer"
+                  title="Klik untuk menautkan ID Fingerprint ini ke Pegawai SDM"
+                  @click="openPinMappingModal(rawItem)"
+                >
+                  <i class="pi pi-link text-[10px]"></i>
+                  <span>{{ rawItem }}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -782,6 +795,43 @@
             <Button label="Simpan Jam Kerja" icon="pi pi-save" severity="success" size="small" :loading="savingWorkHours" @click="saveWorkHoursConfig" />
           </div>
         </div>
+      </template>
+    </Dialog>
+
+    <!-- Dialog Hubungkan PIN/Nama Mesin Fingerprint ke Pegawai SDM -->
+    <Dialog
+      v-model:visible="showPinMappingModal"
+      header="Hubungkan ID Fingerprint ke Pegawai SDM"
+      modal
+      :style="{ width: '480px', maxWidth: '95vw' }"
+    >
+      <div class="space-y-4 text-xs">
+        <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200">
+          <div class="font-bold mb-1">Data dari Mesin Fingerprint:</div>
+          <div class="font-mono text-sm font-bold">{{ pinMappingForm.rawLabel }}</div>
+          <div class="mt-1 opacity-80">ID/PIN Mesin: <b>{{ pinMappingForm.fp_nik }}</b> &bull; Nama Mesin: <b>{{ pinMappingForm.fp_name }}</b></div>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="font-bold text-slate-700 dark:text-slate-200 block">Pilih Pegawai di Database Asy-Syuuraa:</label>
+          <Select
+            v-model="pinMappingForm.employee_id"
+            :options="employeeSelectOptions"
+            optionLabel="label"
+            optionValue="value"
+            filter
+            filterPlaceholder="Cari nama atau NIK pegawai..."
+            placeholder="Pilih Pegawai..."
+            class="w-full text-xs"
+          />
+          <p class="text-[11px] text-slate-500">
+            Setelah disimpan, setiap kali ID Fingerprint <b>{{ pinMappingForm.fp_nik }}</b> melakukan tap, sistem akan otomatis mencatatnya ke pegawai tersebut.
+          </p>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Batal" severity="secondary" text size="small" @click="showPinMappingModal = false" />
+        <Button label="Simpan & Tarik Ulang" icon="pi pi-link" severity="success" size="small" :loading="savingPinMapping" @click="savePinMapping" />
       </template>
     </Dialog>
   </div>
@@ -1383,6 +1433,71 @@ const saveAttendance = async () => {
     })
   } finally {
     saving.value = false
+  }
+}
+
+// --- Fingerprint PIN Mapping Modal ---
+const showPinMappingModal = ref(false)
+const savingPinMapping = ref(false)
+const pinMappingForm = reactive({
+  rawLabel: '',
+  fp_nik: '',
+  fp_name: '',
+  employee_id: null as number | null
+})
+
+const employeeSelectOptions = computed(() =>
+  attendances.value.map(a => ({
+    label: `${a.employee?.nama_lengkap} (${a.employee?.nik_kepegawaian || a.employee?.nip || 'Tanpa NIK'})`,
+    value: a.employee_id
+  }))
+)
+
+const openPinMappingModal = (rawItem: string) => {
+  pinMappingForm.rawLabel = rawItem
+  // Parse format "NAMA (PIN)"
+  const match = rawItem.match(/^(.*)\(([^)]+)\)\s*$/)
+  if (match) {
+    pinMappingForm.fp_name = match[1].trim()
+    pinMappingForm.fp_nik = match[2].trim()
+  } else {
+    pinMappingForm.fp_name = rawItem.trim()
+    pinMappingForm.fp_nik = rawItem.trim()
+  }
+  pinMappingForm.employee_id = null
+  showPinMappingModal.value = true
+}
+
+const savePinMapping = async () => {
+  if (!pinMappingForm.employee_id || !pinMappingForm.fp_nik) {
+    toast.add({ severity: 'warn', summary: 'Pilih Pegawai', detail: 'Silakan pilih pegawai terlebih dahulu', life: 3000 })
+    return
+  }
+  savingPinMapping.value = true
+  try {
+    const res = await api.post<any>('/sdm/attendance/fingerprint-mappings', {
+      fp_nik: pinMappingForm.fp_nik,
+      fp_name: pinMappingForm.fp_name,
+      employee_id: pinMappingForm.employee_id
+    })
+    toast.add({
+      severity: 'success',
+      summary: 'Berhasil Ditautkan',
+      detail: `ID Fingerprint ${pinMappingForm.fp_nik} berhasil ditautkan ke ${res.employee_name}. Menarik ulang data...`,
+      life: 4000
+    })
+    showPinMappingModal.value = false
+    showSyncLogsDialog.value = false
+    await syncFromFingerprint()
+  } catch (e: any) {
+    toast.add({
+      severity: 'error',
+      summary: 'Gagal Menautkan',
+      detail: e?.data?.detail || 'Gagal menyimpan tautan ID Fingerprint',
+      life: 4000
+    })
+  } finally {
+    savingPinMapping.value = false
   }
 }
 

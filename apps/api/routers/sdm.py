@@ -637,16 +637,27 @@ async def get_employee_computed(employee_id: int, db: Session = Depends(get_db))
         "lama_kerja_pensiun": lama_pensiun
     }
 
-_DEGREE_RE = re.compile(r"\b(s\.?\s?pd(\.?\s?i)?|m\.?\s?pd(\.?\s?i)?|s\.?\s?e(\.?i)?|s\.?\s?si|s\.?\s?kom|s\.?\s?ag|m\.?\s?ag|s\.?\s?sos|m\.?\s?si|m\.?\s?m|lc|s\.?\s?h|s\.?\s?psi|s\.?\s?hum|s\.?\s?t|a\.?\s?md|gr|aud|dr|drs|hj|h)\b\.?", re.I)
+_DEGREE_RE = re.compile(r"\b(s\.?\s?pd(\.?\s?i)?|m\.?\s?pd(\.?\s?i)?|s\.?\s?e(\.?i)?|s\.?\s?si|s\.?\s?kom|s\.?\s?ag|m\.?\s?ag|s\.?\s?sos|m\.?\s?si|m\.?\s?m|lc|s\.?\s?h|s\.?\s?psi|s\.?\s?hum|s\.?\s?t|a\.?\s?md|gr|aud|dr|drs|hj|h|ust|ustadz|ustadzah)\b\.?", re.I)
 
 def _norm_person_name(name: Optional[str]) -> str:
     if not name:
         return ""
     s = name.lower()
+    # Strip apostrophes / glottal stops (e.g. Sa'adi -> Saadi, Syafi'i -> Syafii) without splitting the word
+    s = re.sub(r"['’`‘ʼʻ]", "", s)
     s = re.sub(r"[^a-z\s\.]", " ", s)
     s = _DEGREE_RE.sub(" ", s)
     s = re.sub(r"[^a-z\s]", " ", s)
     return " ".join(s.split())
+
+def _phonetic_person_key(name: Optional[str]) -> str:
+    """Collapse spaces and repeated letters (e.g. 'Ahmad Sa'adi' / 'AHMAD SAADI' / 'Ahmad Sadi' -> 'ahmadsadi')."""
+    norm = _norm_person_name(name)
+    if not norm:
+        return ""
+    collapsed = norm.replace(" ", "")
+    collapsed = re.sub(r"(.)\1+", r"\1", collapsed)
+    return collapsed
 
 @router.get("/employees/{employee_id}/documents")
 async def get_employee_documents(employee_id: int, db: Session = Depends(get_db)):
@@ -1380,14 +1391,102 @@ def _fetch_sdit_fingerprint_logs(date_str: str, timeout_sec: int = 12) -> list[d
     return payload.get("data") or []
 
 
+def _get_fingerprint_nik_map(db: Session) -> dict:
+    """Return mapping of fingerprint PIN/NIK -> {"employee_id": int, "fp_name": str}."""
+    row = db.query(models.PageContent).filter(
+        models.PageContent.section_key == "fingerprint_nik_map"
+    ).first()
+    if row and row.content_json:
+        try:
+            data = json.loads(row.content_json)
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+    return {}
+
+
+def _save_fingerprint_nik_map(db: Session, mapping: dict):
+    try:
+        row = db.query(models.PageContent).filter(
+            models.PageContent.section_key == "fingerprint_nik_map"
+        ).first()
+        if not row:
+            row = models.PageContent(
+                section_key="fingerprint_nik_map",
+                title="Mapping PIN Mesin Fingerprint ke Pegawai SDM",
+                content_json=json.dumps(mapping)
+            )
+            db.add(row)
+        else:
+            row.content_json = json.dumps(mapping)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+class FingerprintPinMappingRequest(BaseModel):
+    fp_nik: str
+    fp_name: Optional[str] = ""
+    employee_id: int
+
+
+@router.get("/attendance/fingerprint-mappings")
+async def get_fingerprint_mappings(db: Session = Depends(get_db)):
+    mapping = _get_fingerprint_nik_map(db)
+    employees = db.query(models.Employee).all()
+    emp_by_id = {e.id: e for e in employees}
+    result = []
+    for fp_nik, info in mapping.items():
+        emp_id = info.get("employee_id") if isinstance(info, dict) else info
+        emp = emp_by_id.get(emp_id)
+        if emp:
+            result.append({
+                "fp_nik": fp_nik,
+                "fp_name": info.get("fp_name", "") if isinstance(info, dict) else "",
+                "employee_id": emp.id,
+                "employee_name": emp.nama_lengkap,
+                "nik_kepegawaian": emp.nik_kepegawaian,
+            })
+    return result
+
+
+@router.post("/attendance/fingerprint-mappings")
+async def save_fingerprint_mapping(req: FingerprintPinMappingRequest, db: Session = Depends(get_db)):
+    emp = db.query(models.Employee).filter(models.Employee.id == req.employee_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Pegawai tidak ditemukan")
+    mapping = _get_fingerprint_nik_map(db)
+    mapping[str(req.fp_nik).strip()] = {
+        "employee_id": emp.id,
+        "fp_name": (req.fp_name or "").strip(),
+    }
+    _save_fingerprint_nik_map(db, mapping)
+    return {"status": "success", "fp_nik": req.fp_nik, "employee_id": emp.id, "employee_name": emp.nama_lengkap}
+
+
+@router.delete("/attendance/fingerprint-mappings/{fp_nik}")
+async def delete_fingerprint_mapping(fp_nik: str, db: Session = Depends(get_db)):
+    mapping = _get_fingerprint_nik_map(db)
+    if fp_nik in mapping:
+        del mapping[fp_nik]
+        _save_fingerprint_nik_map(db, mapping)
+    return {"status": "success"}
+
+
 def _match_and_group_punches(db: Session, raw_logs: list[dict], target_date: date):
     """Match raw fingerprint logs to active employees and return (emp_punches, emp_map, unmatched_list)."""
     employees = db.query(models.Employee).filter(
         or_(models.Employee.is_active == True, models.Employee.is_active.is_(None))
     ).all()
 
+    emp_by_id = {emp.id: emp for emp in employees}
+    custom_fp_map = _get_fingerprint_nik_map(db)
+    custom_map_updated = False
+
     by_nik = {}
     by_norm_name = {}
+    by_phonetic = {}
     for emp in employees:
         if emp.nik_kepegawaian:
             by_nik[emp.nik_kepegawaian.strip()] = emp
@@ -1396,6 +1495,15 @@ def _match_and_group_punches(db: Session, raw_logs: list[dict], target_date: dat
         norm = _norm_person_name(emp.nama_lengkap)
         if norm:
             by_norm_name[norm] = emp
+        phon = _phonetic_person_key(emp.nama_lengkap)
+        if phon:
+            by_phonetic[phon] = emp
+
+    # Overlay custom PIN/NIK mappings
+    for fp_nik, info in custom_fp_map.items():
+        emp_id = info.get("employee_id") if isinstance(info, dict) else info
+        if emp_id in emp_by_id:
+            by_nik[str(fp_nik).strip()] = emp_by_id[emp_id]
 
     emp_punches: dict[int, list[datetime]] = {}
     emp_map: dict[int, models.Employee] = {}
@@ -1410,12 +1518,24 @@ def _match_and_group_punches(db: Session, raw_logs: list[dict], target_date: dat
         emp = by_nik.get(raw_nik)
         if not emp and raw_name:
             norm_n = _norm_person_name(raw_name)
-            emp = by_norm_name.get(norm_n)
+            phon_n = _phonetic_person_key(raw_name)
+            emp = by_norm_name.get(norm_n) or by_phonetic.get(phon_n)
             if not emp and norm_n:
                 for k_norm, candidate in by_norm_name.items():
                     if len(norm_n) >= 5 and (norm_n in k_norm or k_norm in norm_n):
                         emp = candidate
                         break
+            if not emp and phon_n:
+                for k_phon, candidate in by_phonetic.items():
+                    if len(phon_n) >= 5 and (phon_n in k_phon or k_phon in phon_n):
+                        emp = candidate
+                        break
+
+            # Auto-learn fingerprint PIN -> employee_id when matched by name
+            if emp and raw_nik and raw_nik not in custom_fp_map:
+                custom_fp_map[raw_nik] = {"employee_id": emp.id, "fp_name": raw_name}
+                by_nik[raw_nik] = emp
+                custom_map_updated = True
 
         if not emp:
             unmatched_names.add(f"{raw_name} ({raw_nik})")
@@ -1441,6 +1561,9 @@ def _match_and_group_punches(db: Session, raw_logs: list[dict], target_date: dat
         if punch_dt:
             emp_map[emp.id] = emp
             emp_punches.setdefault(emp.id, []).append(punch_dt)
+
+    if custom_map_updated:
+        _save_fingerprint_nik_map(db, custom_fp_map)
 
     return emp_punches, emp_map, sorted(list(unmatched_names))
 
