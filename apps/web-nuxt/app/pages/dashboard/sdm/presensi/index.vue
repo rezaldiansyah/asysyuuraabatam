@@ -108,6 +108,15 @@
               @click="syncFingerprint" 
             />
             <Button 
+              icon="pi pi-history" 
+              :label="failedLogsCount > 0 ? `Log Sinkronisasi (${failedLogsCount} Gagal)` : 'Log Sinkronisasi'" 
+              :severity="failedLogsCount > 0 ? 'danger' : 'secondary'" 
+              outlined 
+              size="small" 
+              class="text-xs font-semibold" 
+              @click="openSyncLogsDialog" 
+            />
+            <Button 
               icon="pi pi-refresh" 
               label="Muat Ulang" 
               outlined 
@@ -116,6 +125,27 @@
               :loading="loading" 
               @click="fetchData" 
             />
+          </div>
+        </div>
+
+        <!-- Step-by-Step Live Progress Panel -->
+        <div 
+          v-if="syncProgress.active" 
+          class="mt-4 p-4 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 space-y-2.5 transition-all"
+        >
+          <div class="flex items-center justify-between text-xs">
+            <div class="font-bold text-sky-900 dark:text-sky-200 flex items-center gap-2">
+              <i class="pi pi-spin pi-spinner text-sky-600"></i>
+              <span>{{ syncProgress.stageText }}</span>
+            </div>
+            <span class="font-bold text-sky-700 dark:text-sky-300">
+              {{ syncProgress.current }} / {{ syncProgress.total }} Pegawai ({{ syncProgress.percent }}%)
+            </span>
+          </div>
+          <ProgressBar :value="syncProgress.percent" :showValue="false" class="!h-2.5" />
+          <div v-if="syncProgress.currentEmployeeName" class="text-[11px] text-sky-700 dark:text-sky-300 flex items-center justify-between">
+            <span>Memproses satu per satu: <b>{{ syncProgress.currentEmployeeName }}</b></span>
+            <span v-if="syncProgress.failed > 0" class="text-rose-600 font-semibold">{{ syncProgress.failed }} gagal</span>
           </div>
         </div>
       </template>
@@ -377,6 +407,82 @@
         </DataTable>
       </template>
     </Card>
+
+    <!-- Dialog Riwayat & Log Kegagalan Sinkronisasi Fingerprint -->
+    <Dialog 
+      v-model:visible="showSyncLogsDialog" 
+      header="Riwayat & Log Sinkronisasi Mesin Presensi (Manual & Cron Job)" 
+      modal 
+      :style="{ width: '780px', maxWidth: '95vw' }"
+    >
+      <div class="space-y-4">
+        <div class="flex items-center justify-between text-xs text-slate-500 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+          <div>
+            Menampilkan catatan penarikan data dari <b>sdit.asysyuuraa.my.id (192.168.188.222)</b> baik secara manual maupun via Cron Job (07:45 &amp; 19:30 WIB).
+          </div>
+          <Button 
+            icon="pi pi-refresh" 
+            label="Refresh Log" 
+            size="small" 
+            text 
+            class="!text-xs shrink-0" 
+            :loading="loadingSyncLogs" 
+            @click="fetchSyncLogs" 
+          />
+        </div>
+
+        <div v-if="syncLogs.length === 0" class="text-center py-8 text-slate-400 text-xs">
+          Belum ada riwayat log sinkronisasi yang tercatat.
+        </div>
+
+        <div v-else class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+          <div 
+            v-for="log in syncLogs" 
+            :key="log.id" 
+            class="p-3.5 rounded-xl border text-xs space-y-1.5"
+            :class="log.status === 'failed' 
+              ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800' 
+              : log.status === 'partial' || log.status === 'empty'
+                ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
+                : 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span 
+                  class="px-2 py-0.5 rounded font-bold uppercase text-[10px]"
+                  :class="log.status === 'failed' 
+                    ? 'bg-rose-200 text-rose-800' 
+                    : log.status === 'empty' || log.status === 'partial'
+                      ? 'bg-amber-200 text-amber-800'
+                      : 'bg-emerald-200 text-emerald-800'"
+                >
+                  {{ log.status === 'failed' ? 'GAGAL' : log.status === 'empty' ? 'DATA KOSONG' : log.status === 'partial' ? 'SEBAGIAN' : 'BERHASIL' }}
+                </span>
+                <span class="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-[10px] uppercase">
+                  {{ log.source === 'cron' ? 'Cron Otomatis' : 'Tarik Manual' }}
+                </span>
+                <span class="font-bold text-slate-800 dark:text-white">
+                  Target Tanggal: {{ log.date_target }}
+                </span>
+              </div>
+              <span class="text-[11px] text-slate-500 font-mono">{{ log.timestamp }}</span>
+            </div>
+
+            <div class="text-slate-700 dark:text-slate-200 font-medium">
+              {{ log.message }}
+            </div>
+
+            <div v-if="log.error_detail" class="p-2 rounded bg-rose-100/80 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 font-mono text-[11px] break-all">
+              <b>Detail Kegagalan:</b> {{ log.error_detail }}
+            </div>
+
+            <div v-if="log.unmatched_logs && log.unmatched_logs.length > 0" class="text-[11px] text-amber-700 dark:text-amber-300">
+              <b>Log Mesin Belum Cocok NIK/Nama ({{ log.unmatched_logs.length }}):</b> {{ log.unmatched_logs.join(', ') }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>
 
@@ -416,6 +522,21 @@ const loading = ref(false)
 const saving = ref(false)
 const syncingFingerprint = ref(false)
 const isSavedInDb = ref(false)
+
+// Step-by-Step Progress & Sync Logs State
+const syncProgress = ref({
+  active: false,
+  stageText: '',
+  current: 0,
+  total: 0,
+  percent: 0,
+  currentEmployeeName: '',
+  failed: 0
+})
+const showSyncLogsDialog = ref(false)
+const loadingSyncLogs = ref(false)
+const syncLogs = ref<any[]>([])
+const failedLogsCount = computed(() => syncLogs.value.filter(l => l.status === 'failed').length)
 
 // Grouped status options with extended leave types
 const statusOptions = [
@@ -582,41 +703,153 @@ const fetchData = async () => {
   }
 }
 
+const fetchSyncLogs = async () => {
+  loadingSyncLogs.value = true
+  try {
+    const data = await api.get<any[]>('/sdm/attendance/sync-logs?limit=30')
+    syncLogs.value = data || []
+  } catch (e) {
+    console.error('Failed to fetch sync logs:', e)
+  } finally {
+    loadingSyncLogs.value = false
+  }
+}
+
+const openSyncLogsDialog = () => {
+  showSyncLogsDialog.value = true
+  fetchSyncLogs()
+}
+
 const syncFingerprint = async () => {
   if (!filterDate.value) return
   syncingFingerprint.value = true
+  const dateStr = formatLocalDate(filterDate.value)
+
+  syncProgress.value = {
+    active: true,
+    stageText: `Menghubungi mesin presensi (sdit.asysyuuraa.my.id) untuk tanggal ${dateStr}...`,
+    current: 0,
+    total: 0,
+    percent: 5,
+    currentEmployeeName: '',
+    failed: 0
+  }
+
   try {
-    const dateStr = formatLocalDate(filterDate.value)
-    const res = await api.post<any>('/sdm/attendance/sync-fingerprint', { date: dateStr })
-    if (res?.status === 'empty') {
+    // Tahap 1: Tarik daftar antrian log dari mesin fingerprint
+    const res = await api.post<any>('/sdm/attendance/sync-fingerprint', {
+      date: dateStr,
+      mode: 'fetch_raw',
+      source: 'manual'
+    })
+
+    if (res?.status === 'empty' || !res?.queue || res.queue.length === 0) {
       toast.add({
         severity: 'warn',
         summary: 'Data Kosong',
-        detail: res.message || `Tidak ada data tap mesin fingerprint pada tanggal ${dateStr}.`,
+        detail: res?.message || `Tidak ada data tap mesin fingerprint pada tanggal ${dateStr}.`,
         life: 4000
       })
-    } else {
-      const extraInfo = res?.unmatched_logs?.length
-        ? ` (${res.unmatched_logs.length} log belum cocok NIK/Nama)`
-        : ''
-      toast.add({
-        severity: 'success',
-        summary: 'Sinkronisasi Berhasil',
-        detail: (res?.message || `Berhasil menarik data mesin presensi tanggal ${dateStr}.`) + extraInfo,
-        life: 4500
-      })
-      await fetchData()
+      await fetchSyncLogs()
+      return
     }
+
+    const queue: any[] = res.queue
+    const rawCount: number = res.raw_count || 0
+    const unmatchedLogs: string[] = res.unmatched_logs || []
+
+    syncProgress.value.total = queue.length
+    syncProgress.value.stageText = `Menyinkronkan presensi pegawai satu per satu (${rawCount} log tap)...`
+
+    let successCount = 0
+    let failCount = 0
+    const errorDetails: string[] = []
+
+    // Tahap 2: Proses satu per satu pegawai agar terlihat progress-nya dan tidak membebani server
+    for (let i = 0; i < queue.length; i++) {
+      const item = queue[i]
+      syncProgress.value.current = i + 1
+      syncProgress.value.currentEmployeeName = `${item.nama_lengkap} (${item.nik_kepegawaian || '-'})`
+      syncProgress.value.percent = Math.round(((i + 1) / queue.length) * 100)
+
+      try {
+        const singleRes = await api.post<any>('/sdm/attendance/sync-fingerprint', {
+          date: dateStr,
+          mode: 'process_one',
+          employee_id: item.employee_id,
+          raw_logs: item.punches
+        })
+        successCount++
+
+        // Update baris di tabel secara langsung (real-time visual update)
+        const rowInTable = attendances.value.find(a => a.employee_id === item.employee_id)
+        if (rowInTable && singleRes) {
+          rowInTable.status = singleRes.attendance_status || 'PRESENT'
+          if (singleRes.check_in) {
+            const [ih, im, is] = singleRes.check_in.split(':').map(Number)
+            const inD = new Date(filterDate.value)
+            inD.setHours(ih || 0, im || 0, is || 0, 0)
+            rowInTable.check_in = inD
+          }
+          if (singleRes.check_out) {
+            const [oh, om, os] = singleRes.check_out.split(':').map(Number)
+            const outD = new Date(filterDate.value)
+            outD.setHours(oh || 0, om || 0, os || 0, 0)
+            rowInTable.check_out = outD
+          }
+          rowInTable.notes = `Sinkronisasi Fingerprint (${item.punches.length}x tap)`
+        }
+      } catch (errOne: any) {
+        failCount++
+        syncProgress.value.failed = failCount
+        errorDetails.push(`${item.nama_lengkap}: ${errOne?.data?.detail || 'Gagal simpan'}`)
+      }
+    }
+
+    isSavedInDb.value = true
+
+    // Tahap 3: Catat hasil akhir ke Log Sinkronisasi
+    const finalStatus = failCount === 0 ? 'success' : (successCount > 0 ? 'partial' : 'failed')
+    const finalMsg = `Berhasil menyinkronkan ${successCount} dari ${queue.length} pegawai (${rawCount} log mesin) pada tanggal ${dateStr}.`
+    await api.post('/sdm/attendance/sync-logs', {
+      date: dateStr,
+      source: 'manual',
+      status: finalStatus,
+      raw_count: rawCount,
+      synced_employees: successCount,
+      failed_employees: failCount,
+      unmatched_logs: unmatchedLogs,
+      message: finalMsg,
+      error_detail: errorDetails.length > 0 ? errorDetails.join('; ') : null
+    })
+
+    const extraInfo = unmatchedLogs.length
+      ? ` (${unmatchedLogs.length} nama di mesin belum cocok NIK/Nama)`
+      : ''
+    toast.add({
+      severity: failCount > 0 ? 'warn' : 'success',
+      summary: 'Sinkronisasi Selesai',
+      detail: finalMsg + extraInfo,
+      life: 5000
+    })
+
+    await fetchData()
+    await fetchSyncLogs()
   } catch (error: any) {
     console.error('Sync fingerprint error:', error)
+    const errDetail = error?.data?.detail || 'Koneksi ke mesin presensi (192.168.188.222) terputus atau timeout. Detail telah dicatat di Log Sinkronisasi.'
     toast.add({
       severity: 'error',
-      summary: 'Gagal Sinkronisasi',
-      detail: error?.data?.detail || 'Gagal menarik data dari mesin presensi.',
-      life: 4000
+      summary: 'Gagal Sinkronisasi Mesin',
+      detail: errDetail,
+      life: 6000
     })
+    await fetchSyncLogs()
   } finally {
     syncingFingerprint.value = false
+    setTimeout(() => {
+      syncProgress.value.active = false
+    }, 1500)
   }
 }
 
@@ -711,5 +944,6 @@ const saveAttendance = async () => {
 onMounted(() => {
   fetchUnits()
   fetchData()
+  fetchSyncLogs()
 })
 </script>
