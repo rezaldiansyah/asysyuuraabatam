@@ -225,12 +225,39 @@
             </div>
           </div>
 
+          <!-- Opsi Checkbox Tugas Luar / Dinas / Lomba di Luar Sekolah -->
+          <div v-if="!isFullyCompleted" class="p-3.5 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-950/30 space-y-3">
+            <div class="flex items-center gap-2.5">
+              <Checkbox v-model="isDutyOutside" :binary="true" inputId="is_duty_outside" />
+              <label for="is_duty_outside" class="text-xs font-bold text-blue-900 dark:text-blue-200 cursor-pointer select-none">
+                Saya sedang Tugas Luar / Dinas / Mengikuti Lomba (Di Luar Sekolah)
+              </label>
+            </div>
+            
+            <div v-if="isDutyOutside" class="space-y-2 pt-1 border-t border-blue-200/60 dark:border-blue-800/60 text-xs">
+              <div>
+                <label class="font-bold text-blue-900 dark:text-blue-200 block mb-1">
+                  Keperluan & Lokasi Tugas Luar <span class="text-rose-500">*</span>
+                </label>
+                <InputText 
+                  v-model="dutyReason" 
+                  placeholder="Contoh: Rapat Koordinasi Kurikulum di Kantor Dinas Pendidikan / Lomba OSN" 
+                  class="w-full text-xs" 
+                />
+              </div>
+              <div class="text-[11px] text-blue-800 dark:text-blue-300 bg-white/70 dark:bg-slate-900/60 p-2 rounded-lg border border-blue-200 dark:border-blue-900">
+                <i class="pi pi-map-marker text-blue-600 mr-1"></i>
+                Koordinat GPS perangkat Anda (<span class="font-mono">{{ userCoords.lat ? userCoords.lat.toFixed(5) + ', ' + userCoords.lng?.toFixed(5) : 'Mendeteksi...' }}</span>) akan dicatat sebagai bukti kehadiran tugas luar dan status otomatis dicatat sebagai <b>Dispensasi / Tugas Luar</b>.
+              </div>
+            </div>
+          </div>
+
           <!-- Input Catatan Opsional -->
           <div v-if="!isFullyCompleted" class="space-y-1.5">
-            <label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Catatan Presensi (Opsional)</label>
+            <label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Catatan Tambahan (Opsional)</label>
             <InputText 
               v-model="attendanceNotes" 
-              placeholder="Contoh: Mengikuti briefing pagi / piket gerbang" 
+              placeholder="Contoh: Surat tugas terlampir / pendampingan 3 siswa" 
               class="w-full text-sm" 
             />
           </div>
@@ -240,17 +267,17 @@
             <!-- Kasus 1: Belum Check-in -->
             <div v-if="!todayAttendance?.check_in" class="space-y-2">
               <Button 
-                label="Check-in Masuk Sekarang" 
-                icon="pi pi-check-circle" 
+                :label="isDutyOutside ? 'Check-in Tugas Luar Sekarang' : 'Check-in Masuk Sekarang'" 
+                :icon="isDutyOutside ? 'pi pi-briefcase' : 'pi pi-check-circle'" 
                 size="large"
                 class="w-full !py-4 font-bold text-base shadow-lg hover:shadow-xl transition"
-                severity="success"
+                :severity="isDutyOutside ? 'info' : 'success'"
                 :loading="submitting"
                 :disabled="!canCheckIn"
                 @click="handleCheckIn"
               />
-              <p v-if="!canCheckIn && geofence.is_enabled" class="text-xs text-center text-rose-500">
-                *Tombol check-in aktif saat posisi Anda berada di dalam radius {{ geofence.radius_meters }} meter dari sekolah.
+              <p v-if="!canCheckIn && geofence.is_enabled && !isDutyOutside" class="text-xs text-center text-rose-500">
+                *Tombol check-in aktif saat posisi Anda berada di dalam radius {{ geofence.radius_meters }} meter dari sekolah, atau centang opsi Tugas Luar di atas jika berada di luar sekolah.
               </p>
             </div>
 
@@ -315,6 +342,8 @@ const loadingInit = ref(true)
 const submitting = ref(false)
 const detectingGPS = ref(false)
 const attendanceNotes = ref('')
+const isDutyOutside = ref(false)
+const dutyReason = ref('')
 const currentTime = ref('00:00:00')
 const currentDate = ref('')
 let timerInterval: any = null
@@ -375,6 +404,9 @@ const gpsStatus = computed(() => {
 const canCheckIn = computed(() => {
   if (!todayData.has_employee_profile) return false
   if (todayAttendance.value?.check_in) return false
+  if (isDutyOutside.value) {
+    return !!(userCoords.lat && userCoords.lng && dutyReason.value.trim())
+  }
   if (!geofence.is_enabled) return true
   return gpsStatus.value === 'in_radius'
 })
@@ -383,6 +415,9 @@ const canCheckOut = computed(() => {
   if (!todayData.has_employee_profile) return false
   if (!todayAttendance.value?.check_in) return false
   if (todayAttendance.value?.check_out) return false
+  if (isDutyOutside.value || (todayAttendance.value?.notes || '').includes('Tugas Luar')) {
+    return !!(userCoords.lat && userCoords.lng)
+  }
   if (!geofence.is_enabled) return true
   return gpsStatus.value === 'in_radius'
 })
@@ -452,13 +487,20 @@ async function handleCheckIn() {
     return
   }
 
+  if (isDutyOutside.value && !dutyReason.value.trim()) {
+    toast.add({ severity: 'warn', summary: 'Isi Keperluan Dinas', detail: 'Mohon isi nama agenda dinas / lokasi lomba.', life: 4000 })
+    return
+  }
+
   submitting.value = true
   try {
     const res = await api.post<any>('/sdm/attendance/check-in', {
       latitude: userCoords.lat,
       longitude: userCoords.lng,
       device_info: typeof navigator !== 'undefined' ? navigator.userAgent : 'Web Browser',
-      notes: attendanceNotes.value.trim() || undefined
+      notes: attendanceNotes.value.trim() || undefined,
+      is_duty_outside: isDutyOutside.value,
+      duty_reason: dutyReason.value.trim() || undefined
     })
     toast.add({
       severity: 'success',
@@ -467,6 +509,8 @@ async function handleCheckIn() {
       life: 5000
     })
     attendanceNotes.value = ''
+    dutyReason.value = ''
+    isDutyOutside.value = false
     await fetchTodayData()
   } catch (e: any) {
     const msg = e?.data?.detail || 'Gagal melakukan check-in'
@@ -489,7 +533,9 @@ async function handleCheckOut() {
       latitude: userCoords.lat,
       longitude: userCoords.lng,
       device_info: typeof navigator !== 'undefined' ? navigator.userAgent : 'Web Browser',
-      notes: attendanceNotes.value.trim() || undefined
+      notes: attendanceNotes.value.trim() || undefined,
+      is_duty_outside: isDutyOutside.value,
+      duty_reason: dutyReason.value.trim() || undefined
     })
     toast.add({
       severity: 'success',

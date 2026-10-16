@@ -933,6 +933,11 @@ async def employee_check_in(
     if existing and existing.check_in:
         raise HTTPException(status_code=400, detail=f"Anda sudah melakukan Check-in hari ini pada pukul {existing.check_in.strftime('%H:%M:%S')}.")
         
+    is_duty = bool(req.is_duty_outside)
+    if is_duty:
+        if not (req.duty_reason or "").strip():
+            raise HTTPException(status_code=400, detail="Keterangan tugas luar/dinas wajib diisi jika presensi di luar sekolah.")
+
     geofence = get_geofence_config(db)
     dist_meters = 0.0
     if geofence.get("is_enabled", True):
@@ -941,27 +946,35 @@ async def employee_check_in(
         allowed_radius = float(geofence.get("radius_meters", 30.0))
         dist_meters = round(calculate_haversine_distance(req.latitude, req.longitude, school_lat, school_lng), 1)
         
-        if dist_meters > allowed_radius:
+        if not is_duty and dist_meters > allowed_radius:
             raise HTTPException(
                 status_code=400,
-                detail=f"Presensi ditolak. Anda berada di luar radius sekolah. Jarak Anda: {dist_meters:.1f} meter (Maksimal: {allowed_radius:.0f} meter)."
+                detail=f"Presensi ditolak. Anda berada di luar radius sekolah ({dist_meters:.1f}m dari sekolah). Jika sedang agenda dinas/lomba di luar, centang opsi 'Tugas Luar / Dinas' dan sertakan keterangannya."
             )
 
-    # Determine status (PRESENT or LATE) with late_tolerance_minutes
-    status_val = models.AttendanceStatus.PRESENT
-    work_start = geofence.get("work_start_time", "07:30")
-    tol_mins = int(geofence.get("late_tolerance_minutes", 0) or 0)
-    try:
-        sh, sm = map(int, work_start.split(":"))
-        cutoff_minutes = (sh * 60) + sm + tol_mins
-        now_minutes = (now_dt.hour * 60) + now_dt.minute
-        if now_minutes > cutoff_minutes:
-            status_val = models.AttendanceStatus.LATE
-    except Exception:
-        pass
+    # Determine status (DISPENSATION for duty outside, or PRESENT / LATE for regular check-in)
+    if is_duty:
+        status_val = models.AttendanceStatus.DISPENSATION
+    else:
+        status_val = models.AttendanceStatus.PRESENT
+        work_start = geofence.get("work_start_time", "07:30")
+        tol_mins = int(geofence.get("late_tolerance_minutes", 0) or 0)
+        try:
+            sh, sm = map(int, work_start.split(":"))
+            cutoff_minutes = (sh * 60) + sm + tol_mins
+            now_minutes = (now_dt.hour * 60) + now_dt.minute
+            if now_minutes > cutoff_minutes:
+                status_val = models.AttendanceStatus.LATE
+        except Exception:
+            pass
 
-    gps_note_prefix = f"Presensi Mandiri GPS (Jarak {dist_meters}m)"
-    combined_gps_note = f"{gps_note_prefix} - {req.notes}" if req.notes else gps_note_prefix
+    if is_duty:
+        loc_str = f"Lat: {req.latitude:.5f}, Lng: {req.longitude:.5f} ({dist_meters}m dari sekolah)"
+        gps_note_prefix = f"Presensi Mandiri GPS [Tugas Luar / Dinas] ({loc_str}) — Keperluan: {req.duty_reason.strip()}"
+        combined_gps_note = f"{gps_note_prefix} | Catatan: {req.notes.strip()}" if req.notes else gps_note_prefix
+    else:
+        gps_note_prefix = f"Presensi Mandiri GPS (Jarak {dist_meters}m)"
+        combined_gps_note = f"{gps_note_prefix} - {req.notes}" if req.notes else gps_note_prefix
 
     if existing:
         existing.status = status_val
@@ -988,8 +1001,9 @@ async def employee_check_in(
         
     db.commit()
     db.refresh(db_att)
+    status_text = "Tugas Luar/Dinas" if is_duty else ("Tepat Waktu" if status_val == models.AttendanceStatus.PRESENT else "Terlambat")
     return {
-        "message": f"Berhasil Check-in pada {now_dt.strftime('%H:%M:%S')} ({'Tepat Waktu' if status_val == models.AttendanceStatus.PRESENT else 'Terlambat'}).",
+        "message": f"Berhasil Check-in pada {now_dt.strftime('%H:%M:%S')} ({status_text}). Lokasi GPS berhasil dicatat.",
         "distance_meters": dist_meters,
         "status": status_val.value,
         "check_in": now_dt.isoformat()
@@ -1025,6 +1039,7 @@ async def employee_check_out(
     if existing.check_out:
         raise HTTPException(status_code=400, detail=f"Anda sudah melakukan Check-out pada pukul {existing.check_out.strftime('%H:%M:%S')}.")
         
+    is_duty = bool(req.is_duty_outside) or ("Tugas Luar" in (existing.notes or ""))
     geofence = get_geofence_config(db)
     dist_meters = 0.0
     if geofence.get("is_enabled", True):
@@ -1033,10 +1048,10 @@ async def employee_check_out(
         allowed_radius = float(geofence.get("radius_meters", 30.0))
         dist_meters = round(calculate_haversine_distance(req.latitude, req.longitude, school_lat, school_lng), 1)
         
-        if dist_meters > allowed_radius:
+        if not is_duty and dist_meters > allowed_radius:
             raise HTTPException(
                 status_code=400,
-                detail=f"Presensi ditolak. Anda berada di luar radius sekolah saat Check-out. Jarak Anda: {dist_meters:.1f} meter (Maksimal: {allowed_radius:.0f} meter)."
+                detail=f"Presensi ditolak. Anda berada di luar radius sekolah saat Check-out ({dist_meters:.1f}m). Jika sedang dinas luar, centang opsi Tugas Luar."
             )
 
     existing.check_out = now_dt

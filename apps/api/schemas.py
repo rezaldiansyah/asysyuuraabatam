@@ -563,12 +563,16 @@ class EmployeeCheckInRequest(BaseModel):
     longitude: float
     device_info: Optional[str] = None
     notes: Optional[str] = None
+    is_duty_outside: Optional[bool] = False
+    duty_reason: Optional[str] = None
 
 class EmployeeCheckOutRequest(BaseModel):
     latitude: float
     longitude: float
     device_info: Optional[str] = None
     notes: Optional[str] = None
+    is_duty_outside: Optional[bool] = False
+    duty_reason: Optional[str] = None
 
 # Bulk Attendance Schema
 class BulkStudentAttendanceItem(BaseModel):
