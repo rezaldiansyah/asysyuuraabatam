@@ -78,45 +78,93 @@
     </Card>
 
     <!-- Monthly KPI Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" v-if="recapData.length > 0">
-      <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3.5">
-        <div class="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center shrink-0">
-          <i class="pi pi-users text-xl"></i>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5" v-if="recapData.length > 0">
+      <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center shrink-0">
+          <i class="pi pi-users text-lg"></i>
         </div>
         <div>
-          <div class="text-xs text-slate-500 font-medium">Total Pegawai Terdaftar</div>
-          <div class="text-xl font-bold text-slate-800 dark:text-white mt-0.5">{{ monthlyStats.totalEmployees }} Orang</div>
+          <div class="text-[11px] text-slate-500 font-medium">Total Pegawai</div>
+          <div class="text-lg font-bold text-slate-800 dark:text-white mt-0.5">{{ monthlyStats.totalEmployees }} Orang</div>
         </div>
       </div>
 
-      <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3.5">
-        <div class="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center shrink-0">
-          <i class="pi pi-chart-pie text-xl"></i>
+      <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center shrink-0">
+          <i class="pi pi-chart-pie text-lg"></i>
         </div>
         <div>
-          <div class="text-xs text-slate-500 font-medium">Rata-rata Kehadiran</div>
-          <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{{ monthlyStats.avgPresence }}%</div>
+          <div class="text-[11px] text-slate-500 font-medium">Rata-rata Kehadiran</div>
+          <div class="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{{ monthlyStats.avgPresence }}%</div>
         </div>
       </div>
 
-      <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3.5">
-        <div class="w-11 h-11 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 flex items-center justify-center shrink-0">
-          <i class="pi pi-check-circle text-xl"></i>
+      <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between gap-2">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 flex items-center justify-center shrink-0">
+            <i class="pi pi-check-circle text-lg"></i>
+          </div>
+          <div>
+            <div class="text-[11px] text-slate-500 font-medium">Total Hari Hadir</div>
+            <div class="text-lg font-bold text-slate-800 dark:text-white mt-0.5 flex items-center gap-1.5">
+              <span>{{ monthlyStats.totalHadir + monthlyStats.totalTerlambat }} Kali</span>
+            </div>
+            <div v-if="monthlyStats.totalTerlambat > 0" class="text-[10px] text-amber-600 font-semibold">
+              {{ monthlyStats.totalTerlambat }}x Terlambat
+            </div>
+          </div>
         </div>
-        <div>
-          <div class="text-xs text-slate-500 font-medium">Total Hari Hadir Staf</div>
-          <div class="text-xl font-bold text-slate-800 dark:text-white mt-0.5">{{ monthlyStats.totalHadir }} Kali</div>
-        </div>
+        <button
+          v-if="monthlyStats.totalTerlambat > 0"
+          type="button"
+          class="w-7 h-7 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 flex items-center justify-center transition shrink-0"
+          title="Lihat pegawai yang pernah terlambat bulan ini"
+          @click="openRecapModal('terlambat')"
+        >
+          <i class="pi pi-eye text-xs"></i>
+        </button>
       </div>
 
-      <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3.5">
-        <div class="w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center shrink-0">
-          <i class="pi pi-calendar-times text-xl"></i>
+      <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between gap-2">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center shrink-0">
+            <i class="pi pi-calendar-minus text-lg"></i>
+          </div>
+          <div>
+            <div class="text-[11px] text-slate-500 font-medium">Izin / Sakit / Cuti</div>
+            <div class="text-lg font-bold text-slate-800 dark:text-white mt-0.5">{{ monthlyStats.totalIzinSakitCuti }} Kali</div>
+          </div>
         </div>
-        <div>
-          <div class="text-xs text-slate-500 font-medium">Izin / Sakit / Cuti</div>
-          <div class="text-xl font-bold text-slate-800 dark:text-white mt-0.5">{{ monthlyStats.totalIzinSakitCuti }} Kali</div>
+        <button
+          v-if="monthlyStats.totalIzinSakitCuti > 0"
+          type="button"
+          class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition shrink-0"
+          title="Lihat daftar pegawai Izin / Sakit / Cuti"
+          @click="openRecapModal('izin_sakit_cuti')"
+        >
+          <i class="pi pi-eye text-xs"></i>
+        </button>
+      </div>
+
+      <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-rose-200 dark:border-rose-900/50 shadow-sm flex items-center justify-between gap-2">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center shrink-0">
+            <i class="pi pi-times-circle text-lg"></i>
+          </div>
+          <div>
+            <div class="text-[11px] text-rose-600 dark:text-rose-400 font-semibold">Total Alpa (Tanpa Ket.)</div>
+            <div class="text-lg font-bold text-rose-600 dark:text-rose-400 mt-0.5">{{ monthlyStats.totalAlpa }} Kali</div>
+          </div>
         </div>
+        <button
+          v-if="monthlyStats.totalAlpa > 0"
+          type="button"
+          class="w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition shrink-0"
+          title="Lihat daftar pegawai yang memiliki Alpa"
+          @click="openRecapModal('alpa')"
+        >
+          <i class="pi pi-eye text-xs"></i>
+        </button>
       </div>
     </div>
 
@@ -234,6 +282,44 @@
         </DataTable>
       </template>
     </Card>
+
+    <!-- Modal Quick-View Daftar Pegawai per Kategori Rekap -->
+    <Dialog
+      v-model:visible="showRecapModal"
+      :header="recapModalTitle"
+      :modal="true"
+      :style="{ width: '36rem' }"
+      :breakpoints="{ '640px': '95vw' }"
+    >
+      <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+        <div
+          v-for="emp in recapModalList"
+          :key="emp.employee_id"
+          class="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60"
+        >
+          <div>
+            <div class="font-bold text-sm text-slate-800 dark:text-white">{{ emp.nama_lengkap }}</div>
+            <div class="text-xs text-slate-400">NIP: {{ emp.nip || '-' }}</div>
+          </div>
+          <div class="flex items-center gap-1.5 text-xs font-bold">
+            <span v-if="recapModalType === 'terlambat'" class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700">
+              {{ emp.terlambat }}x Terlambat
+            </span>
+            <template v-else-if="recapModalType === 'izin_sakit_cuti'">
+              <span v-if="emp.sakit > 0" class="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700">{{ emp.sakit }} Sakit</span>
+              <span v-if="emp.izin > 0" class="px-2 py-0.5 rounded bg-blue-100 text-blue-700">{{ emp.izin }} Izin</span>
+              <span v-if="emp.cuti > 0" class="px-2 py-0.5 rounded bg-purple-100 text-purple-700">{{ emp.cuti }} Cuti</span>
+            </template>
+            <span v-else-if="recapModalType === 'alpa'" class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-700">
+              {{ emp.alpa }}x Alpa
+            </span>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Tutup" icon="pi pi-times" severity="secondary" text size="small" @click="showRecapModal = false" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -253,6 +339,31 @@ const recapData = ref<any[]>([])
 const loading = ref(false)
 const hasFetched = ref(false)
 
+const showRecapModal = ref(false)
+const recapModalType = ref<'terlambat' | 'izin_sakit_cuti' | 'alpa'>('alpa')
+
+const recapModalTitle = computed(() => {
+  if (recapModalType.value === 'terlambat') return `Daftar Pegawai Terlambat — ${formattedMonth.value}`
+  if (recapModalType.value === 'izin_sakit_cuti') return `Daftar Pegawai Izin / Sakit / Cuti — ${formattedMonth.value}`
+  return `Daftar Pegawai Alpa (Tanpa Keterangan) — ${formattedMonth.value}`
+})
+
+const recapModalList = computed(() => {
+  const list = recapData.value || []
+  if (recapModalType.value === 'terlambat') {
+    return list.filter(i => (i.terlambat || 0) > 0).sort((a, b) => (b.terlambat || 0) - (a.terlambat || 0))
+  }
+  if (recapModalType.value === 'izin_sakit_cuti') {
+    return list.filter(i => ((i.sakit || 0) + (i.izin || 0) + (i.cuti || 0)) > 0)
+  }
+  return list.filter(i => (i.alpa || 0) > 0).sort((a, b) => (b.alpa || 0) - (a.alpa || 0))
+})
+
+function openRecapModal(type: 'terlambat' | 'izin_sakit_cuti' | 'alpa') {
+  recapModalType.value = type
+  showRecapModal.value = true
+}
+
 const formattedMonth = computed(() => {
   if (!filterMonth.value) return ''
   return filterMonth.value.toLocaleDateString('id-ID', { year: 'numeric', month: 'long' })
@@ -262,13 +373,17 @@ const monthlyStats = computed(() => {
   const list = recapData.value || []
   const totalEmployees = list.length
   let totalHadir = 0
+  let totalTerlambat = 0
   let totalIzinSakitCuti = 0
+  let totalAlpa = 0
   let totalTercatat = 0
   let sumPercentage = 0
 
   for (const item of list) {
     totalHadir += (item.hadir || 0)
+    totalTerlambat += (item.terlambat || 0)
     totalIzinSakitCuti += (item.sakit || 0) + (item.izin || 0) + (item.cuti || 0)
+    totalAlpa += (item.alpa || 0)
     totalTercatat += (item.total || 0)
     const pct = parseFloat(item.persentase) || 0
     sumPercentage += pct
@@ -278,7 +393,7 @@ const monthlyStats = computed(() => {
     ? (sumPercentage / totalEmployees).toFixed(1)
     : '0.0'
 
-  return { totalEmployees, totalHadir, totalIzinSakitCuti, totalTercatat, avgPresence }
+  return { totalEmployees, totalHadir, totalTerlambat, totalIzinSakitCuti, totalAlpa, totalTercatat, avgPresence }
 })
 
 const fetchUnits = async () => {

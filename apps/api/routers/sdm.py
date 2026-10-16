@@ -791,7 +791,8 @@ DEFAULT_GEOFENCE = {
     "radius_meters": 30.0,
     "location_name": "Komplek Sekolah Asy-Syuuraa Batam",
     "work_start_time": "07:30",
-    "work_end_time": "16:00"
+    "work_end_time": "16:00",
+    "late_tolerance_minutes": 0
 }
 
 def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -935,12 +936,15 @@ async def employee_check_in(
                 detail=f"Presensi ditolak. Anda berada di luar radius sekolah. Jarak Anda: {dist_meters:.1f} meter (Maksimal: {allowed_radius:.0f} meter)."
             )
 
-    # Determine status (PRESENT or LATE)
+    # Determine status (PRESENT or LATE) with late_tolerance_minutes
     status_val = models.AttendanceStatus.PRESENT
     work_start = geofence.get("work_start_time", "07:30")
+    tol_mins = int(geofence.get("late_tolerance_minutes", 0) or 0)
     try:
         sh, sm = map(int, work_start.split(":"))
-        if (now_dt.hour > sh) or (now_dt.hour == sh and now_dt.minute > sm):
+        cutoff_minutes = (sh * 60) + sm + tol_mins
+        now_minutes = (now_dt.hour * 60) + now_dt.minute
+        if now_minutes > cutoff_minutes:
             status_val = models.AttendanceStatus.LATE
     except Exception:
         pass
@@ -1383,7 +1387,8 @@ def _save_single_employee_punches(
     punches: list[datetime],
     target_date: date,
     sh: int,
-    sm: int
+    sm: int,
+    tol_mins: int = 0
 ) -> tuple[str, str, Optional[str], Optional[str]]:
     """Save a single employee's grouped punches to DB and return (action, status_str, check_in_str, check_out_str)."""
     punches.sort()
@@ -1406,7 +1411,9 @@ def _save_single_employee_punches(
 
     status_val = models.AttendanceStatus.PRESENT
     if check_in_dt and check_in_dt.hour < 12:
-        if (check_in_dt.hour > sh) or (check_in_dt.hour == sh and check_in_dt.minute > sm):
+        cutoff_minutes = (sh * 60) + sm + max(0, tol_mins)
+        checkin_minutes = (check_in_dt.hour * 60) + check_in_dt.minute
+        if checkin_minutes > cutoff_minutes:
             status_val = models.AttendanceStatus.LATE
 
     existing = db.query(models.EmployeeAttendance).filter(
@@ -1479,6 +1486,7 @@ async def sync_fingerprint_attendance(
 
     geofence = get_geofence_config(db)
     work_start = geofence.get("work_start_time", "07:30")
+    tol_mins = int(geofence.get("late_tolerance_minutes", 0) or 0)
     sh, sm = 7, 30
     try:
         sh, sm = map(int, work_start.split(":"))
@@ -1498,7 +1506,7 @@ async def sync_fingerprint_attendance(
                 pass
         if not punches:
             raise HTTPException(status_code=400, detail="Format waktu tap tidak valid.")
-        action, st_val, c_in, c_out = _save_single_employee_punches(db, req.employee_id, punches, target_date, sh, sm)
+        action, st_val, c_in, c_out = _save_single_employee_punches(db, req.employee_id, punches, target_date, sh, sm, tol_mins)
         return {
             "status": "success",
             "employee_id": req.employee_id,
@@ -1584,7 +1592,7 @@ async def sync_fingerprint_attendance(
 
     for emp_id, punches in emp_punches.items():
         try:
-            action, _, _, _ = _save_single_employee_punches(db, emp_id, punches, target_date, sh, sm)
+            action, _, _, _ = _save_single_employee_punches(db, emp_id, punches, target_date, sh, sm, tol_mins)
             if action == "created":
                 created_count += 1
             else:

@@ -12,82 +12,100 @@
         </p>
       </div>
 
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Info Jam Kerja & Toleransi + Tombol Pengaturan -->
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-medium border border-slate-200 dark:border-slate-700 transition"
+          title="Klik untuk mengatur Jam Masuk, Jam Pulang & Toleransi Keterlambatan"
+          @click="showWorkHoursDialog = true"
+        >
+          <i class="pi pi-clock text-emerald-600"></i>
+          <span>Jam Kerja: <b>{{ geofenceConfig.work_start_time }} - {{ geofenceConfig.work_end_time }}</b></span>
+          <span class="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-[10px] font-bold">
+            Toleransi {{ geofenceConfig.late_tolerance_minutes || 0 }}m
+          </span>
+          <i class="pi pi-sliders-h text-[11px] text-slate-400 ml-0.5"></i>
+        </button>
+
         <NuxtLink 
           to="/dashboard/sdm/presensi/mandiri"
           class="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-xs shadow-sm transition"
         >
           <i class="pi pi-map-marker"></i>
-          Presensi Mandiri GPS Saya
+          Presensi Mandiri GPS
         </NuxtLink>
         <NuxtLink 
           to="/dashboard/sdm/presensi/rekap"
           class="inline-flex items-center gap-2 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-semibold text-xs shadow-sm transition"
         >
           <i class="pi pi-chart-bar text-slate-500"></i>
-          Rekapitulasi Bulanan
+          Rekap Bulanan
         </NuxtLink>
       </div>
     </div>
 
-    <!-- Filter & Date Navigator Bar -->
+    <!-- Filter & Date Navigator Bar (Compact Single-Line Layout) -->
     <Card>
       <template #content>
-        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          <!-- Date Navigator -->
-          <div class="flex flex-wrap items-center gap-2">
-            <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-              <Button 
-                icon="pi pi-chevron-left" 
-                text 
-                rounded 
-                size="small" 
-                title="Hari Kemarin" 
-                @click="changeDate(-1)" 
-              />
-              <Button 
-                label="Kemarin" 
-                text 
-                size="small" 
-                class="!text-xs !py-1 !px-2.5 font-medium" 
-                @click="changeDate(-1)" 
-              />
-              <Button 
-                label="Hari Ini" 
-                size="small" 
-                class="!text-xs !py-1 !px-3 font-bold" 
-                :outlined="!isTodaySelected" 
-                :severity="isTodaySelected ? 'primary' : 'secondary'"
-                @click="setToday" 
-              />
-              <Button 
-                label="Besok" 
-                text 
-                size="small" 
-                class="!text-xs !py-1 !px-2.5 font-medium" 
-                @click="changeDate(1)" 
-              />
-              <Button 
-                icon="pi pi-chevron-right" 
-                text 
-                rounded 
-                size="small" 
-                title="Hari Besok" 
-                @click="changeDate(1)" 
-              />
+        <div class="flex flex-col xl:flex-row justify-between items-stretch xl:items-center gap-3">
+          <!-- Left: Date Navigator + Date Picker -->
+          <div class="flex flex-wrap sm:flex-nowrap items-center gap-2">
+            <div class="inline-flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
+              <button
+                type="button"
+                class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition"
+                title="Hari Sebelumnya (Kemarin)"
+                @click="changeDate(-1)"
+              >
+                <i class="pi pi-chevron-left text-xs"></i>
+              </button>
+              <button
+                type="button"
+                class="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition"
+                title="Pindah ke Hari Kemarin"
+                @click="changeDate(-1)"
+              >
+                Kemarin
+              </button>
+              <button
+                type="button"
+                class="px-3 py-1 rounded-lg text-xs font-bold transition shadow-xs"
+                :class="isTodaySelected ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50'"
+                title="Kembali ke Hari Ini"
+                @click="setToday"
+              >
+                Hari Ini
+              </button>
+              <button
+                type="button"
+                class="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition"
+                title="Pindah ke Hari Besok"
+                @click="changeDate(1)"
+              >
+                Besok
+              </button>
+              <button
+                type="button"
+                class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition"
+                title="Hari Berikutnya (Besok)"
+                @click="changeDate(1)"
+              >
+                <i class="pi pi-chevron-right text-xs"></i>
+              </button>
             </div>
 
             <Calendar 
               v-model="filterDate" 
               dateFormat="yy-mm-dd" 
               :showIcon="true" 
-              class="w-44 text-xs" 
+              class="w-40 text-xs shrink-0" 
               @date-select="fetchData" 
             />
           </div>
 
-          <!-- Unit Selector & Reload -->
-          <div class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+          <!-- Right: Unit Selector & Compact Action Buttons with Icon + Tooltip -->
+          <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 justify-end">
             <Dropdown 
               v-model="filterUnit" 
               :options="units" 
@@ -95,33 +113,59 @@
               optionValue="id" 
               placeholder="Semua Unit Sekolah" 
               showClear 
-              class="w-full sm:w-52 text-xs" 
+              class="w-full sm:w-48 text-xs" 
               @change="fetchData" 
             />
+
             <Button 
               icon="pi pi-cloud-download" 
-              label="Tarik Data Mesin (Fingerprint)" 
+              label="Tarik Fingerprint" 
               severity="info" 
               size="small" 
-              class="text-xs font-semibold shadow-sm" 
+              class="text-xs font-semibold shadow-sm shrink-0 !px-3" 
+              title="Tarik data presensi dari mesin fingerprint (sdit.asysyuuraa.my.id) satu per satu"
               :loading="syncingFingerprint" 
               @click="syncFingerprint" 
             />
+
+            <!-- Icon-only Log Sinkronisasi with Badge & Hint -->
+            <div class="relative inline-flex shrink-0">
+              <Button 
+                icon="pi pi-history" 
+                :severity="failedLogsCount > 0 ? 'danger' : 'secondary'" 
+                outlined 
+                size="small" 
+                class="!w-9 !h-9 !p-0 flex items-center justify-center" 
+                :title="failedLogsCount > 0 ? `Riwayat & Log Sinkronisasi (${failedLogsCount} Gagal)` : 'Riwayat & Log Sinkronisasi Mesin Presensi'"
+                @click="openSyncLogsDialog" 
+              />
+              <span 
+                v-if="failedLogsCount > 0" 
+                class="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center shadow pointer-events-none"
+              >
+                {{ failedLogsCount }}
+              </span>
+            </div>
+
+            <!-- Icon-onlyPengaturan Jam Kerja & Toleransi -->
             <Button 
-              icon="pi pi-history" 
-              :label="failedLogsCount > 0 ? `Log Sinkronisasi (${failedLogsCount} Gagal)` : 'Log Sinkronisasi'" 
-              :severity="failedLogsCount > 0 ? 'danger' : 'secondary'" 
+              icon="pi pi-clock" 
+              severity="secondary" 
               outlined 
               size="small" 
-              class="text-xs font-semibold" 
-              @click="openSyncLogsDialog" 
+              class="!w-9 !h-9 !p-0 shrink-0" 
+              title="Atur Jam Masuk, Jam Pulang & Toleransi Keterlambatan"
+              @click="showWorkHoursDialog = true" 
             />
+
+            <!-- Icon-only Muat Ulang -->
             <Button 
               icon="pi pi-refresh" 
-              label="Muat Ulang" 
+              severity="secondary"
               outlined 
               size="small" 
-              class="text-xs" 
+              class="!w-9 !h-9 !p-0 shrink-0" 
+              title="Muat Ulang Data Presensi"
               :loading="loading" 
               @click="fetchData" 
             />
@@ -207,66 +251,150 @@
       </div>
     </div>
 
-    <!-- Ringkasan Cards (6 Cards Lengkap Proporsional) -->
+    <!-- Ringkasan Cards (6 Cards Lengkap + Quick View List Icon di Masing-masing Card) -->
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" v-if="attendances.length > 0">
-      <!-- 1. Hadir / Tepat -->
-      <div class="bg-white dark:bg-slate-800 rounded-xl p-3.5 border-l-4 border-emerald-500 shadow-sm flex items-center justify-between">
-        <div>
-          <div class="text-[11px] font-semibold text-slate-500">Hadir / Tepat</div>
-          <div class="text-2xl font-extrabold text-slate-800 dark:text-white mt-0.5">{{ summary.hadir }}</div>
-          <div class="text-[10px] text-amber-500 font-medium" v-if="summary.terlambat > 0">({{ summary.terlambat }} Terlambat)</div>
+      <!-- 1. Hadir / Tepat & Terlambat -->
+      <div 
+        class="bg-white dark:bg-slate-800 rounded-xl p-3.5 border-l-4 border-emerald-500 shadow-sm flex flex-col justify-between hover:shadow-md transition cursor-pointer group"
+        @click="openCategoryModal('HADIR')"
+      >
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <div class="text-[11px] font-semibold text-slate-500">Hadir / Tepat</div>
+            <div class="text-2xl font-extrabold text-slate-800 dark:text-white mt-0.5">{{ summary.hadir }}</div>
+          </div>
+          <button
+            type="button"
+            class="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition"
+            title="Lihat daftar pegawai yang Hadir hari ini"
+            @click.stop="openCategoryModal('HADIR')"
+          >
+            <i class="pi pi-eye text-xs"></i>
+          </button>
         </div>
-        <i class="pi pi-check-circle text-emerald-500 text-2xl opacity-50"></i>
+        <div class="mt-1.5 flex items-center justify-between gap-1">
+          <button
+            v-if="summary.terlambat > 0"
+            type="button"
+            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 text-[10px] font-bold hover:bg-amber-200 transition"
+            title="Klik untuk melihat daftar pegawai yang Terlambat hari ini"
+            @click.stop="openCategoryModal('LATE')"
+          >
+            <i class="pi pi-clock text-[9px]"></i>
+            <span>{{ summary.terlambat }} Terlambat (Lihat)</span>
+          </button>
+          <span v-else class="text-[10px] text-emerald-600 font-medium">Semua tepat waktu</span>
+        </div>
       </div>
 
       <!-- 2. Sakit -->
-      <div class="bg-white dark:bg-slate-800 rounded-xl p-3.5 border-l-4 border-yellow-500 shadow-sm flex items-center justify-between">
-        <div>
-          <div class="text-[11px] font-semibold text-slate-500">Sakit</div>
-          <div class="text-2xl font-extrabold text-slate-800 dark:text-white mt-0.5">{{ summary.sakit }}</div>
-          <div class="text-[10px] text-slate-400">Surat dokter / ket.</div>
+      <div 
+        class="bg-white dark:bg-slate-800 rounded-xl p-3.5 border-l-4 border-yellow-500 shadow-sm flex flex-col justify-between hover:shadow-md transition cursor-pointer"
+        @click="openCategoryModal('SICK')"
+      >
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <div class="text-[11px] font-semibold text-slate-500">Sakit</div>
+            <div class="text-2xl font-extrabold text-slate-800 dark:text-white mt-0.5">{{ summary.sakit }}</div>
+          </div>
+          <button
+            type="button"
+            class="w-7 h-7 rounded-lg bg-yellow-50 dark:bg-yellow-950/60 text-yellow-600 hover:bg-yellow-100 flex items-center justify-center transition"
+            title="Lihat daftar pegawai yang Sakit hari ini"
+            @click.stop="openCategoryModal('SICK')"
+          >
+            <i class="pi pi-eye text-xs"></i>
+          </button>
         </div>
-        <i class="pi pi-exclamation-triangle text-yellow-500 text-2xl opacity-50"></i>
+        <div class="text-[10px] text-slate-400 mt-1.5">Surat dokter / ket.</div>
       </div>
 
       <!-- 3. Izin / Tugas Luar -->
-      <div class="bg-white dark:bg-slate-800 rounded-xl p-3.5 border-l-4 border-blue-500 shadow-sm flex items-center justify-between">
-        <div>
-          <div class="text-[11px] font-semibold text-slate-500">Izin / Tugas Luar</div>
-          <div class="text-2xl font-extrabold text-slate-800 dark:text-white mt-0.5">{{ summary.izin }}</div>
-          <div class="text-[10px] text-slate-400">Pribadi / Dinas luar</div>
+      <div 
+        class="bg-white dark:bg-slate-800 rounded-xl p-3.5 border-l-4 border-blue-500 shadow-sm flex flex-col justify-between hover:shadow-md transition cursor-pointer"
+        @click="openCategoryModal('PERMIT')"
+      >
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <div class="text-[11px] font-semibold text-slate-500">Izin / Tugas Luar</div>
+            <div class="text-2xl font-extrabold text-slate-800 dark:text-white mt-0.5">{{ summary.izin }}</div>
+          </div>
+          <button
+            type="button"
+            class="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 hover:bg-blue-100 flex items-center justify-center transition"
+            title="Lihat daftar pegawai yang Izin / Tugas Luar hari ini"
+            @click.stop="openCategoryModal('PERMIT')"
+          >
+            <i class="pi pi-eye text-xs"></i>
+          </button>
         </div>
-        <i class="pi pi-info-circle text-blue-500 text-2xl opacity-50"></i>
+        <div class="text-[10px] text-slate-400 mt-1.5">Pribadi / Dinas luar</div>
       </div>
 
       <!-- 4. Cuti Resmi -->
-      <div class="bg-white dark:bg-slate-800 rounded-xl p-3.5 border-l-4 border-purple-500 shadow-sm flex items-center justify-between">
-        <div>
-          <div class="text-[11px] font-semibold text-slate-500">Cuti Resmi</div>
-          <div class="text-2xl font-extrabold text-slate-800 dark:text-white mt-0.5">{{ summary.cuti }}</div>
-          <div class="text-[10px] text-slate-400">Melahirkan, Nikah, Duka</div>
+      <div 
+        class="bg-white dark:bg-slate-800 rounded-xl p-3.5 border-l-4 border-purple-500 shadow-sm flex flex-col justify-between hover:shadow-md transition cursor-pointer"
+        @click="openCategoryModal('LEAVE')"
+      >
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <div class="text-[11px] font-semibold text-slate-500">Cuti Resmi</div>
+            <div class="text-2xl font-extrabold text-slate-800 dark:text-white mt-0.5">{{ summary.cuti }}</div>
+          </div>
+          <button
+            type="button"
+            class="w-7 h-7 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-600 hover:bg-purple-100 flex items-center justify-center transition"
+            title="Lihat daftar pegawai yang Cuti hari ini"
+            @click.stop="openCategoryModal('LEAVE')"
+          >
+            <i class="pi pi-eye text-xs"></i>
+          </button>
         </div>
-        <i class="pi pi-calendar text-purple-500 text-2xl opacity-50"></i>
+        <div class="text-[10px] text-slate-400 mt-1.5">Melahirkan, Nikah, Duka</div>
       </div>
 
       <!-- 5. Alpa -->
-      <div class="bg-white dark:bg-slate-800 rounded-xl p-3.5 border-l-4 border-rose-500 shadow-sm flex items-center justify-between">
-        <div>
-          <div class="text-[11px] font-semibold text-slate-500">Alpa</div>
-          <div class="text-2xl font-extrabold text-slate-800 dark:text-white mt-0.5">{{ summary.alpa }}</div>
-          <div class="text-[10px] text-slate-400">Tanpa keterangan</div>
+      <div 
+        class="bg-white dark:bg-slate-800 rounded-xl p-3.5 border-l-4 border-rose-500 shadow-sm flex flex-col justify-between hover:shadow-md transition cursor-pointer"
+        @click="openCategoryModal('ABSENT')"
+      >
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <div class="text-[11px] font-semibold text-slate-500">Alpa</div>
+            <div class="text-2xl font-extrabold text-slate-800 dark:text-white mt-0.5">{{ summary.alpa }}</div>
+          </div>
+          <button
+            type="button"
+            class="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 hover:bg-rose-100 flex items-center justify-center transition"
+            title="Lihat daftar pegawai yang Alpa (Tanpa Keterangan) hari ini"
+            @click.stop="openCategoryModal('ABSENT')"
+          >
+            <i class="pi pi-eye text-xs"></i>
+          </button>
         </div>
-        <i class="pi pi-times-circle text-rose-500 text-2xl opacity-50"></i>
+        <div class="text-[10px] text-slate-400 mt-1.5">Tanpa keterangan</div>
       </div>
 
-      <!-- 6. Belum Presensi (Status Riil Baru) -->
-      <div class="bg-white dark:bg-slate-800 rounded-xl p-3.5 border-l-4 border-slate-400 dark:border-slate-600 shadow-sm flex items-center justify-between">
-        <div>
-          <div class="text-[11px] font-semibold text-slate-500">Belum Presensi</div>
-          <div class="text-2xl font-extrabold text-slate-700 dark:text-slate-200 mt-0.5">{{ summary.belum }}</div>
-          <div class="text-[10px] text-slate-400 font-medium">Dari total {{ attendances.length }} staf</div>
+      <!-- 6. Belum Presensi -->
+      <div 
+        class="bg-white dark:bg-slate-800 rounded-xl p-3.5 border-l-4 border-slate-400 dark:border-slate-600 shadow-sm flex flex-col justify-between hover:shadow-md transition cursor-pointer"
+        @click="openCategoryModal('UNRECORDED')"
+      >
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <div class="text-[11px] font-semibold text-slate-500">Belum Presensi</div>
+            <div class="text-2xl font-extrabold text-slate-700 dark:text-slate-200 mt-0.5">{{ summary.belum }}</div>
+          </div>
+          <button
+            type="button"
+            class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 flex items-center justify-center transition"
+            title="Lihat daftar pegawai yang Belum Presensi hari ini"
+            @click.stop="openCategoryModal('UNRECORDED')"
+          >
+            <i class="pi pi-eye text-xs"></i>
+          </button>
         </div>
-        <i class="pi pi-clock text-slate-400 text-2xl opacity-50"></i>
+        <div class="text-[10px] text-slate-400 font-medium mt-1.5">Dari total {{ attendances.length }} staf</div>
       </div>
     </div>
 
@@ -483,11 +611,148 @@
         </div>
       </div>
     </Dialog>
+
+    <!-- Dialog Quick-View Daftar Pegawai per Kategori Card (Hadir, Terlambat, Sakit, Izin, Cuti, Alpa, Belum Presensi) -->
+    <Dialog 
+      v-model:visible="showCategoryModal" 
+      :header="categoryModalTitle" 
+      modal 
+      :style="{ width: '640px', maxWidth: '95vw' }"
+    >
+      <div class="space-y-3">
+        <!-- Quick Filter Tabs inside Modal so user can switch categories easily -->
+        <div class="flex flex-wrap gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+          <button
+            v-for="tab in categoryTabs"
+            :key="tab.key"
+            type="button"
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5"
+            :class="selectedCategory === tab.key 
+              ? 'bg-slate-800 text-white dark:bg-white dark:text-slate-900 shadow-xs' 
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'"
+            @click="selectedCategory = tab.key"
+          >
+            <span>{{ tab.label }}</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/20 font-bold">{{ tab.count }}</span>
+          </button>
+        </div>
+
+        <div v-if="categoryModalList.length === 0" class="text-center py-10 text-slate-400 text-xs">
+          <i class="pi pi-check-circle text-3xl text-slate-300 mb-2 block"></i>
+          Tidak ada pegawai pada kategori <b>{{ categoryModalTitle }}</b> untuk tanggal {{ formattedDate }}.
+        </div>
+
+        <div v-else class="space-y-2 max-h-[58vh] overflow-y-auto pr-1">
+          <div 
+            v-for="emp in categoryModalList" 
+            :key="emp.employee_id"
+            class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50"
+          >
+            <div class="flex items-center gap-3 min-w-0">
+              <Avatar 
+                :image="emp.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(emp.nama_lengkap || '')}&background=random`" 
+                shape="circle" 
+                size="normal"
+                class="shrink-0"
+              />
+              <div class="min-w-0">
+                <div class="font-bold text-sm text-slate-800 dark:text-white truncate">{{ emp.nama_lengkap }}</div>
+                <div class="text-xs text-slate-400 truncate">
+                  {{ emp.position || 'Pegawai' }} • <span class="text-emerald-600 dark:text-emerald-400 font-medium">{{ emp.unit_name || 'Yayasan' }}</span>
+                </div>
+                <div v-if="emp.notes" class="text-[11px] text-slate-500 mt-0.5 italic truncate">
+                  "{{ emp.notes }}"
+                </div>
+              </div>
+            </div>
+
+            <div class="text-right shrink-0 space-y-1">
+              <div>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold" :class="getStatusBadgeClass(emp.status)">
+                  {{ getStatusLabel(emp.status) }}
+                </span>
+              </div>
+              <div v-if="emp.check_in || emp.check_out" class="text-[11px] font-mono text-slate-600 dark:text-slate-300">
+                <span title="Jam Masuk">In: <b>{{ formatTimeShort(emp.check_in) }}</b></span>
+                <span class="mx-1 text-slate-300">|</span>
+                <span title="Jam Pulang">Out: <b>{{ formatTimeShort(emp.check_out) }}</b></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Tutup" icon="pi pi-times" severity="secondary" text size="small" @click="showCategoryModal = false" />
+      </template>
+    </Dialog>
+
+    <!-- Dialog Pengaturan Jam Masuk, Jam Pulang & Toleransi Keterlambatan -->
+    <Dialog 
+      v-model:visible="showWorkHoursDialog" 
+      header="Pengaturan Jam Kerja & Toleransi Keterlambatan" 
+      modal 
+      :style="{ width: '480px', maxWidth: '95vw' }"
+    >
+      <div class="space-y-4">
+        <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 leading-relaxed">
+          Pengaturan ini berlaku otomatis untuk <b>Penarikan Mesin Fingerprint</b> maupun <b>Presensi Mandiri GPS</b>. Anda juga dapat mengatur titik koordinat &amp; radius GPS lengkap di menu
+          <NuxtLink to="/dashboard/settings/sekolah" class="font-bold underline hover:text-emerald-700">
+            Pengaturan &rarr; Identitas &amp; Lokasi Sekolah
+          </NuxtLink>.
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Jam Masuk Kerja</label>
+            <InputText v-model="geofenceConfig.work_start_time" placeholder="07:30" class="w-full text-sm" />
+            <span class="text-[10px] text-slate-400">Format 24 jam (contoh: 07:15 atau 07:30)</span>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Jam Pulang Kerja</label>
+            <InputText v-model="geofenceConfig.work_end_time" placeholder="16:00" class="w-full text-sm" />
+            <span class="text-[10px] text-slate-400">Format 24 jam (contoh: 16:00)</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-xs font-bold text-slate-700 dark:text-slate-300">Toleransi Keterlambatan (Menit)</label>
+            <span class="text-xs font-bold text-amber-600">{{ geofenceConfig.late_tolerance_minutes || 0 }} Menit</span>
+          </div>
+          <InputNumber 
+            v-model="geofenceConfig.late_tolerance_minutes" 
+            :min="0" 
+            :max="120" 
+            suffix=" menit" 
+            class="w-full text-sm" 
+            inputClass="w-full"
+          />
+          <p class="text-[11px] text-slate-500 mt-1">
+            Contoh: Jika Jam Masuk <b>{{ geofenceConfig.work_start_time }}</b> dan Toleransi <b>{{ geofenceConfig.late_tolerance_minutes || 0 }} menit</b>, maka pegawai baru dihitung <b>Terlambat</b> apabila tap masuk lewat dari batas tersebut.
+          </p>
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex items-center justify-between w-full">
+          <NuxtLink 
+            to="/dashboard/settings/sekolah" 
+            class="text-xs text-slate-500 hover:text-emerald-600 font-medium flex items-center gap-1"
+          >
+            <i class="pi pi-external-link text-[10px]"></i>
+            Buka Pengaturan Lokasi Lengkap
+          </NuxtLink>
+          <div class="flex gap-2">
+            <Button label="Batal" severity="secondary" text size="small" @click="showWorkHoursDialog = false" />
+            <Button label="Simpan Jam Kerja" icon="pi pi-save" severity="success" size="small" :loading="savingWorkHours" @click="saveWorkHoursConfig" />
+          </div>
+        </div>
+      </template>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 
 definePageMeta({ layout: 'dashboard' })
@@ -522,6 +787,37 @@ const loading = ref(false)
 const saving = ref(false)
 const syncingFingerprint = ref(false)
 const isSavedInDb = ref(false)
+
+// Work Hours & Late Tolerance State
+const showWorkHoursDialog = ref(false)
+const savingWorkHours = ref(false)
+const geofenceConfig = reactive({
+  is_enabled: true,
+  location_name: 'Komplek Sekolah Asy-Syuuraa Batam',
+  latitude: 1.123456,
+  longitude: 104.012345,
+  radius_meters: 30,
+  work_start_time: '07:30',
+  work_end_time: '16:00',
+  late_tolerance_minutes: 0
+})
+
+// Quick-View Category Modal State
+type CategoryKey = 'HADIR' | 'LATE' | 'SICK' | 'PERMIT' | 'LEAVE' | 'ABSENT' | 'UNRECORDED'
+const showCategoryModal = ref(false)
+const selectedCategory = ref<CategoryKey>('HADIR')
+
+function openCategoryModal(cat: CategoryKey) {
+  selectedCategory.value = cat
+  showCategoryModal.value = true
+}
+
+function formatTimeShort(dt: Date | null): string {
+  if (!dt || !(dt instanceof Date) || isNaN(dt.getTime())) return '--:--'
+  const h = String(dt.getHours()).padStart(2, '0')
+  const m = String(dt.getMinutes()).padStart(2, '0')
+  return `${h}:${m}`
+}
 
 // Step-by-Step Progress & Sync Logs State
 const syncProgress = ref({
@@ -637,6 +933,85 @@ const summary = computed(() => {
 
   return { hadir, terlambat, sakit, izin, cuti, alpa, belum, totalSudah }
 })
+
+const categoryTabs = computed(() => [
+  { key: 'HADIR' as CategoryKey, label: 'Hadir (Semua)', count: summary.value.hadir },
+  { key: 'LATE' as CategoryKey, label: 'Terlambat', count: summary.value.terlambat },
+  { key: 'SICK' as CategoryKey, label: 'Sakit', count: summary.value.sakit },
+  { key: 'PERMIT' as CategoryKey, label: 'Izin / Dinas', count: summary.value.izin },
+  { key: 'LEAVE' as CategoryKey, label: 'Cuti', count: summary.value.cuti },
+  { key: 'ABSENT' as CategoryKey, label: 'Alpa', count: summary.value.alpa },
+  { key: 'UNRECORDED' as CategoryKey, label: 'Belum Presensi', count: summary.value.belum }
+])
+
+const categoryModalTitle = computed(() => {
+  const map: Record<CategoryKey, string> = {
+    HADIR: 'Daftar Pegawai Hadir (Tepat & Terlambat)',
+    LATE: 'Daftar Pegawai Terlambat',
+    SICK: 'Daftar Pegawai Sakit',
+    PERMIT: 'Daftar Pegawai Izin / Tugas Luar',
+    LEAVE: 'Daftar Pegawai Cuti Resmi',
+    ABSENT: 'Daftar Pegawai Alpa (Tanpa Keterangan)',
+    UNRECORDED: 'Daftar Pegawai Belum Presensi'
+  }
+  return map[selectedCategory.value] || 'Daftar Pegawai'
+})
+
+const categoryModalList = computed(() => {
+  const list = attendances.value || []
+  switch (selectedCategory.value) {
+    case 'HADIR':
+      return list.filter(a => a.status === 'PRESENT' || a.status === 'LATE')
+    case 'LATE':
+      return list.filter(a => a.status === 'LATE')
+    case 'SICK':
+      return list.filter(a => a.status === 'SICK')
+    case 'PERMIT':
+      return list.filter(a => a.status === 'PERMIT' || a.status === 'DISPENSATION')
+    case 'LEAVE':
+      return list.filter(a => typeof a.status === 'string' && a.status.startsWith('LEAVE_'))
+    case 'ABSENT':
+      return list.filter(a => a.status === 'ABSENT')
+    case 'UNRECORDED':
+      return list.filter(a => !a.status || a.status === 'UNRECORDED')
+    default:
+      return []
+  }
+})
+
+const fetchGeofenceConfig = async () => {
+  try {
+    const res = await api.get<any>('/sdm/settings/geofence')
+    if (res) {
+      Object.assign(geofenceConfig, res)
+    }
+  } catch (e) {
+    console.error('Failed to load geofence settings:', e)
+  }
+}
+
+const saveWorkHoursConfig = async () => {
+  savingWorkHours.value = true
+  try {
+    await api.put('/sdm/settings/geofence', { ...geofenceConfig })
+    toast.add({
+      severity: 'success',
+      summary: 'Tersimpan',
+      detail: `Jam kerja (${geofenceConfig.work_start_time} - ${geofenceConfig.work_end_time}) & toleransi (${geofenceConfig.late_tolerance_minutes || 0} menit) berhasil diperbarui.`,
+      life: 4000
+    })
+    showWorkHoursDialog.value = false
+  } catch (e) {
+    toast.add({
+      severity: 'error',
+      summary: 'Gagal',
+      detail: 'Gagal menyimpan pengaturan jam kerja.',
+      life: 3000
+    })
+  } finally {
+    savingWorkHours.value = false
+  }
+}
 
 const fetchUnits = async () => {
   try {
@@ -942,6 +1317,7 @@ const saveAttendance = async () => {
 }
 
 onMounted(() => {
+  fetchGeofenceConfig()
   fetchUnits()
   fetchData()
   fetchSyncLogs()

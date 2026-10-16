@@ -72,17 +72,24 @@
         </div>
 
         <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Jam Masuk & Pulang Sekolah</label>
-          <div class="grid grid-cols-2 gap-3">
+          <label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Jam Kerja &amp; Toleransi Keterlambatan</label>
+          <div class="grid grid-cols-3 gap-2.5">
             <div>
-              <span class="text-[11px] text-slate-500 block mb-1">Masuk (Batas Terlambat)</span>
+              <span class="text-[11px] text-slate-500 block mb-1">Jam Masuk</span>
               <InputText v-model="geofenceForm.work_start_time" placeholder="07:30" class="w-full" />
             </div>
             <div>
-              <span class="text-[11px] text-slate-500 block mb-1">Pulang Kerja</span>
+              <span class="text-[11px] text-slate-500 block mb-1">Jam Pulang</span>
               <InputText v-model="geofenceForm.work_end_time" placeholder="16:00" class="w-full" />
             </div>
+            <div>
+              <span class="text-[11px] text-slate-500 block mb-1">Toleransi Telat</span>
+              <InputNumber v-model="geofenceForm.late_tolerance_minutes" :min="0" :max="120" suffix=" mnt" class="w-full" inputClass="w-full" />
+            </div>
           </div>
+          <p class="text-[11px] text-slate-400">
+            *Pegawai berstatus <b>Terlambat</b> jika tap masuk melewati Jam Masuk + Toleransi ({{ geofenceForm.work_start_time }} + {{ geofenceForm.late_tolerance_minutes || 0 }} menit).
+          </p>
         </div>
       </div>
 
@@ -213,7 +220,8 @@ const geofenceForm = reactive({
   longitude: 104.012345,
   radius_meters: 30,
   work_start_time: '07:30',
-  work_end_time: '16:00'
+  work_end_time: '16:00',
+  late_tolerance_minutes: 0
 })
 
 async function fetchData() {

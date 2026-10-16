@@ -556,6 +556,7 @@ class GeofenceSettingsSchema(BaseModel):
     location_name: str = "Komplek Sekolah Asy-Syuuraa Batam"
     work_start_time: str = "07:30"
     work_end_time: str = "16:00"
+    late_tolerance_minutes: int = 0
 
 class EmployeeCheckInRequest(BaseModel):
     latitude: float
