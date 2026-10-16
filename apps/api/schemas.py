@@ -554,9 +554,15 @@ class GeofenceSettingsSchema(BaseModel):
     longitude: float = 104.012345
     radius_meters: float = 30.0
     location_name: str = "Komplek Sekolah Asy-Syuuraa Batam"
-    work_start_time: str = "07:30"
+    work_start_time: str = "06:45"
     work_end_time: str = "16:00"
-    late_tolerance_minutes: int = 0
+    late_tolerance_minutes: int = 5
+    schedule_ra_mon_thu: Optional[str] = "14:00"
+    schedule_sdit_mon_thu: Optional[str] = "15:00"
+    schedule_smpit_mon_thu: Optional[str] = "15:30"
+    schedule_friday: Optional[str] = "11:30"
+    schedule_saturday: Optional[str] = "12:00"
+    schedule_default_mon_thu: Optional[str] = "16:00"
 
 class EmployeeCheckInRequest(BaseModel):
     latitude: float

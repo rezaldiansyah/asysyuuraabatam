@@ -21,9 +21,9 @@
           @click="showWorkHoursDialog = true"
         >
           <i class="pi pi-clock text-emerald-600"></i>
-          <span>Jam Kerja: <b>{{ geofenceConfig.work_start_time }} - {{ geofenceConfig.work_end_time }}</b></span>
+          <span>Jam Masuk: <b>{{ geofenceConfig.work_start_time || '06:45' }}</b> &bull; Pulang Dinamis</span>
           <span class="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-[10px] font-bold">
-            Toleransi {{ geofenceConfig.late_tolerance_minutes || 0 }}m
+            Toleransi {{ geofenceConfig.late_tolerance_minutes || 5 }}m
           </span>
           <i class="pi pi-sliders-h text-[11px] text-slate-400 ml-0.5"></i>
         </button>
@@ -597,22 +597,15 @@
       modal 
       :style="{ width: '780px', maxWidth: '95vw' }"
     >
-      <div class="space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-          <div>
-            Menampilkan catatan penarikan data dari <b>sdit.asysyuuraa.my.id (192.168.188.222)</b> baik secara manual maupun via Cron Job (07:45 &amp; 19:30 WIB).
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <Button 
-              icon="pi pi-calendar" 
-              label="Tarik Rentang Tanggal (01 Okt - Hari Ini)" 
-              size="small" 
-              severity="info"
-              outlined
-              class="!text-xs shrink-0" 
-              :loading="syncingRange" 
-              @click="syncMonthToDate" 
-            />
+        <!-- Toolbar Penarikan Data Massal (Bulk Sync Range) -->
+        <div class="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 text-xs">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div class="font-bold text-slate-700 dark:text-slate-200">Penarikan Massal Mesin Fingerprint</div>
+              <div class="text-[11px] text-slate-500">
+                Tarik data historis dari mesin fingerprint (sdit.asysyuuraa.my.id) untuk rentang waktu tertentu.
+              </div>
+            </div>
             <Button 
               icon="pi pi-refresh" 
               label="Refresh Log" 
@@ -621,6 +614,59 @@
               class="!text-xs shrink-0" 
               :loading="loadingSyncLogs" 
               @click="fetchSyncLogs" 
+            />
+          </div>
+
+          <!-- Quick Presets + Custom Date Range Toggle -->
+          <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+            <Button 
+              icon="pi pi-history" 
+              label="Tarik dari 1 Jan 2026 s/d Hari Ini" 
+              size="small" 
+              severity="warning"
+              outlined
+              class="!text-xs font-semibold" 
+              :loading="syncingRange" 
+              @click="syncFromYearStart" 
+            />
+            <Button 
+              icon="pi pi-calendar" 
+              label="Tarik Bulan Ini (01 Okt - Hari Ini)" 
+              size="small" 
+              severity="info"
+              outlined
+              class="!text-xs font-semibold" 
+              :loading="syncingRange" 
+              @click="syncMonthToDate" 
+            />
+            <button
+              type="button"
+              class="px-2.5 py-1.5 rounded-lg border text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+              @click="showCustomRangeInputs = !showCustomRangeInputs"
+            >
+              <i class="pi pi-sliders-h mr-1 text-[11px]"></i>
+              Pilih Rentang Kustom
+            </button>
+          </div>
+
+          <!-- Custom Range Inputs (collapsible) -->
+          <div v-if="showCustomRangeInputs" class="flex flex-wrap items-end gap-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">Dari Tanggal:</label>
+              <Calendar v-model="customSyncStartDate" dateFormat="yy-mm-dd" class="w-36 text-xs" :showIcon="true" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">Sampai Tanggal:</label>
+              <Calendar v-model="customSyncEndDate" dateFormat="yy-mm-dd" class="w-36 text-xs" :showIcon="true" />
+            </div>
+            <Button 
+              label="Mulai Tarik Data" 
+              icon="pi pi-play" 
+              size="small" 
+              severity="success" 
+              class="!text-xs font-semibold"
+              :loading="syncingRange" 
+              @click="syncCustomRange" 
             />
           </div>
         </div>
@@ -788,35 +834,76 @@
           </NuxtLink>.
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Jam Masuk Kerja</label>
-            <InputText v-model="geofenceConfig.work_start_time" placeholder="07:30" class="w-full text-sm" />
-            <span class="text-[10px] text-slate-400">Format 24 jam (contoh: 07:15 atau 07:30)</span>
+        <!-- Bagian 1: Jam Masuk & Toleransi -->
+        <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40 space-y-3">
+          <div class="font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+            <i class="pi pi-sign-in text-emerald-600"></i>
+            <span>Jam Masuk &amp; Toleransi</span>
           </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Jam Pulang Kerja</label>
-            <InputText v-model="geofenceConfig.work_end_time" placeholder="16:00" class="w-full text-sm" />
-            <span class="text-[10px] text-slate-400">Format 24 jam (contoh: 16:00)</span>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Jam Masuk Sekolah</label>
+              <InputText v-model="geofenceConfig.work_start_time" placeholder="06:45" class="w-full text-xs font-mono" />
+              <span class="text-[10px] text-slate-400">Default: 06:45</span>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Toleransi Keterlambatan</label>
+              <InputNumber 
+                v-model="geofenceConfig.late_tolerance_minutes" 
+                :min="0" 
+                :max="120" 
+                suffix=" menit" 
+                class="w-full text-xs" 
+                inputClass="w-full font-mono"
+              />
+              <span class="text-[10px] text-slate-400">Lewat batas dihitung Terlambat</span>
+            </div>
           </div>
         </div>
 
-        <div>
-          <div class="flex justify-between items-center mb-1">
-            <label class="text-xs font-bold text-slate-700 dark:text-slate-300">Toleransi Keterlambatan (Menit)</label>
-            <span class="text-xs font-bold text-amber-600">{{ geofenceConfig.late_tolerance_minutes || 0 }} Menit</span>
+        <!-- Bagian 2: Jam Kepulangan Berdasarkan Hari & Unit -->
+        <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40 space-y-3">
+          <div class="font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+            <i class="pi pi-sign-out text-blue-600"></i>
+            <span>Jadwal Jam Kepulangan (Beda Hari &amp; Unit)</span>
           </div>
-          <InputNumber 
-            v-model="geofenceConfig.late_tolerance_minutes" 
-            :min="0" 
-            :max="120" 
-            suffix=" menit" 
-            class="w-full text-sm" 
-            inputClass="w-full"
-          />
-          <p class="text-[11px] text-slate-500 mt-1">
-            Contoh: Jika Jam Masuk <b>{{ geofenceConfig.work_start_time }}</b> dan Toleransi <b>{{ geofenceConfig.late_tolerance_minutes || 0 }} menit</b>, maka pegawai baru dihitung <b>Terlambat</b> apabila tap masuk lewat dari batas tersebut.
-          </p>
+
+          <div class="space-y-2">
+            <div class="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+              📅 Senin s/d Kamis:
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <label class="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">Unit RA</label>
+                <InputText v-model="geofenceConfig.schedule_ra_mon_thu" placeholder="14:00" class="w-full text-xs font-mono" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">Unit SDIT</label>
+                <InputText v-model="geofenceConfig.schedule_sdit_mon_thu" placeholder="15:00" class="w-full text-xs font-mono" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">Unit SMPIT</label>
+                <InputText v-model="geofenceConfig.schedule_smpit_mon_thu" placeholder="15:30" class="w-full text-xs font-mono" />
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                🕌 Jum'at (Semua Unit)
+              </label>
+              <InputText v-model="geofenceConfig.schedule_friday" placeholder="11:30" class="w-full text-xs font-mono" />
+              <span class="text-[10px] text-slate-400">Pulang sebelum Sholat Jum'at</span>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                🏫 Sabtu (Semua Unit)
+              </label>
+              <InputText v-model="geofenceConfig.schedule_saturday" placeholder="12:00" class="w-full text-xs font-mono" />
+              <span class="text-[10px] text-slate-400">Pulang tengah hari</span>
+            </div>
+          </div>
         </div>
       </div>
       <template #footer>
@@ -921,9 +1008,15 @@ const geofenceConfig = reactive({
   latitude: 1.123456,
   longitude: 104.012345,
   radius_meters: 30,
-  work_start_time: '07:30',
+  work_start_time: '06:45',
   work_end_time: '16:00',
-  late_tolerance_minutes: 0
+  late_tolerance_minutes: 5,
+  schedule_ra_mon_thu: '14:00',
+  schedule_sdit_mon_thu: '15:00',
+  schedule_smpit_mon_thu: '15:30',
+  schedule_friday: '11:30',
+  schedule_saturday: '12:00',
+  schedule_default_mon_thu: '16:00'
 })
 
 // Quick-View Category Modal State
@@ -1568,6 +1661,9 @@ const savePinMapping = async () => {
 
 // --- Quick Jump to Log Date & Bulk Range Sync ---
 const syncingRange = ref(false)
+const showCustomRangeInputs = ref(false)
+const customSyncStartDate = ref(new Date(2026, 0, 1)) // 1 Januari 2026
+const customSyncEndDate = ref(new Date())
 
 const goToLogDate = (dateStr: string) => {
   if (!dateStr) return
@@ -1583,48 +1679,104 @@ const goToLogDate = (dateStr: string) => {
   })
 }
 
-const syncMonthToDate = async () => {
-  const todayStr = formatLocalDate(new Date())
-  const startStr = todayStr.slice(0, 8) + '01' // YYYY-MM-01 (1 Oktober)
-
+const syncRangeExecutor = async (startStr: string, endStr: string, title: string) => {
   syncingRange.value = true
   toast.add({
     severity: 'info',
-    summary: 'Memulai Tarik Data Massal',
-    detail: `Sedang menarik dan memproses data fingerprint dari ${startStr} s/d ${todayStr}...`,
+    summary: 'Memulai Tarik Data ' + title,
+    detail: `Sedang memproses data dari ${startStr} s/d ${endStr}...`,
     life: 4000
   })
 
   try {
-    const res = await api.post<any>('/sdm/attendance/sync-fingerprint-range', {
-      start_date: startStr,
-      end_date: todayStr
-    })
+    const sDate = new Date(startStr)
+    const eDate = new Date(endStr)
 
-    const results: any[] = res?.results || []
-    const successDays = results.filter(r => r.status === 'success').length
-    const emptyDays = results.filter(r => r.status === 'empty').length
-    const failedDays = results.filter(r => r.status === 'failed').length
+    // Break into monthly chunks so long ranges (e.g. from Jan 2026) won't time out
+    const chunks: { start: string, end: string }[] = []
+    let curr = new Date(sDate)
+    while (curr <= eDate) {
+      let chunkEnd = new Date(curr.getFullYear(), curr.getMonth() + 1, 0)
+      if (chunkEnd > eDate) chunkEnd = new Date(eDate)
+
+      chunks.push({
+        start: formatLocalDate(curr),
+        end: formatLocalDate(chunkEnd)
+      })
+
+      curr = new Date(curr.getFullYear(), curr.getMonth() + 1, 1)
+    }
+
+    let totalSuccess = 0
+    let totalEmpty = 0
+    let totalFailed = 0
+    let totalDays = 0
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i]
+      if (chunks.length > 1) {
+        toast.add({
+          severity: 'info',
+          summary: `Progres Penarikan (${i + 1}/${chunks.length})`,
+          detail: `Menarik data periode ${chunk.start} s/d ${chunk.end}...`,
+          life: 3000
+        })
+      }
+
+      const res = await api.post<any>('/sdm/attendance/sync-fingerprint-range', {
+        start_date: chunk.start,
+        end_date: chunk.end
+      })
+
+      const results: any[] = res?.results || []
+      totalDays += results.length
+      totalSuccess += results.filter(r => r.status === 'success').length
+      totalEmpty += results.filter(r => r.status === 'empty').length
+      totalFailed += results.filter(r => r.status === 'failed').length
+    }
 
     toast.add({
-      severity: failedDays > 0 ? 'warn' : 'success',
+      severity: totalFailed > 0 ? 'warn' : 'success',
       summary: 'Tarik Data Rentang Selesai',
-      detail: `Berhasil memproses ${results.length} hari (${successDays} hari berisi data, ${emptyDays} data kosong, ${failedDays} gagal).`,
-      life: 5000
+      detail: `Berhasil memproses ${totalDays} hari (${totalSuccess} hari ada tap presensi, ${totalEmpty} data kosong, ${totalFailed} gagal).`,
+      life: 6000
     })
 
     await fetchSyncLogs()
     await fetchData()
   } catch (e: any) {
+    console.error('Sync range error:', e)
     toast.add({
       severity: 'error',
       summary: 'Gagal Tarik Rentang',
-      detail: e?.data?.detail || 'Terjadi kesalahan saat memproses rentang tanggal',
+      detail: e?.data?.detail || e?.message || 'Terjadi kesalahan saat memproses rentang tanggal',
       life: 5000
     })
   } finally {
     syncingRange.value = false
   }
+}
+
+const syncFromYearStart = () => {
+  const todayStr = formatLocalDate(new Date())
+  const yearStartStr = todayStr.slice(0, 4) + '-01-01'
+  syncRangeExecutor(yearStartStr, todayStr, 'Tahun 2026 (01 Jan s/d Hari Ini)')
+}
+
+const syncMonthToDate = () => {
+  const todayStr = formatLocalDate(new Date())
+  const startStr = todayStr.slice(0, 8) + '01'
+  syncRangeExecutor(startStr, todayStr, 'Bulan Ini')
+}
+
+const syncCustomRange = () => {
+  if (!customSyncStartDate.value || !customSyncEndDate.value) {
+    toast.add({ severity: 'warn', summary: 'Pilih Tanggal', detail: 'Pilih tanggal mulai dan tanggal selesai', life: 3000 })
+    return
+  }
+  const sStr = formatLocalDate(customSyncStartDate.value)
+  const eStr = formatLocalDate(customSyncEndDate.value)
+  syncRangeExecutor(sStr, eStr, 'Rentang Kustom')
 }
 
 onMounted(() => {

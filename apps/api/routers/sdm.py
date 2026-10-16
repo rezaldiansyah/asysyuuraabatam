@@ -801,10 +801,35 @@ DEFAULT_GEOFENCE = {
     "longitude": 104.012345,
     "radius_meters": 30.0,
     "location_name": "Komplek Sekolah Asy-Syuuraa Batam",
-    "work_start_time": "07:30",
+    "work_start_time": "06:45",
     "work_end_time": "16:00",
-    "late_tolerance_minutes": 0
+    "late_tolerance_minutes": 5,
+    "schedule_ra_mon_thu": "14:00",
+    "schedule_sdit_mon_thu": "15:00",
+    "schedule_smpit_mon_thu": "15:30",
+    "schedule_friday": "11:30",
+    "schedule_saturday": "12:00",
+    "schedule_default_mon_thu": "16:00"
 }
+
+def get_expected_checkout_time(target_date: date, unit_name: Optional[str] = None, geofence: Optional[dict] = None) -> str:
+    cfg = geofence or DEFAULT_GEOFENCE
+    weekday = target_date.weekday()
+    if weekday == 4: # Jumat
+        return cfg.get("schedule_friday", "11:30")
+    elif weekday == 5: # Sabtu
+        return cfg.get("schedule_saturday", "12:00")
+    elif weekday == 6: # Ahad
+        return "Libur"
+    else: # Senin - Kamis
+        u_name = (unit_name or "").upper()
+        if "RA" in u_name:
+            return cfg.get("schedule_ra_mon_thu", "14:00")
+        elif "SDIT" in u_name or "SD" in u_name:
+            return cfg.get("schedule_sdit_mon_thu", "15:00")
+        elif "SMPIT" in u_name or "SMP" in u_name:
+            return cfg.get("schedule_smpit_mon_thu", "15:30")
+        return cfg.get("schedule_default_mon_thu", "16:00")
 
 def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Returns distance in meters between two lat/lon coordinates."""
@@ -1967,8 +1992,8 @@ async def sync_fingerprint_attendance_range(
     if s_date > e_date:
         raise HTTPException(status_code=400, detail="Tanggal mulai tidak boleh lebih besar dari tanggal selesai.")
 
-    if (e_date - s_date).days > 31:
-        raise HTTPException(status_code=400, detail="Rentang tanggal maksimal 31 hari.")
+    if (e_date - s_date).days > 365:
+        raise HTTPException(status_code=400, detail="Rentang tanggal maksimal 365 hari (1 tahun).")
 
     results = []
     curr = s_date

@@ -56,8 +56,8 @@
             {{ currentDate }}
           </div>
           <div class="text-[11px] text-slate-400 mt-3 pt-3 border-t border-slate-700/60 w-full flex justify-between">
-            <span>Masuk: <b>{{ geofence.work_start_time || '07:30' }}</b></span>
-            <span>Pulang: <b>{{ geofence.work_end_time || '16:00' }}</b></span>
+            <span>Masuk: <b>{{ geofence.work_start_time || '06:45' }}</b></span>
+            <span>Target Pulang: <b class="text-emerald-300 font-bold">{{ expectedCheckOutTime }}</b></span>
           </div>
         </div>
 
@@ -414,8 +414,14 @@ const geofence = reactive({
   longitude: 104.012345,
   radius_meters: 30,
   location_name: 'Komplek Sekolah Asy-Syuuraa Batam',
-  work_start_time: '07:30',
-  work_end_time: '16:00'
+  work_start_time: '06:45',
+  work_end_time: '16:00',
+  schedule_ra_mon_thu: '14:00',
+  schedule_sdit_mon_thu: '15:00',
+  schedule_smpit_mon_thu: '15:30',
+  schedule_friday: '11:30',
+  schedule_saturday: '12:00',
+  schedule_default_mon_thu: '16:00'
 })
 
 const todayData = reactive({
@@ -427,6 +433,33 @@ const todayData = reactive({
 
 const todayAttendance = computed(() => todayData.attendance)
 const isFullyCompleted = computed(() => !!(todayAttendance.value?.check_in && todayAttendance.value?.check_out))
+
+const expectedCheckOutTime = computed(() => {
+  const now = new Date()
+  const day = now.getDay() // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
+  const cfg = geofence as any
+  if (day === 5) {
+    return cfg.schedule_friday || '11:30'
+  }
+  if (day === 6) {
+    return cfg.schedule_saturday || '12:00'
+  }
+  if (day === 0) {
+    return 'Libur (Ahad)'
+  }
+  // Senin - Kamis
+  const unit = (todayData.employee?.unit?.name || '').toUpperCase()
+  if (unit.includes('RA')) {
+    return cfg.schedule_ra_mon_thu || '14:00'
+  }
+  if (unit.includes('SDIT') || unit.includes('SD')) {
+    return cfg.schedule_sdit_mon_thu || '15:00'
+  }
+  if (unit.includes('SMPIT') || unit.includes('SMP')) {
+    return cfg.schedule_smpit_mon_thu || '15:30'
+  }
+  return cfg.schedule_default_mon_thu || cfg.work_end_time || '16:00'
+})
 
 // Haversine formula on client
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
