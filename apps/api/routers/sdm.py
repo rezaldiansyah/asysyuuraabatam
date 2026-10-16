@@ -1597,7 +1597,7 @@ def _save_single_employee_punches(
             check_out_dt = last_punch
 
     status_val = models.AttendanceStatus.PRESENT
-    if check_in_dt and check_in_dt.hour < 12:
+    if check_in_dt:
         cutoff_minutes = (sh * 60) + sm + max(0, tol_mins)
         checkin_minutes = (check_in_dt.hour * 60) + check_in_dt.minute
         if checkin_minutes > cutoff_minutes:
