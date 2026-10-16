@@ -1828,3 +1828,48 @@ async def sync_fingerprint_attendance(
         "message": summary_msg
     }
 
+
+class FingerprintRangeSyncRequest(BaseModel):
+    start_date: str  # YYYY-MM-DD
+    end_date: str    # YYYY-MM-DD
+
+
+@router.post("/attendance/sync-fingerprint-range")
+async def sync_fingerprint_attendance_range(
+    req: FingerprintRangeSyncRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Sync attendance for a date range (e.g. 2026-10-01 to today).
+    Iterates day by day with pacing so external machine & database are not overloaded.
+    """
+    from datetime import timedelta
+    try:
+        s_date = datetime.strptime(req.start_date, "%Y-%m-%d").date()
+        e_date = datetime.strptime(req.end_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Format tanggal tidak valid. Gunakan YYYY-MM-DD.")
+
+    if s_date > e_date:
+        raise HTTPException(status_code=400, detail="Tanggal mulai tidak boleh lebih besar dari tanggal selesai.")
+
+    if (e_date - s_date).days > 31:
+        raise HTTPException(status_code=400, detail="Rentang tanggal maksimal 31 hari.")
+
+    results = []
+    curr = s_date
+    while curr <= e_date:
+        d_str = curr.strftime("%Y-%m-%d")
+        try:
+            res = await sync_fingerprint_attendance(
+                req=FingerprintSyncRequest(date=d_str, mode="all", source="manual"),
+                db=db
+            )
+            results.append({"date": d_str, "status": res.get("status"), "message": res.get("message")})
+        except Exception as e:
+            results.append({"date": d_str, "status": "failed", "message": str(e)})
+        curr += timedelta(days=1)
+
+    return {"status": "completed", "results": results}
+
+

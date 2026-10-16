@@ -580,19 +580,31 @@
       :style="{ width: '780px', maxWidth: '95vw' }"
     >
       <div class="space-y-4">
-        <div class="flex items-center justify-between text-xs text-slate-500 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
           <div>
             Menampilkan catatan penarikan data dari <b>sdit.asysyuuraa.my.id (192.168.188.222)</b> baik secara manual maupun via Cron Job (07:45 &amp; 19:30 WIB).
           </div>
-          <Button 
-            icon="pi pi-refresh" 
-            label="Refresh Log" 
-            size="small" 
-            text 
-            class="!text-xs shrink-0" 
-            :loading="loadingSyncLogs" 
-            @click="fetchSyncLogs" 
-          />
+          <div class="flex items-center gap-2 shrink-0">
+            <Button 
+              icon="pi pi-calendar" 
+              label="Tarik Rentang Tanggal (01 Okt - Hari Ini)" 
+              size="small" 
+              severity="info"
+              outlined
+              class="!text-xs shrink-0" 
+              :loading="syncingRange" 
+              @click="syncMonthToDate" 
+            />
+            <Button 
+              icon="pi pi-refresh" 
+              label="Refresh Log" 
+              size="small" 
+              text 
+              class="!text-xs shrink-0" 
+              :loading="loadingSyncLogs" 
+              @click="fetchSyncLogs" 
+            />
+          </div>
         </div>
 
         <div v-if="syncLogs.length === 0" class="text-center py-8 text-slate-400 text-xs">
@@ -628,6 +640,14 @@
                 <span class="font-bold text-slate-800 dark:text-white">
                   Target Tanggal: {{ log.date_target }}
                 </span>
+                <Button 
+                  label="Buka Presensi Tanggal Ini" 
+                  icon="pi pi-arrow-up-right" 
+                  size="small" 
+                  text 
+                  class="!text-[11px] !py-0 !px-1.5"
+                  @click="goToLogDate(log.date_target)"
+                />
               </div>
               <span class="text-[11px] text-slate-500 font-mono">{{ log.timestamp }}</span>
             </div>
@@ -1498,6 +1518,67 @@ const savePinMapping = async () => {
     })
   } finally {
     savingPinMapping.value = false
+  }
+}
+
+// --- Quick Jump to Log Date & Bulk Range Sync ---
+const syncingRange = ref(false)
+
+const goToLogDate = (dateStr: string) => {
+  if (!dateStr) return
+  const [y, m, d] = dateStr.split('-').map(Number)
+  filterDate.value = new Date(y, m - 1, d)
+  showSyncLogsDialog.value = false
+  fetchData()
+  toast.add({
+    severity: 'info',
+    summary: 'Melihat Tanggal ' + dateStr,
+    detail: `Menampilkan data presensi untuk tanggal ${dateStr}.`,
+    life: 3000
+  })
+}
+
+const syncMonthToDate = async () => {
+  const todayStr = formatLocalDate(new Date())
+  const startStr = todayStr.slice(0, 8) + '01' // YYYY-MM-01 (1 Oktober)
+
+  syncingRange.value = true
+  toast.add({
+    severity: 'info',
+    summary: 'Memulai Tarik Data Massal',
+    detail: `Sedang menarik dan memproses data fingerprint dari ${startStr} s/d ${todayStr}...`,
+    life: 4000
+  })
+
+  try {
+    const res = await api.post<any>('/sdm/attendance/sync-fingerprint-range', {
+      start_date: startStr,
+      end_date: todayStr
+    })
+
+    const results: any[] = res?.results || []
+    const successDays = results.filter(r => r.status === 'success').length
+    const emptyDays = results.filter(r => r.status === 'empty').length
+    const failedDays = results.filter(r => r.status === 'failed').length
+
+    toast.add({
+      severity: failedDays > 0 ? 'warn' : 'success',
+      summary: 'Tarik Data Rentang Selesai',
+      detail: `Berhasil memproses ${results.length} hari (${successDays} hari berisi data, ${emptyDays} data kosong, ${failedDays} gagal).`,
+      life: 5000
+    })
+
+    await fetchSyncLogs()
+    await fetchData()
+  } catch (e: any) {
+    toast.add({
+      severity: 'error',
+      summary: 'Gagal Tarik Rentang',
+      detail: e?.data?.detail || 'Terjadi kesalahan saat memproses rentang tanggal',
+      life: 5000
+    })
+  } finally {
+    syncingRange.value = false
   }
 }
 
