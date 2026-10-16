@@ -1213,6 +1213,15 @@ function formatLocalDate(d: Date): string {
   return `${year}-${month}-${day}`
 }
 
+function formatDisplayDate(d: Date | null): string {
+  if (!d) return ''
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(d)
+}
+
 function formatLocalDateTime(dateBase: Date, timeObj: Date | null): string | null {
   if (!timeObj) return null
   const year = dateBase.getFullYear()
@@ -2043,16 +2052,19 @@ const openBulkSyncModal = () => {
   showBulkSyncModal.value = true
 }
 
-const getDaysInMonthCount = (d: Date | null) => {
+const getDaysInMonthCount = (d: any) => {
   if (!d) return 31
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+  const m = d instanceof Date ? d : new Date(d)
+  if (isNaN(m.getTime())) return 31
+  return new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate()
 }
 
 const startBulkSync = async () => {
   const dates: string[] = []
   
   if (bulkSyncMode.value === 'month') {
-    const m = bulkSyncSelectedMonth.value || new Date()
+    const raw = bulkSyncSelectedMonth.value || new Date()
+    const m = raw instanceof Date ? raw : new Date(raw)
     const y = m.getFullYear()
     const mon = m.getMonth()
     const totalDays = new Date(y, mon + 1, 0).getDate()
@@ -2068,12 +2080,14 @@ const startBulkSync = async () => {
       curr.setDate(curr.getDate() + 1)
     }
   } else {
-    if (!bulkSyncCustomStart.value || !bulkSyncCustomEnd.value) {
+    const rawStart = bulkSyncCustomStart.value
+    const rawEnd = bulkSyncCustomEnd.value
+    if (!rawStart || !rawEnd) {
       toast.add({ severity: 'warn', summary: 'Pilih Tanggal', detail: 'Pilih tanggal mulai dan tanggal akhir', life: 3000 })
       return
     }
-    let curr = new Date(bulkSyncCustomStart.value)
-    const endD = new Date(bulkSyncCustomEnd.value)
+    let curr = rawStart instanceof Date ? new Date(rawStart) : new Date(rawStart)
+    const endD = rawEnd instanceof Date ? new Date(rawEnd) : new Date(rawEnd)
     while (curr <= endD) {
       dates.push(formatLocalDate(curr))
       curr.setDate(curr.getDate() + 1)
