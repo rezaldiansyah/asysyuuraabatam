@@ -1552,12 +1552,13 @@ const savePinMapping = async () => {
     })
     showPinMappingModal.value = false
     showSyncLogsDialog.value = false
-    await syncFromFingerprint()
+    await syncFingerprint()
   } catch (e: any) {
+    console.error('Error saving pin mapping:', e)
     toast.add({
       severity: 'error',
       summary: 'Gagal Menautkan',
-      detail: e?.data?.detail || 'Gagal menyimpan tautan ID Fingerprint',
+      detail: e?.data?.detail || e?.message || 'Gagal menyimpan tautan ID Fingerprint',
       life: 4000
     })
   } finally {
