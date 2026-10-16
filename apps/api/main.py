@@ -412,18 +412,152 @@ async def create_classroom(classroom: schemas.ClassroomCreate, db: Session = Dep
     db.refresh(db_classroom)
     return db_classroom
 
+def _get_expected_academic_period(dt: datetime = None):
+    from datetime import timedelta
+    now_wib = dt or (datetime.utcnow() + timedelta(hours=7))
+    if now_wib.month >= 7:
+        return f"{now_wib.year}/{now_wib.year + 1}", "Ganjil"
+    else:
+        return f"{now_wib.year - 1}/{now_wib.year}", "Genap"
+
+
+def _sync_active_academic_year(db: Session):
+    """
+    Ensure the current calendar-based AcademicYear & Semester exists (Jul-Dec = Ganjil, Jan-Jun = Genap),
+    automatically set it as active (unless manual override is enabled), and re-link calendar events
+    whose dates belong to the current period but were saved under an older default AcademicYear.
+    """
+    expected_name, expected_semester = _get_expected_academic_period()
+    start_yr = int(expected_name.split("/")[0])
+
+    # Ensure both Ganjil & Genap rows exist for the current academic year
+    changed = False
+    for sem, s_date, e_date in [
+        ("Ganjil", datetime(start_yr, 7, 1), datetime(start_yr, 12, 31, 23, 59, 59)),
+        ("Genap", datetime(start_yr + 1, 1, 1), datetime(start_yr + 1, 6, 30, 23, 59, 59)),
+    ]:
+        row = db.query(models.AcademicYear).filter(
+            models.AcademicYear.name == expected_name,
+            models.AcademicYear.semester == sem
+        ).first()
+        if not row:
+            row = models.AcademicYear(
+                name=expected_name,
+                semester=sem,
+                is_active=(sem == expected_semester),
+                start_date=s_date,
+                end_date=e_date
+            )
+            db.add(row)
+            changed = True
+
+    if changed:
+        db.commit()
+
+    # Check if manual mode override is set
+    mode_setting = db.query(models.PageContent).filter(
+        models.PageContent.section_key == "settings_academic_year_mode"
+    ).first()
+    is_manual = False
+    if mode_setting and isinstance(mode_setting.content, dict):
+        is_manual = mode_setting.content.get("mode") == "manual"
+
+    all_years = db.query(models.AcademicYear).all()
+    year_map = {(y.name, y.semester): y for y in all_years}
+    target_active = year_map.get((expected_name, expected_semester))
+
+    if not is_manual and target_active:
+        for y in all_years:
+            should_be_active = (y.id == target_active.id)
+            if y.is_active != should_be_active:
+                y.is_active = should_be_active
+                changed = True
+        if changed:
+            db.commit()
+
+    # Re-link any AcademicCalendarEvent whose event date clearly belongs to an existing AcademicYear
+    # (e.g. Nov 2026 event accidentally saved under 2025/2026 Ganjil when 2025/2026 was hardcoded)
+    events = db.query(models.AcademicCalendarEvent).all()
+    relinked = False
+    for ev in events:
+        if not ev.date:
+            continue
+        ev_name, ev_sem = _get_expected_academic_period(ev.date)
+        correct_ay = year_map.get((ev_name, ev_sem))
+        if correct_ay and ev.academic_year_id != correct_ay.id:
+            ev.academic_year_id = correct_ay.id
+            relinked = True
+    if relinked:
+        db.commit()
+
+
 @app.get("/academic/years", response_model=List[schemas.AcademicYear])
 async def get_academic_years(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    years = db.query(models.AcademicYear).offset(skip).limit(limit).all()
+    _sync_active_academic_year(db)
+    years = db.query(models.AcademicYear).order_by(
+        models.AcademicYear.name.desc(),
+        models.AcademicYear.semester.asc()
+    ).offset(skip).limit(limit).all()
     return years
 
 @app.post("/academic/years", response_model=schemas.AcademicYear)
 async def create_academic_year(year: schemas.AcademicYearCreate, db: Session = Depends(get_db)):
+    existing = db.query(models.AcademicYear).filter(
+        models.AcademicYear.name == year.name,
+        models.AcademicYear.semester == year.semester
+    ).first()
+    if existing:
+        if year.is_active:
+            for y in db.query(models.AcademicYear).all():
+                y.is_active = (y.id == existing.id)
+            db.commit()
+            db.refresh(existing)
+        return existing
+
+    if year.is_active:
+        for y in db.query(models.AcademicYear).all():
+            y.is_active = False
     db_year = models.AcademicYear(**year.dict())
     db.add(db_year)
     db.commit()
     db.refresh(db_year)
     return db_year
+
+@app.put("/academic/years/{year_id}/activate", response_model=schemas.AcademicYear)
+async def activate_academic_year(
+    year_id: int,
+    mode: str = "manual",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    target = db.query(models.AcademicYear).filter(models.AcademicYear.id == year_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Tahun ajaran tidak ditemukan")
+
+    mode_setting = db.query(models.PageContent).filter(
+        models.PageContent.section_key == "settings_academic_year_mode"
+    ).first()
+    if not mode_setting:
+        mode_setting = models.PageContent(
+            section_key="settings_academic_year_mode",
+            title="Mode Tahun Ajaran",
+            content={"mode": mode}
+        )
+        db.add(mode_setting)
+    else:
+        mode_setting.content = {"mode": mode}
+
+    if mode == "auto":
+        db.commit()
+        _sync_active_academic_year(db)
+        active = db.query(models.AcademicYear).filter(models.AcademicYear.is_active == True).first()
+        return active or target
+
+    for y in db.query(models.AcademicYear).all():
+        y.is_active = (y.id == target.id)
+    db.commit()
+    db.refresh(target)
+    return target
 
 @app.get("/academic/teachers", response_model=List[schemas.Teacher])
 async def get_teachers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -928,10 +1062,18 @@ def create_calendar_event(event: schemas.CalendarEventCreate, db: Session = Depe
         raise HTTPException(status_code=403, detail="Akses ditolak: Anda tidak memiliki izin untuk menambah agenda kalender akademik.")
 
     # 1. Resolve academic year
+    _sync_active_academic_year(db)
     ay = None
     if event.academic_year_id:
         ay = db.query(models.AcademicYear).filter(models.AcademicYear.id == event.academic_year_id).first()
     
+    if not ay and event.date:
+        ev_name, ev_sem = _get_expected_academic_period(event.date)
+        ay = db.query(models.AcademicYear).filter(
+            models.AcademicYear.name == ev_name,
+            models.AcademicYear.semester == ev_sem
+        ).first()
+
     if not ay:
         # Fallback to active academic year
         ay = db.query(models.AcademicYear).filter(models.AcademicYear.is_active == True).first()
@@ -939,13 +1081,6 @@ def create_calendar_event(event: schemas.CalendarEventCreate, db: Session = Depe
     if not ay:
         # Fallback to first existing academic year
         ay = db.query(models.AcademicYear).first()
-        
-    if not ay:
-        # Auto-create active academic year if database is empty
-        ay = models.AcademicYear(name="2025/2026", semester="Ganjil", is_active=True)
-        db.add(ay)
-        db.commit()
-        db.refresh(ay)
 
     event_dict = event.dict()
     event_dict["academic_year_id"] = ay.id

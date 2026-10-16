@@ -17,6 +17,15 @@
           class="w-64"
           @change="onYearRowChange"
         />
+        <Button
+          v-if="can('akademik.kalender', 'update') || can('akademik.kalender', 'create')"
+          icon="pi pi-cog"
+          size="small"
+          severity="secondary"
+          outlined
+          title="Pengaturan Tahun Ajaran & Semester Aktif"
+          @click="yearDialogVisible = true"
+        />
         <Button v-if="can('akademik.kalender', 'create')" label="Tambah Kegiatan" icon="pi pi-plus" size="small" @click="openDialog()" />
       </div>
     </div>
@@ -257,6 +266,64 @@
       </template>
     </Dialog>
 
+    <!-- Dialog Pengaturan Tahun Ajaran & Semester Aktif -->
+    <Dialog v-model:visible="yearDialogVisible" header="Pengaturan Tahun Ajaran & Semester Aktif" modal class="w-full max-w-lg" :breakpoints="{ '960px': '75vw', '640px': '95vw' }">
+      <div class="flex flex-col gap-3 py-1 text-sm">
+        <div class="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-200 leading-relaxed">
+          <div class="font-bold flex items-center gap-1.5 mb-1">
+            <i class="pi pi-sync text-xs"></i> Sinkronisasi Otomatis Berdasarkan Kalender
+          </div>
+          Sistem secara otomatis mendeteksi dan mengaktifkan Tahun Ajaran berdasarkan bulan berjalan:
+          <ul class="list-disc ml-4 mt-1 space-y-0.5">
+            <li><b>Juli – Desember</b>: Semester Ganjil (contoh: Okt 2026 &rarr; <b>2026/2027 - Semester Ganjil</b>)</li>
+            <li><b>Januari – Juni</b>: Semester Genap (contoh: Jan 2027 &rarr; <b>2026/2027 - Semester Genap</b>)</li>
+          </ul>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-slate-700 dark:text-slate-200">Daftar Periode Tahun Ajaran</span>
+          <Button label="Sinkronkan Otomatis Sekarang" icon="pi pi-refresh" size="small" text @click="syncAutoAcademicYear" :loading="savingYear" />
+        </div>
+
+        <div class="divide-y divide-slate-100 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg max-h-60 overflow-y-auto">
+          <div v-for="y in academicYears" :key="y.id" class="px-3 py-2 flex items-center justify-between gap-2 bg-white dark:bg-slate-800">
+            <div>
+              <div class="text-xs font-semibold text-slate-800 dark:text-slate-100">
+                {{ y.name }} - Semester {{ y.semester }}
+              </div>
+              <div v-if="y.is_active" class="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                <i class="pi pi-check-circle text-[10px]"></i> Periode Aktif Saat Ini
+              </div>
+            </div>
+            <Button
+              v-if="!y.is_active"
+              label="Set Aktif"
+              size="small"
+              outlined
+              severity="secondary"
+              class="!py-1 !px-2 !text-xs"
+              :loading="savingYear"
+              @click="setManualActiveYear(y.id)"
+            />
+            <Tag v-else value="Aktif" severity="success" class="!text-[10px]" />
+          </div>
+        </div>
+
+        <!-- Tambah Periode Baru -->
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
+          <div class="text-xs font-semibold text-slate-700 dark:text-slate-200">Tambah Periode Tahun Ajaran Baru</div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <InputText v-model="newYearForm.name" placeholder="2026/2027" size="small" />
+            <Select v-model="newYearForm.semester" :options="['Ganjil', 'Genap']" size="small" />
+            <Button label="Tambah" icon="pi pi-plus" size="small" @click="addNewAcademicYear" :loading="savingYear" />
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Tutup" severity="secondary" text size="small" @click="yearDialogVisible = false" />
+      </template>
+    </Dialog>
+
     <ConfirmDialog />
   </div>
 </template>
@@ -274,6 +341,9 @@ const toast = useToast()
 
 const loading = ref(false)
 const saving = ref(false)
+const savingYear = ref(false)
+const yearDialogVisible = ref(false)
+const newYearForm = reactive({ name: '2026/2027', semester: 'Ganjil' })
 const events = ref<any[]>([])        // events of selected academic-year row (list tab)
 const allEvents = ref<any[]>([])     // all events (calendar tab)
 const academicYears = ref<any[]>([])
@@ -360,6 +430,54 @@ async function fetchAcademicYears() {
     }
   } catch (e) {
     console.error('Gagal memuat tahun ajaran:', e)
+  }
+}
+
+async function syncAutoAcademicYear() {
+  const firstId = academicYears.value[0]?.id
+  if (!firstId) return
+  savingYear.value = true
+  try {
+    await api.put(`/academic/years/${firstId}/activate?mode=auto`, {})
+    await fetchAcademicYears()
+    await refreshAll()
+    toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Tahun ajaran aktif disinkronkan otomatis sesuai bulan berjalan', life: 3000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Gagal', detail: e.data?.detail || 'Gagal menyinkronkan tahun ajaran', life: 3000 })
+  } finally {
+    savingYear.value = false
+  }
+}
+
+async function setManualActiveYear(yearId: number) {
+  savingYear.value = true
+  try {
+    await api.put(`/academic/years/${yearId}/activate?mode=manual`, {})
+    await fetchAcademicYears()
+    await refreshAll()
+    toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Periode tahun ajaran aktif berhasil diperbarui', life: 3000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Gagal', detail: e.data?.detail || 'Gagal mengubah tahun ajaran aktif', life: 3000 })
+  } finally {
+    savingYear.value = false
+  }
+}
+
+async function addNewAcademicYear() {
+  if (!newYearForm.name.trim()) return
+  savingYear.value = true
+  try {
+    await api.post('/academic/years', {
+      name: newYearForm.name.trim(),
+      semester: newYearForm.semester,
+      is_active: false,
+    })
+    await fetchAcademicYears()
+    toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Periode tahun ajaran baru berhasil ditambahkan', life: 3000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Gagal', detail: e.data?.detail || 'Gagal menambah tahun ajaran', life: 3000 })
+  } finally {
+    savingYear.value = false
   }
 }
 

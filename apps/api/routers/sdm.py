@@ -949,6 +949,9 @@ async def employee_check_in(
     except Exception:
         pass
 
+    gps_note_prefix = f"Presensi Mandiri GPS (Jarak {dist_meters}m)"
+    combined_gps_note = f"{gps_note_prefix} - {req.notes}" if req.notes else gps_note_prefix
+
     if existing:
         existing.status = status_val
         existing.check_in = now_dt
@@ -956,8 +959,7 @@ async def employee_check_in(
         existing.check_in_lng = req.longitude
         existing.check_in_distance = dist_meters
         existing.device_info = req.device_info
-        if req.notes:
-            existing.notes = (existing.notes or "") + " " + req.notes
+        existing.notes = combined_gps_note
         db_att = existing
     else:
         db_att = models.EmployeeAttendance(
@@ -969,7 +971,7 @@ async def employee_check_in(
             check_in_lng=req.longitude,
             check_in_distance=dist_meters,
             device_info=req.device_info,
-            notes=req.notes
+            notes=combined_gps_note
         )
         db.add(db_att)
         
@@ -1079,6 +1081,7 @@ async def create_employee_attendance(attendance: schemas.EmployeeAttendanceCreat
 async def create_bulk_employee_attendance(request: schemas.BulkEmployeeAttendanceCreate, db: Session = Depends(get_db)):
     count = 0
     updated = 0
+    skipped_locked = 0
     
     for item in request.items:
         existing = db.query(models.EmployeeAttendance).filter(
@@ -1089,30 +1092,43 @@ async def create_bulk_employee_attendance(request: schemas.BulkEmployeeAttendanc
         status_val = item.status.value if hasattr(item.status, "value") else str(item.status)
         
         if existing:
-            # Update existing
+            existing_note = existing.notes or ""
+            is_locked = (
+                existing.check_in_distance is not None
+                or "Sinkronisasi Fingerprint" in existing_note
+                or "Presensi Mandiri GPS" in existing_note
+            )
+            if is_locked:
+                # Locked records from Fingerprint / GPS Mandiri cannot be modified manually
+                skipped_locked += 1
+                continue
+
             existing.status = status_val
             if item.check_in is not None:
                 existing.check_in = item.check_in
             if item.check_out is not None:
                 existing.check_out = item.check_out
-            if item.notes:
+            if item.notes is not None:
                 existing.notes = item.notes
             updated += 1
         else:
-            # Create new
+            # Create new manual record for employee without fingerprint/GPS data
+            note_val = item.notes or "Tidak ada data di Fingerprint"
             db_att = models.EmployeeAttendance(
                 employee_id=item.employee_id,
                 date=request.date,
                 status=status_val,
                 check_in=item.check_in,
                 check_out=item.check_out,
-                notes=item.notes
+                notes=note_val
             )
             db.add(db_att)
             count += 1
             
     db.commit()
-    return {"message": f"Created {count} new attendance records, updated {updated} existing ones"}
+    return {
+        "message": f"Created {count} new attendance records, updated {updated} existing ones, protected {skipped_locked} locked Fingerprint/GPS records"
+    }
 
 @router.get("/attendance/recap")
 async def get_employee_attendance_recap(
@@ -1253,6 +1269,48 @@ async def get_fingerprint_sync_logs(
     return []
 
 
+def _mark_missing_fingerprint_employees(db: Session, target_date: date) -> int:
+    """
+    Ensure any active employee who had NO tap in the fingerprint machine on target_date
+    has a note stating 'Tidak ada data di Fingerprint' so Admin must fill their status & reason manually.
+    """
+    active_emps = db.query(models.Employee).filter(
+        or_(models.Employee.is_active == True, models.Employee.is_active.is_(None))
+    ).all()
+    existing_rows = db.query(models.EmployeeAttendance).filter(
+        models.EmployeeAttendance.date == target_date
+    ).all()
+    by_emp_id = {r.employee_id: r for r in existing_rows}
+
+    marked_count = 0
+    for emp in active_emps:
+        row = by_emp_id.get(emp.id)
+        if not row:
+            db.add(models.EmployeeAttendance(
+                employee_id=emp.id,
+                date=target_date,
+                status=models.AttendanceStatus.ABSENT,
+                check_in=None,
+                check_out=None,
+                notes="Tidak ada data di Fingerprint"
+            ))
+            marked_count += 1
+        else:
+            curr_note = (row.notes or "").strip()
+            is_auto = (
+                row.check_in_distance is not None
+                or "Sinkronisasi Fingerprint" in curr_note
+                or "Presensi Mandiri GPS" in curr_note
+            )
+            if not is_auto and not curr_note:
+                row.notes = "Tidak ada data di Fingerprint"
+                marked_count += 1
+
+    if marked_count > 0:
+        db.commit()
+    return marked_count
+
+
 @router.post("/attendance/sync-logs")
 async def record_fingerprint_sync_log(
     req: FingerprintLogRecordRequest,
@@ -1261,6 +1319,12 @@ async def record_fingerprint_sync_log(
     """Record a completed or failed step-by-step sync session from frontend."""
     from datetime import timezone, timedelta
     wib_now = datetime.now(timezone(timedelta(hours=7)))
+    if req.status in ("success", "partial") and req.date:
+        try:
+            t_date = datetime.strptime(req.date, "%Y-%m-%d").date()
+            _mark_missing_fingerprint_employees(db, t_date)
+        except Exception:
+            db.rollback()
     entry = {
         "id": f"sync-{int(wib_now.timestamp() * 1000)}",
         "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
@@ -1431,7 +1495,7 @@ def _save_single_employee_punches(
             existing.check_in = check_in_dt
         if check_out_dt and (not existing.check_out or check_out_dt > existing.check_out):
             existing.check_out = check_out_dt
-        if not existing.notes or "Sinkronisasi Fingerprint" in existing.notes:
+        if not existing.notes or "Sinkronisasi Fingerprint" in existing.notes or "Tidak ada data di Fingerprint" in existing.notes:
             existing.notes = note_tag
         action = "updated"
     else:
@@ -1603,6 +1667,12 @@ async def sync_fingerprint_attendance(
             failed_count += 1
             emp_name = emp_map[emp_id].nama_lengkap if emp_id in emp_map else f"ID {emp_id}"
             errors_detail.append(f"{emp_name}: {str(ex)}")
+
+    # Mark remaining active employees who had NO fingerprint data on target_date
+    try:
+        _mark_missing_fingerprint_employees(db, target_date)
+    except Exception:
+        db.rollback()
 
     final_status = "success" if failed_count == 0 else ("partial" if (created_count + updated_count) > 0 else "failed")
     summary_msg = f"Berhasil menyinkronkan {created_count + updated_count} pegawai dari {len(raw_logs)} log mesin fingerprint pada tanggal {date_str}."

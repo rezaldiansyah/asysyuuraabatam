@@ -459,38 +459,57 @@
             </template>
           </Column>
 
-          <Column header="Status Presensi" style="min-width: 230px">
+          <Column header="Status Presensi" style="min-width: 235px">
             <template #body="{ data }">
-              <Dropdown 
-                v-model="data.status" 
-                :options="statusOptions" 
-                optionLabel="label" 
-                optionValue="value" 
-                optionGroupLabel="group"
-                optionGroupChildren="items"
-                class="w-full text-xs" 
-              >
-                <template #value="slotProps">
-                  <span v-if="slotProps.value" class="px-2 py-0.5 rounded text-xs font-semibold" :class="getStatusBadgeClass(slotProps.value)">
-                    {{ getStatusLabel(slotProps.value) }}
-                  </span>
-                  <span v-else class="px-2 py-0.5 rounded text-xs text-slate-400 bg-slate-100 dark:bg-slate-700">
-                    Belum Presensi
-                  </span>
-                </template>
-                <template #option="slotProps">
-                  <div class="flex items-center justify-between text-xs py-0.5">
-                    <span>{{ slotProps.option.label }}</span>
-                    <span class="text-[10px] px-1.5 py-0.2 rounded" :class="getStatusBadgeClass(slotProps.option.value)">
-                      {{ slotProps.option.value }}
+              <!-- Locked when synced from Fingerprint or GPS Mandiri -->
+              <div v-if="isLockedBySystem(data)" class="space-y-1">
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold select-none" :class="getStatusBadgeClass(data.status)">
+                  <i class="pi pi-lock text-[10px]"></i>
+                  <span>{{ getStatusLabel(data.status) }}</span>
+                </div>
+                <div class="text-[10px] text-slate-400 flex items-center gap-1">
+                  <i class="pi pi-verified text-emerald-500 text-[10px]"></i>
+                  <span>Terkunci otomatis ({{ data.check_in_distance != null ? 'GPS Mandiri' : 'Mesin Fingerprint' }})</span>
+                </div>
+              </div>
+
+              <!-- Editable by Admin when NO data in Fingerprint / GPS -->
+              <div v-else class="space-y-1">
+                <Dropdown 
+                  v-model="data.status" 
+                  :options="statusOptions" 
+                  optionLabel="label" 
+                  optionValue="value" 
+                  optionGroupLabel="group"
+                  optionGroupChildren="items"
+                  class="w-full text-xs" 
+                >
+                  <template #value="slotProps">
+                    <span v-if="slotProps.value" class="px-2 py-0.5 rounded text-xs font-semibold" :class="getStatusBadgeClass(slotProps.value)">
+                      {{ getStatusLabel(slotProps.value) }}
                     </span>
-                  </div>
-                </template>
-              </Dropdown>
+                    <span v-else class="px-2 py-0.5 rounded text-xs text-slate-400 bg-slate-100 dark:bg-slate-700">
+                      Belum Presensi
+                    </span>
+                  </template>
+                  <template #option="slotProps">
+                    <div class="flex items-center justify-between text-xs py-0.5">
+                      <span>{{ slotProps.option.label }}</span>
+                      <span class="text-[10px] px-1.5 py-0.2 rounded" :class="getStatusBadgeClass(slotProps.option.value)">
+                        {{ slotProps.option.value }}
+                      </span>
+                    </div>
+                  </template>
+                </Dropdown>
+                <div class="text-[10px] text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1">
+                  <i class="pi pi-info-circle text-[10px]"></i>
+                  <span>Tidak ada di Fingerprint — Isi status manual</span>
+                </div>
+              </div>
             </template>
           </Column>
 
-          <Column header="Jam Masuk" style="width: 140px">
+          <Column header="Jam Masuk" style="width: 135px">
             <template #body="{ data }">
               <Calendar 
                 v-model="data.check_in" 
@@ -498,12 +517,12 @@
                 dateFormat=""
                 placeholder="--:--" 
                 class="w-full text-xs"
-                :disabled="!isAttendancePhysical(data.status)"
+                :disabled="isLockedBySystem(data) || !isAttendancePhysical(data.status)"
               />
             </template>
           </Column>
 
-          <Column header="Jam Pulang" style="width: 140px">
+          <Column header="Jam Pulang" style="width: 135px">
             <template #body="{ data }">
               <Calendar 
                 v-model="data.check_out" 
@@ -511,18 +530,35 @@
                 dateFormat=""
                 placeholder="--:--" 
                 class="w-full text-xs"
-                :disabled="!isAttendancePhysical(data.status)"
+                :disabled="isLockedBySystem(data) || !isAttendancePhysical(data.status)"
               />
             </template>
           </Column>
 
-          <Column header="Catatan / Keterangan" style="min-width: 180px">
+          <Column header="Catatan / Keterangan" style="min-width: 250px">
             <template #body="{ data }">
-              <InputText 
-                v-model="data.notes" 
-                placeholder="Alasan / catatan..." 
-                class="w-full text-xs p-inputtext-sm" 
-              />
+              <!-- Read-only locked note for Fingerprint / GPS Mandiri -->
+              <div 
+                v-if="isLockedBySystem(data)" 
+                class="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 select-none cursor-not-allowed"
+                title="Catatan otomatis dari sistem (Fingerprint / GPS Mandiri) tidak dapat diubah"
+              >
+                <i class="pi pi-lock text-slate-400 text-xs shrink-0"></i>
+                <span class="truncate font-medium">{{ data.notes }}</span>
+              </div>
+
+              <!-- Editable manual reason with permanent 'Tidak ada data di Fingerprint' note -->
+              <div v-else class="space-y-1">
+                <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-[10px] font-bold text-rose-700 dark:text-rose-300">
+                  <i class="pi pi-exclamation-triangle text-[9px]"></i>
+                  <span>Tidak ada data di Fingerprint</span>
+                </div>
+                <InputText 
+                  v-model="data.manual_notes" 
+                  placeholder="Wajib isi alasan manual (Sakit/Izin/Alpa)..." 
+                  class="w-full text-xs p-inputtext-sm" 
+                />
+              </div>
             </template>
           </Column>
 
@@ -902,6 +938,22 @@ function isAttendancePhysical(status?: string | null) {
   return status === 'PRESENT' || status === 'LATE'
 }
 
+function isLockedBySystem(row: any): boolean {
+  if (!row) return false
+  if (row.check_in_distance != null) return true
+  const n = String(row.notes || '')
+  return n.includes('Sinkronisasi Fingerprint') || n.includes('Presensi Mandiri GPS')
+}
+
+function extractManualNote(rawNotes?: string | null): string {
+  if (!rawNotes) return ''
+  let s = String(rawNotes).trim()
+  s = s.replace(/^Tidak ada data di Fingerprint\s*(—|-|:|\|)?\s*/i, '')
+  s = s.replace(/^Ket\.\s*Manual\s*:\s*/i, '')
+  if (s.toLowerCase() === 'tidak ada data di fingerprint') return ''
+  return s.trim()
+}
+
 function getStatusLabel(val?: string | null) {
   if (!val || val === 'UNRECORDED') return 'Belum Presensi'
   for (const group of statusOptions) {
@@ -1055,6 +1107,9 @@ const fetchData = async () => {
         if (existing.check_in) check_in = new Date(existing.check_in)
         if (existing.check_out) check_out = new Date(existing.check_out)
       }
+
+      const rawNotes = existing?.notes || (existing ? 'Tidak ada data di Fingerprint' : '')
+      const isAutoLocked = (existing?.check_in_distance != null) || rawNotes.includes('Sinkronisasi Fingerprint') || rawNotes.includes('Presensi Mandiri GPS')
       
       return {
         employee_id: emp.id,
@@ -1066,7 +1121,8 @@ const fetchData = async () => {
         check_in: check_in,
         check_out: check_out,
         check_in_distance: existing?.check_in_distance,
-        notes: existing?.notes || ''
+        notes: isAutoLocked ? (rawNotes || `Presensi Mandiri GPS (Jarak ${existing?.check_in_distance}m)`) : (rawNotes || 'Tidak ada data di Fingerprint'),
+        manual_notes: isAutoLocked ? '' : extractManualNote(rawNotes)
       }
     })
     
@@ -1183,7 +1239,7 @@ const syncFingerprint = async () => {
 
     isSavedInDb.value = true
 
-    // Tahap 3: Catat hasil akhir ke Log Sinkronisasi
+    // Tahap 3: Catat hasil akhir ke Log Sinkronisasi (sekaligus menandai pegawai tanpa data finger sebagai 'Tidak ada data di Fingerprint')
     const finalStatus = failCount === 0 ? 'success' : (successCount > 0 ? 'partial' : 'failed')
     const finalMsg = `Berhasil menyinkronkan ${successCount} dari ${queue.length} pegawai (${rawCount} log mesin) pada tanggal ${dateStr}.`
     await api.post('/sdm/attendance/sync-logs', {
@@ -1230,6 +1286,7 @@ const syncFingerprint = async () => {
 
 const setAllPresent = () => {
   attendances.value.forEach(a => {
+    if (isLockedBySystem(a)) return
     // Only update if not already an official permit/sick/cuti
     if (!a.status || a.status === 'UNRECORDED' || a.status === 'ABSENT') {
       a.status = 'PRESENT'
@@ -1242,8 +1299,8 @@ const setAllPresent = () => {
   })
   toast.add({ 
     severity: 'info', 
-    summary: 'Set Hadir', 
-    detail: 'Semua pegawai yang belum presensi telah diatur Hadir Tepat Waktu (07:00). Klik Simpan untuk mempermanenkan.', 
+    summary: 'Set Hadir Manual', 
+    detail: 'Pegawai yang tidak memiliki data Fingerprint/GPS telah diatur Hadir Tepat Waktu (07:00). Klik Simpan untuk mempermanenkan.', 
     life: 3000 
   })
 }
@@ -1255,9 +1312,18 @@ const saveAttendance = async () => {
   try {
     const dateStr = formatLocalDate(filterDate.value)
     
-    // Filter out UNRECORDED items if any, or convert UNRECORDED to ABSENT if saving
-    // If user clicked save, any remaining UNRECORDED is marked ABSENT (or saved with valid status)
+    // Only build payload for unlocked items or preserve locked items safely
     const payloadItems = attendances.value.map(a => {
+      if (isLockedBySystem(a)) {
+        return {
+          employee_id: a.employee_id,
+          status: a.status,
+          check_in: formatLocalDateTime(filterDate.value, a.check_in),
+          check_out: formatLocalDateTime(filterDate.value, a.check_out),
+          notes: a.notes
+        }
+      }
+
       let finalStatus = a.status
       if (!finalStatus || finalStatus === 'UNRECORDED') {
         finalStatus = 'ABSENT' // Default remaining unrecorded becomes absent
@@ -1270,7 +1336,6 @@ const saveAttendance = async () => {
         if (a.check_in) {
           inDateStr = formatLocalDateTime(filterDate.value, a.check_in)
         } else {
-          // Default physical attendance check-in time 07:00 if not filled
           const defTime = new Date(filterDate.value)
           defTime.setHours(7, 0, 0, 0)
           inDateStr = formatLocalDateTime(filterDate.value, defTime)
@@ -1279,13 +1344,18 @@ const saveAttendance = async () => {
           outDateStr = formatLocalDateTime(filterDate.value, a.check_out)
         }
       }
+
+      const manualReason = (a.manual_notes || '').trim()
+      const combinedNote = manualReason
+        ? `Tidak ada data di Fingerprint — ${manualReason}`
+        : 'Tidak ada data di Fingerprint'
       
       return {
         employee_id: a.employee_id,
         status: finalStatus,
         check_in: inDateStr,
         check_out: outDateStr,
-        notes: a.notes || null
+        notes: combinedNote
       }
     })
     
@@ -1297,7 +1367,7 @@ const saveAttendance = async () => {
     toast.add({ 
       severity: 'success', 
       summary: 'Berhasil Disimpan', 
-      detail: `Data presensi tanggal ${dateStr} berhasil disimpan dan disinkronkan dengan Rekap Bulanan.`, 
+      detail: `Data presensi manual tanggal ${dateStr} berhasil disimpan (Data Fingerprint/GPS tetap terkunci).`, 
       life: 3500 
     })
     
