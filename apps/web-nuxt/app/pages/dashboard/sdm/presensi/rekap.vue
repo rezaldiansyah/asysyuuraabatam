@@ -297,11 +297,17 @@
         >
           <Column field="nama_lengkap" header="Nama Pegawai" sortable style="min-width: 240px">
             <template #body="{ data }">
-              <div class="font-semibold text-slate-800 dark:text-white">{{ data.nama_lengkap }}</div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="font-semibold text-slate-800 dark:text-white">{{ data.nama_lengkap }}</span>
+                <span v-if="data.join_date" class="px-1.5 py-0.2 rounded text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium" :title="'Tanggal Mulai Masuk (TMT): ' + formatDateDisplay(data.join_date)">
+                  TMT: {{ formatDateDisplay(data.join_date) }}
+                </span>
+              </div>
               <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
                 <span>NIP: {{ data.nip || '-' }}</span>
                 <span>&bull;</span>
                 <span class="text-emerald-700 dark:text-emerald-400 font-medium">{{ data.unit_name }}</span>
+                <span v-if="data.position">&bull; {{ data.position }}</span>
               </div>
             </template>
           </Column>
@@ -422,11 +428,17 @@
           class="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60"
         >
           <div>
-            <div class="font-bold text-sm text-slate-800 dark:text-white">{{ emp.nama_lengkap }}</div>
+            <div class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-1.5 flex-wrap">
+              <span>{{ emp.nama_lengkap }}</span>
+              <span v-if="emp.join_date" class="px-1.5 py-0.2 rounded text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold" :title="'Tanggal Mulai Masuk: ' + formatDateDisplay(emp.join_date)">
+                TMT: {{ formatDateDisplay(emp.join_date) }}
+              </span>
+            </div>
             <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
               <span>NIP: {{ emp.nip || '-' }}</span>
               <span>&bull;</span>
               <span class="text-slate-600 dark:text-slate-300 font-medium">{{ emp.unit_name }}</span>
+              <span v-if="emp.position">&bull; {{ emp.position }}</span>
             </div>
           </div>
           <div class="flex items-center gap-1.5 text-xs font-bold">
@@ -866,99 +878,303 @@
             </div>
           </div>
 
-          <!-- Section: Tabel Log Detail Rincian Kejadian Lembur & Masuk Ahad -->
-          <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
-            <div class="flex items-center justify-between">
+          <!-- Section: Rangkuman Staf Bertugas vs Log Detail Kejadian Lembur & Masuk Ahad -->
+          <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
                 <h4 class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
-                  <i class="pi pi-list text-indigo-600"></i>
-                  Log Rincian Kejadian Lembur &amp; Kehadiran Hari Ahad
+                  <i class="pi pi-briefcase text-indigo-600"></i>
+                  Data Dedikasi Staf (Lembur &amp; Hari Ahad)
                 </h4>
                 <p class="text-xs text-slate-400 mt-0.5">
-                  Memantau jam check-in, jam pulang malam, kategori kegiatan, serta alasan/keterangan yang dimasukkan staf.
+                  Rangkuman siapa saja staf terbanyak bertugas, frekuensi, serta rincian waktu dan catatan aktivitasnya.
                 </p>
               </div>
-              <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                {{ allFilteredOvertimeLogs.length }} Kejadian
-              </span>
+
+              <!-- Sub-tab switch between Summary and All Logs -->
+              <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl shrink-0">
+                <button
+                  type="button"
+                  class="px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5"
+                  :class="overtimeSubTab === 'summary' 
+                    ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold' 
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
+                  @click="overtimeSubTab = 'summary'"
+                >
+                  <i class="pi pi-users text-[11px]"></i>
+                  <span>Rangkuman Staf ({{ staffOvertimeSummaryList.length }})</span>
+                </button>
+                <button
+                  type="button"
+                  class="px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5"
+                  :class="overtimeSubTab === 'all_logs' 
+                    ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold' 
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
+                  @click="overtimeSubTab = 'all_logs'"
+                >
+                  <i class="pi pi-list text-[11px]"></i>
+                  <span>Semua Log Kejadian ({{ allFilteredOvertimeLogs.length }})</span>
+                </button>
+              </div>
             </div>
 
-            <DataTable 
-              :value="allFilteredOvertimeLogs" 
-              paginator 
-              :rows="10" 
-              class="p-datatable-sm" 
-              stripedRows 
-              responsiveLayout="scroll"
-            >
-              <Column header="Nama Pegawai" style="min-width: 180px">
-                <template #body="{ data }">
-                  <div class="font-bold text-slate-800 dark:text-white text-xs">{{ data.nama_lengkap }}</div>
-                  <div class="text-[11px] text-slate-400">{{ data.unit_name }} &bull; {{ data.position }}</div>
-                </template>
-              </Column>
+            <!-- VIEW 1: RANGKUMAN PER STAF (LEADERBOARD / RANKING & DETAIL) -->
+            <div v-if="overtimeSubTab === 'summary'" class="space-y-3">
+              <div v-if="staffOvertimeSummaryList.length === 0" class="text-center py-8 text-slate-400 text-xs">
+                Tidak ada staf yang tercatat lembur (>18:00) atau hadir pada hari Ahad pada periode ini.
+              </div>
 
-              <Column header="Hari &amp; Tanggal" style="min-width: 130px">
-                <template #body="{ data }">
-                  <div class="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    {{ data.day_name }}, {{ formatDateDisplay(data.date) }}
-                  </div>
-                </template>
-              </Column>
+              <DataTable
+                v-else
+                :value="staffOvertimeSummaryList"
+                paginator
+                :rows="10"
+                class="p-datatable-sm"
+                stripedRows
+                responsiveLayout="scroll"
+              >
+                <Column header="No." style="width: 50px">
+                  <template #body="{ index }">
+                    <span class="font-bold text-xs text-slate-500">{{ index + 1 }}</span>
+                  </template>
+                </Column>
 
-              <Column header="Jam Kerja" style="min-width: 120px">
-                <template #body="{ data }">
-                  <div class="font-mono text-xs text-slate-700 dark:text-slate-200">
-                    <span>{{ data.check_in }}</span> &rarr; <span>{{ data.check_out }}</span>
-                  </div>
-                </template>
-              </Column>
+                <Column header="Nama Pegawai" style="min-width: 200px">
+                  <template #body="{ data }">
+                    <div class="font-bold text-slate-800 dark:text-white text-xs">{{ data.nama_lengkap }}</div>
+                    <div class="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
+                      <span>{{ data.unit_name }}</span>
+                      <span>&bull;</span>
+                      <span>{{ data.position }}</span>
+                      <span v-if="data.join_date" class="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px]">
+                        TMT: {{ formatDateDisplay(data.join_date) }}
+                      </span>
+                    </div>
+                  </template>
+                </Column>
 
-              <Column header="Tipe Kejadian" style="min-width: 140px">
-                <template #body="{ data }">
-                  <div class="flex flex-wrap gap-1">
-                    <span 
-                      v-if="data.is_overtime" 
-                      class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 text-[10px] font-bold"
-                    >
-                      🌙 Pulang >18:00
+                <Column header="Total Bertugas" style="min-width: 170px">
+                  <template #body="{ data }">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-black text-xs border border-indigo-200 dark:border-indigo-900">
+                        {{ data.total_kejadian }}x Kejadian
+                      </span>
+                      <div class="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                        <span v-if="data.total_lembur > 0" class="text-indigo-600 font-bold">🌙 {{ data.total_lembur }}x Lembur</span>
+                        <span v-if="data.total_lembur > 0 && data.total_ahad > 0">&bull;</span>
+                        <span v-if="data.total_ahad > 0" class="text-amber-600 font-bold">☀️ {{ data.total_ahad }}x Ahad</span>
+                      </div>
+                    </div>
+                  </template>
+                </Column>
+
+                <Column header="Kategori Kegiatan" style="min-width: 180px">
+                  <template #body="{ data }">
+                    <div class="flex flex-wrap gap-1">
+                      <span 
+                        v-for="cat in data.categories" 
+                        :key="cat"
+                        class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-medium"
+                      >
+                        {{ cat }}
+                      </span>
+                    </div>
+                  </template>
+                </Column>
+
+                <Column header="Aksi" style="width: 130px; text-align: center">
+                  <template #body="{ data }">
+                    <Button
+                      label="Lihat Rincian"
+                      icon="pi pi-calendar"
+                      size="small"
+                      severity="info"
+                      outlined
+                      class="!text-xs !py-1 !px-2.5 font-semibold"
+                      @click="openStaffOvertimeDetail(data)"
+                    />
+                  </template>
+                </Column>
+              </DataTable>
+            </div>
+
+            <!-- VIEW 2: SEMUA LOG KEJADIAN (FLAT LOG) -->
+            <div v-else-if="overtimeSubTab === 'all_logs'" class="space-y-3">
+              <DataTable 
+                :value="allFilteredOvertimeLogs" 
+                paginator 
+                :rows="10" 
+                class="p-datatable-sm" 
+                stripedRows 
+                responsiveLayout="scroll"
+              >
+                <Column header="Nama Pegawai" style="min-width: 180px">
+                  <template #body="{ data }">
+                    <div class="font-bold text-slate-800 dark:text-white text-xs">{{ data.nama_lengkap }}</div>
+                    <div class="text-[11px] text-slate-400">{{ data.unit_name }} &bull; {{ data.position }}</div>
+                  </template>
+                </Column>
+
+                <Column header="Hari &amp; Tanggal" style="min-width: 130px">
+                  <template #body="{ data }">
+                    <div class="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                      {{ data.day_name }}, {{ formatDateDisplay(data.date) }}
+                    </div>
+                  </template>
+                </Column>
+
+                <Column header="Jam Kerja" style="min-width: 120px">
+                  <template #body="{ data }">
+                    <div class="font-mono text-xs text-slate-700 dark:text-slate-200">
+                      <span>{{ data.check_in }}</span> &rarr; <span>{{ data.check_out }}</span>
+                    </div>
+                  </template>
+                </Column>
+
+                <Column header="Tipe Kejadian" style="min-width: 140px">
+                  <template #body="{ data }">
+                    <div class="flex flex-wrap gap-1">
+                      <span 
+                        v-if="data.is_overtime" 
+                        class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 text-[10px] font-bold"
+                      >
+                        🌙 Pulang >18:00
+                      </span>
+                      <span 
+                        v-if="data.is_sunday" 
+                        class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[10px] font-bold"
+                      >
+                        ☀️ Hari Ahad
+                      </span>
+                    </div>
+                  </template>
+                </Column>
+
+                <Column header="Kategori" style="min-width: 140px">
+                  <template #body="{ data }">
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-medium">
+                      {{ data.category }}
                     </span>
-                    <span 
-                      v-if="data.is_sunday" 
-                      class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[10px] font-bold"
-                    >
-                      ☀️ Hari Ahad
-                    </span>
-                  </div>
-                </template>
-              </Column>
+                  </template>
+                </Column>
 
-              <Column header="Kategori" style="min-width: 140px">
-                <template #body="{ data }">
-                  <span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-medium">
-                    {{ data.category }}
-                  </span>
-                </template>
-              </Column>
-
-              <Column header="Alasan / Catatan Presensi" style="min-width: 220px">
-                <template #body="{ data }">
-                  <div v-if="data.notes && data.notes.trim()" class="text-xs text-slate-700 dark:text-slate-200">
-                    {{ data.notes }}
-                  </div>
-                  <div v-else class="text-[11px] text-amber-600 font-semibold flex items-center gap-1">
-                    <i class="pi pi-exclamation-circle text-[10px]"></i>
-                    Tanpa Keterangan
-                  </div>
-                </template>
-              </Column>
-            </DataTable>
+                <Column header="Alasan / Catatan Presensi" style="min-width: 220px">
+                  <template #body="{ data }">
+                    <div v-if="data.notes && data.notes.trim()" class="text-xs text-slate-700 dark:text-slate-200">
+                      {{ data.notes }}
+                    </div>
+                    <div v-else class="text-[11px] text-amber-600 font-semibold flex items-center gap-1">
+                      <i class="pi pi-exclamation-circle text-[10px]"></i>
+                      Tanpa Keterangan
+                    </div>
+                  </template>
+                </Column>
+              </DataTable>
+            </div>
           </div>
         </div>
       </div>
 
       <template #footer>
         <Button label="Tutup" icon="pi pi-times" severity="secondary" text size="small" @click="showAnalyticsModal = false" />
+      </template>
+    </Dialog>
+
+    <!-- Dialog Rincian Riwayat Tanggal & Kegiatan Lembur / Ahad Pegawai -->
+    <Dialog
+      v-model:visible="showStaffOvertimeDetailModal"
+      modal
+      :header="'Riwayat Lembur &amp; Hari Ahad: ' + (selectedStaffOvertimeDetail?.nama_lengkap || '')"
+      :style="{ width: '750px', maxWidth: '95vw' }"
+    >
+      <div v-if="selectedStaffOvertimeDetail" class="space-y-4">
+        <!-- Profile Banner -->
+        <div class="p-3.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div class="font-bold text-sm text-indigo-950 dark:text-indigo-200">
+              {{ selectedStaffOvertimeDetail.nama_lengkap }}
+            </div>
+            <div class="text-xs text-indigo-800/80 dark:text-indigo-300 flex items-center gap-2 mt-0.5">
+              <span>NIP: {{ selectedStaffOvertimeDetail.nip || '-' }}</span>
+              <span>&bull;</span>
+              <span>{{ selectedStaffOvertimeDetail.unit_name }}</span>
+              <span>&bull;</span>
+              <span>{{ selectedStaffOvertimeDetail.position }}</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-bold text-xs">
+              {{ selectedStaffOvertimeDetail.total_kejadian }}x Total
+            </span>
+            <span v-if="selectedStaffOvertimeDetail.total_lembur > 0" class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 text-xs font-semibold">
+              🌙 {{ selectedStaffOvertimeDetail.total_lembur }}x Lembur
+            </span>
+            <span v-if="selectedStaffOvertimeDetail.total_ahad > 0" class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 text-xs font-semibold">
+              ☀️ {{ selectedStaffOvertimeDetail.total_ahad }}x Ahad
+            </span>
+          </div>
+        </div>
+
+        <!-- Detail Table -->
+        <DataTable
+          :value="selectedStaffOvertimeDetail.records"
+          paginator
+          :rows="8"
+          class="p-datatable-sm"
+          stripedRows
+          responsiveLayout="scroll"
+        >
+          <Column header="Hari &amp; Tanggal" style="min-width: 140px">
+            <template #body="{ data }">
+              <div class="text-xs font-bold text-slate-800 dark:text-white">
+                {{ data.day_name }}, {{ formatDateDisplay(data.date) }}
+              </div>
+            </template>
+          </Column>
+
+          <Column header="Jam Kerja" style="min-width: 110px">
+            <template #body="{ data }">
+              <span class="font-mono text-xs font-semibold text-slate-700 dark:text-slate-200">
+                {{ data.check_in }} &rarr; {{ data.check_out }}
+              </span>
+            </template>
+          </Column>
+
+          <Column header="Tipe" style="min-width: 120px">
+            <template #body="{ data }">
+              <span 
+                v-if="data.is_overtime" 
+                class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 text-[10px] font-bold"
+              >
+                🌙 Pulang >18:00
+              </span>
+              <span 
+                v-else-if="data.is_sunday" 
+                class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[10px] font-bold"
+              >
+                ☀️ Hari Ahad
+              </span>
+            </template>
+          </Column>
+
+          <Column header="Kategori" style="min-width: 130px">
+            <template #body="{ data }">
+              <span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-medium">
+                {{ data.category }}
+              </span>
+            </template>
+          </Column>
+
+          <Column header="Aktivitas / Catatan Presensi" style="min-width: 200px">
+            <template #body="{ data }">
+              <span class="text-xs text-slate-700 dark:text-slate-200">{{ data.notes || 'Tanpa keterangan' }}</span>
+            </template>
+          </Column>
+        </DataTable>
+      </div>
+
+      <template #footer>
+        <Button label="Tutup" severity="secondary" size="small" text @click="showStaffOvertimeDetailModal = false" />
       </template>
     </Dialog>
   </div>
@@ -1326,6 +1542,46 @@ const needsAttentionList = computed(() => {
 })
 
 // ------------------- OVERTIME & SUNDAY LOGIC -------------------
+const overtimeSubTab = ref<'summary' | 'all_logs'>('summary')
+const showStaffOvertimeDetailModal = ref(false)
+const selectedStaffOvertimeDetail = ref<any | null>(null)
+
+const openStaffOvertimeDetail = (staff: any) => {
+  selectedStaffOvertimeDetail.value = staff
+  showStaffOvertimeDetailModal.value = true
+}
+
+const staffOvertimeSummaryList = computed(() => {
+  const emps = filteredAnalyticsEmployees.value
+  const list: any[] = []
+
+  for (const emp of emps) {
+    const records = emp.overtime_records || []
+    const totalLembur = emp.total_lembur || 0
+    const totalAhad = emp.total_ahad || 0
+    const totalKejadian = totalLembur + totalAhad
+
+    if (totalKejadian > 0) {
+      const categories = Array.from(new Set(records.map((r: any) => r.category).filter(Boolean)))
+      list.push({
+        employee_id: emp.employee_id,
+        nama_lengkap: emp.nama_lengkap,
+        nip: emp.nip,
+        unit_name: emp.unit_name,
+        position: emp.position,
+        join_date: emp.join_date,
+        total_kejadian: totalKejadian,
+        total_lembur: totalLembur,
+        total_ahad: totalAhad,
+        categories,
+        records: [...records].sort((a: any, b: any) => b.date.localeCompare(a.date))
+      })
+    }
+  }
+
+  return list.sort((a, b) => b.total_kejadian - a.total_kejadian)
+})
+
 const allFilteredOvertimeLogs = computed(() => {
   const emps = filteredAnalyticsEmployees.value
   const logs: any[] = []

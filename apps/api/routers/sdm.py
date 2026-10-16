@@ -1275,8 +1275,31 @@ async def get_employee_attendance_recap(
 
     # Group by employee
     results = []
+    has_cleanup = False
     for emp in employees:
-        emp_att = [a for a in attendances if a.employee_id == emp.id]
+        emp_join = emp.join_date.date() if (emp.join_date and hasattr(emp.join_date, 'date')) else emp.join_date
+        emp_resign = emp.resign_date.date() if (emp.resign_date and hasattr(emp.resign_date, 'date')) else emp.resign_date
+
+        # Clean up any phantom automated 'Tidak ada data di Fingerprint' absences that were recorded before the employee joined
+        if emp_join:
+            try:
+                deleted = db.query(models.EmployeeAttendance).filter(
+                    models.EmployeeAttendance.employee_id == emp.id,
+                    models.EmployeeAttendance.date < emp_join,
+                    models.EmployeeAttendance.notes == "Tidak ada data di Fingerprint"
+                ).delete(synchronize_session=False)
+                if deleted > 0:
+                    has_cleanup = True
+            except Exception:
+                pass
+
+        # Filter emp_att to only dates where the employee was legitimately employed
+        emp_att = [
+            a for a in attendances 
+            if a.employee_id == emp.id
+            and (not emp_join or a.date >= emp_join)
+            and (not emp_resign or a.date <= emp_resign)
+        ]
 
         h = sum(1 for a in emp_att if status_str(a) in ['PRESENT', 'LATE'])
         terlambat = sum(1 for a in emp_att if status_str(a) == 'LATE')
@@ -1367,6 +1390,8 @@ async def get_employee_attendance_recap(
             "unit_id": emp.unit_id,
             "unit_name": emp.unit.name if emp.unit else "Tanpa Unit",
             "position": emp.position or "Staf / Guru",
+            "join_date": emp.join_date.strftime("%Y-%m-%d") if (emp.join_date and hasattr(emp.join_date, "strftime")) else None,
+            "resign_date": emp.resign_date.strftime("%Y-%m-%d") if (emp.resign_date and hasattr(emp.resign_date, "strftime")) else None,
             "hadir": h,
             "terlambat": terlambat,
             "sakit": s,
@@ -1380,6 +1405,12 @@ async def get_employee_attendance_recap(
             "total_ahad": total_ahad,
             "overtime_records": overtime_records
         })
+
+    if has_cleanup:
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
 
     return results
 
@@ -1470,6 +1501,18 @@ def _mark_missing_fingerprint_employees(db: Session, target_date: date) -> int:
 
     marked_count = 0
     for emp in active_emps:
+        # Skip if target_date is before employee joined (e.g. joined 3 months ago)
+        if emp.join_date:
+            j_date = emp.join_date.date() if hasattr(emp.join_date, 'date') else emp.join_date
+            if target_date < j_date:
+                continue
+
+        # Skip if employee already resigned prior to target_date
+        if emp.resign_date:
+            r_date = emp.resign_date.date() if hasattr(emp.resign_date, 'date') else emp.resign_date
+            if target_date > r_date:
+                continue
+
         row = by_emp_id.get(emp.id)
         if not row:
             db.add(models.EmployeeAttendance(
