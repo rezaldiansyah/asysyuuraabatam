@@ -2,6 +2,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_
 from typing import List, Optional
 from datetime import datetime, timedelta
 from fastapi import File, UploadFile
@@ -320,21 +321,51 @@ async def read_users_me(current_user: models.User = Depends(get_current_active_u
 # --- User & Role Routes ---
 
 @app.get("/users", response_model=List[schemas.User])
-async def get_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    users = db.query(models.User).offset(skip).limit(limit).all()
+async def get_users(
+    skip: int = 0, 
+    limit: int = 1000, 
+    role_id: Optional[int] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.User).options(joinedload(models.User.role))
+    if role_id is not None:
+        query = query.filter(models.User.role_id == role_id)
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                models.User.full_name.ilike(term),
+                models.User.email.ilike(term),
+                models.User.nik.ilike(term)
+            )
+        )
+    users = query.order_by(models.User.id.desc()).offset(skip).limit(limit).all()
     return users
 
 @app.post("/users", response_model=schemas.User)
 async def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    # Check email duplicate
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="Email sudah terdaftar. Silakan gunakan email lain.")
+    
+    # Check NIK duplicate if provided
+    if user.nik and user.nik.strip():
+        nik_user = db.query(models.User).filter(models.User.nik == user.nik.strip()).first()
+        if nik_user:
+            raise HTTPException(status_code=400, detail="NIK/Username sudah terdaftar. Silakan gunakan NIK/Username lain.")
+
+    # Validate role
+    role = db.query(models.Role).filter(models.Role.id == user.role_id).first()
+    if not role:
+        raise HTTPException(status_code=400, detail="Role yang dipilih tidak valid.")
     
     hashed_password = auth.get_password_hash(user.password)
     db_user = models.User(
-        email=user.email,
-        full_name=user.full_name,
-        nik=user.nik,
+        email=user.email.strip().lower(),
+        full_name=user.full_name.strip(),
+        nik=user.nik.strip() if user.nik else None,
         role_id=user.role_id,
         password_hash=hashed_password,
         is_active=user.is_active
@@ -348,11 +379,42 @@ async def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 async def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
         
     update_data = user_update.dict(exclude_unset=True)
-    if 'password' in update_data and update_data['password']:
-         update_data['password_hash'] = auth.get_password_hash(update_data.pop('password'))
+
+    # Protect superadmin account from deactivation
+    is_superadmin = db_user.role and db_user.role.code == "superadmin"
+    if is_superadmin:
+        if 'is_active' in update_data and not update_data['is_active']:
+            raise HTTPException(status_code=400, detail="Akun Super Administrator dilindungi dan tidak dapat dinonaktifkan.")
+        if 'role_id' in update_data and update_data['role_id'] != db_user.role_id:
+            superadmin_role = db.query(models.Role).filter(models.Role.code == "superadmin").first()
+            if not superadmin_role or update_data['role_id'] != superadmin_role.id:
+                raise HTTPException(status_code=400, detail="Role Super Administrator utama tidak dapat diubah.")
+
+    # Check email duplicate if updating email
+    if 'email' in update_data and update_data['email']:
+        new_email = update_data['email'].strip().lower()
+        update_data['email'] = new_email
+        if new_email != db_user.email:
+            existing = db.query(models.User).filter(models.User.email == new_email, models.User.id != user_id).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="Email sudah digunakan oleh akun lain.")
+
+    # Check NIK duplicate if updating NIK
+    if 'nik' in update_data:
+        new_nik = update_data['nik'].strip() if update_data['nik'] else None
+        update_data['nik'] = new_nik
+        if new_nik and new_nik != db_user.nik:
+            existing = db.query(models.User).filter(models.User.nik == new_nik, models.User.id != user_id).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="NIK/Username sudah digunakan oleh akun lain.")
+
+    # Safely handle password update
+    password = update_data.pop('password', None)
+    if password is not None and str(password).strip():
+        update_data['password_hash'] = auth.get_password_hash(str(password).strip())
     
     for key, value in update_data.items():
         setattr(db_user, key, value)
@@ -365,7 +427,7 @@ async def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session
 async def delete_user(user_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
-         raise HTTPException(status_code=404, detail="User not found")
+         raise HTTPException(status_code=404, detail="User tidak ditemukan")
     
     if current_user.id == db_user.id:
         raise HTTPException(status_code=400, detail="Tidak dapat menghapus akun Anda sendiri.")
@@ -380,7 +442,7 @@ async def delete_user(user_id: int, db: Session = Depends(get_db), current_user:
 
     db.delete(db_user)
     db.commit()
-    return {"message": "User deleted"}
+    return {"message": "User berhasil dihapus"}
     
 @app.get("/roles", response_model=List[schemas.Role])
 async def get_roles(db: Session = Depends(get_db)):
