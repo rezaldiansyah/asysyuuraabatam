@@ -779,14 +779,15 @@ class _NotulenDocParser(HTMLParser):
         else:
             self.current_p.append(text)
 
-def _render_notulen_content_to_flowables(raw_html, body_style, header_style, meta_key, colors, Table, TableStyle, Paragraph, Spacer):
+def _render_notulen_content_to_flowables(raw_html, body_style, header_style, meta_key, colors, Table, TableStyle, Paragraph, Spacer, notulen_body_style=None):
+    use_p_style = notulen_body_style or body_style
     if not raw_html or not raw_html.strip():
-        return [Paragraph("Tidak ada catatan pembahasan.", body_style)]
+        return [Paragraph("Tidak ada catatan pembahasan.", use_p_style)]
 
     # If it has no HTML tags, return plain text
     if '<' not in raw_html:
         clean = raw_html.replace('\n', '<br/>')
-        return [Paragraph(clean, body_style)]
+        return [Paragraph(clean, use_p_style)]
 
     flowables = []
     try:
@@ -795,12 +796,12 @@ def _render_notulen_content_to_flowables(raw_html, body_style, header_style, met
 
         for kind, val in parser.elements:
             if kind == 'h':
-                flowables.append(Spacer(1, 4))
+                flowables.append(Spacer(1, 6))
                 flowables.append(Paragraph(f"<b>{val}</b>", header_style))
-                flowables.append(Spacer(1, 2))
+                flowables.append(Spacer(1, 4))
             elif kind == 'p':
-                flowables.append(Paragraph(val, body_style))
-                flowables.append(Spacer(1, 3))
+                flowables.append(Paragraph(val, use_p_style))
+                flowables.append(Spacer(1, 6))
             elif kind == 'table':
                 table_rows = []
                 for row in val:
@@ -925,9 +926,20 @@ async def export_meeting_minute_pdf(
         'BodyTxt',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=9,
-        leading=13,
-        textColor=colors.HexColor('#334155')
+        fontSize=9.5,
+        leading=14.5,
+        textColor=colors.HexColor('#1E293B'),
+        spaceAfter=4
+    )
+    notulen_body_style = ParagraphStyle(
+        'NotulenBodyTxt',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=9.5,
+        leading=15.5,
+        textColor=colors.HexColor('#1E293B'),
+        alignment=4,
+        spaceAfter=7
     )
     meta_key = ParagraphStyle(
         'MetaKey',
@@ -1100,7 +1112,7 @@ async def export_meeting_minute_pdf(
     elements.append(Paragraph(f"{r_title}. JALANNYA RAPAT / PEMBAHASAN", section_h2))
     elements.append(Spacer(1, 4))
     content_flowables = _render_notulen_content_to_flowables(
-        m.content, body_style, section_h2, meta_key, colors, Table, TableStyle, Paragraph, Spacer
+        m.content, body_style, section_h2, meta_key, colors, Table, TableStyle, Paragraph, Spacer, notulen_body_style=notulen_body_style
     )
     elements.extend(content_flowables)
     elements.append(Spacer(1, 10))

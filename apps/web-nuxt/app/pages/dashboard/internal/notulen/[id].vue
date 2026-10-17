@@ -213,7 +213,7 @@
           Catatan Jalannya Rapat & Notulensi
         </h2>
         <div 
-          class="notulen-content prose dark:prose-invert max-w-none text-xs text-slate-700 dark:text-slate-300 leading-relaxed overflow-x-auto"
+          class="notulen-content ql-editor max-w-none text-slate-700 dark:text-slate-200 overflow-x-auto"
           v-html="renderedContent"
         ></div>
       </div>
@@ -440,3 +440,87 @@ onMounted(() => {
   fetchDetail()
 })
 </script>
+
+<style scoped>
+.notulen-content {
+  font-size: 0.8125rem;
+  line-height: 1.75;
+  padding: 0.5rem 0;
+}
+
+:deep(.notulen-content p) {
+  margin-bottom: 0.75rem;
+}
+
+:deep(.notulen-content ol) {
+  list-style-type: decimal !important;
+  margin-left: 1.75rem !important;
+  margin-bottom: 0.875rem !important;
+  padding-left: 0.25rem !important;
+}
+
+:deep(.notulen-content ul) {
+  list-style-type: disc !important;
+  margin-left: 1.75rem !important;
+  margin-bottom: 0.875rem !important;
+  padding-left: 0.25rem !important;
+}
+
+:deep(.notulen-content li) {
+  margin-bottom: 0.5rem !important;
+  padding-left: 0.25rem !important;
+  line-height: 1.65 !important;
+  display: list-item !important;
+}
+
+:deep(.notulen-content h1) {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+:deep(.notulen-content h2) {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+:deep(.notulen-content h3) {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-top: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+:deep(.notulen-content table) {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 1rem 0 !important;
+  font-size: 0.8125rem !important;
+}
+
+:deep(.notulen-content th),
+:deep(.notulen-content td) {
+  border: 1px solid #cbd5e1 !important;
+  padding: 6px 12px !important;
+  text-align: left !important;
+}
+
+:deep(.notulen-content th) {
+  background-color: #f8fafc !important;
+  font-weight: 600 !important;
+}
+
+/* Dark mode table border adjustments */
+:deep(.dark .notulen-content th),
+:deep(.dark .notulen-content td) {
+  border-color: #334155 !important;
+}
+
+:deep(.dark .notulen-content th) {
+  background-color: #1e293b !important;
+}
+</style>
+
