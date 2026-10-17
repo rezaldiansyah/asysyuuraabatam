@@ -75,6 +75,24 @@ export const useAuthStore = defineStore('auth', {
                     }
                 }
 
+                // Auto-detect expired JWT token and clean up
+                if (token) {
+                    try {
+                        const payloadBase64 = token.split('.')[1]
+                        if (payloadBase64) {
+                            const decoded = JSON.parse(atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/')))
+                            if (decoded.exp && Date.now() >= decoded.exp * 1000) {
+                                console.warn('[Auth] Token expired, resetting session...')
+                                this.logout()
+                                return
+                            }
+                        }
+                    } catch {
+                        this.logout()
+                        return
+                    }
+                }
+
                 if (token && userStr) {
                     try {
                         const user = JSON.parse(userStr)

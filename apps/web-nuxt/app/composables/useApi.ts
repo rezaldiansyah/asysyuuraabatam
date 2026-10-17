@@ -44,13 +44,24 @@ export function useApi() {
 
         const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`
 
-        const response = await $fetch<T>(url, {
-            method: options.method || 'GET',
-            headers,
-            body: options.body ? JSON.stringify(options.body) : undefined,
-        })
-
-        return response
+        try {
+            const response = await $fetch<T>(url, {
+                method: options.method || 'GET',
+                headers,
+                body: options.body ? JSON.stringify(options.body) : undefined,
+            })
+            return response
+        } catch (err: any) {
+            const status = err?.statusCode || err?.status || err?.response?.status
+            if (status === 401) {
+                console.warn('[useApi] Session 401 Unauthorized. Redirecting to login...')
+                authStore.logout()
+                if (import.meta.client) {
+                    navigateTo('/login')
+                }
+            }
+            throw err
+        }
     }
 
     function xhrUpload(url: string, file: File, token: string | null): Promise<{ url: string }> {

@@ -350,9 +350,19 @@ async function fetchMinutes() {
     if (filterScope.value) url += `scope=${filterScope.value}&`
     if (filterStatus.value) url += `status=${filterStatus.value}&`
     if (searchQuery.value) url += `search=${encodeURIComponent(searchQuery.value)}&`
-    minutes.value = await api.get<any[]>(url)
-  } catch (e) {
+    const res = await api.get<any[]>(url)
+    minutes.value = Array.isArray(res) ? res : []
+  } catch (e: any) {
     console.error('Failed to fetch minutes', e)
+    const status = e?.statusCode || e?.status
+    if (status !== 401) {
+      toast.add({
+        severity: 'error',
+        summary: 'Gagal Memuat Notulen',
+        detail: e?.data?.detail || e?.message || 'Terjadi kesalahan saat memuat notulen rapat',
+        life: 4000
+      })
+    }
   } finally {
     loading.value = false
   }
