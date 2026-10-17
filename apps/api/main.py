@@ -77,11 +77,12 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.include_router(ppdb.router)
 app.include_router(marketing.router)
 
-from routers import internal, sdm, schedule_import, meeting
+from routers import internal, sdm, schedule_import, meeting, tasks
 app.include_router(internal.router)
 app.include_router(sdm.router)
 app.include_router(schedule_import.router)
 app.include_router(meeting.router)
+app.include_router(tasks.router)
 
 @app.on_event("startup")
 def run_migrations_on_startup():
@@ -93,6 +94,12 @@ def run_migrations_on_startup():
         print("[Startup] Alembic auto-migration executed to head.")
     except Exception as e:
         print(f"[Startup] Alembic auto-migration note: {e}")
+    try:
+        models.Base.metadata.create_all(bind=engine)
+        print("[Startup] Database tables verified/created via SQLAlchemy.")
+    except Exception as e:
+        print(f"[Startup] Metadata create_all note: {e}")
+
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 

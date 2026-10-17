@@ -355,6 +355,7 @@ const menuDefinitions = [
   { 
     key: 'internal', label: 'Manajemen Internal', icon: 'pi pi-folder',
     children: [
+      { key: 'internal.tugas', label: 'Tugas Saya (Manajemen Tugas / Kanban)' },
       { key: 'internal.dokumen', label: 'Pusat Unduhan (SOP/SK/Juknis)' },
       { key: 'internal.notulen', label: 'Notulen Rapat' },
       { key: 'internal.mutabaah', label: 'Mutabaah Harian' },

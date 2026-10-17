@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, DateTime, Enum, Text, Float
+from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, DateTime, Enum, Text, Float, desc
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -807,4 +807,66 @@ class MeetingActionItem(Base):
     
     meeting = relationship("MeetingMinutes", back_populates="action_items")
     pic = relationship("User", foreign_keys=[pic_user_id])
+
+
+# --- Task Management Models (Kanban "Tugas Saya") ---
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    # Status: 'antrian', 'prioritas', 'in_progress', 'awaiting_approval', 'need_revision', 'done'
+    status = Column(String, default="antrian", nullable=False, index=True)
+    # Priority Level: 1 (Urgent/Tinggi), 2, 3 (Sedang), 4, 5 (Rendah/Normal)
+    priority_level = Column(Integer, default=5, nullable=False, index=True)
+    creator_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    assignee_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=True, index=True)
+    deadline = Column(DateTime, nullable=True, index=True)
+    meeting_minute_id = Column(Integer, ForeignKey("meeting_minutes.id"), nullable=True, index=True)
+    meeting_action_item_id = Column(Integer, ForeignKey("meeting_action_items.id"), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    creator = relationship("User", foreign_keys=[creator_id])
+    assignee = relationship("User", foreign_keys=[assignee_id])
+    unit = relationship("Unit", foreign_keys=[unit_id])
+    meeting_minute = relationship("MeetingMinutes", foreign_keys=[meeting_minute_id])
+    meeting_action_item = relationship("MeetingActionItem", foreign_keys=[meeting_action_item_id])
+    approvers = relationship("TaskApproverLink", back_populates="task", cascade="all, delete-orphan")
+    histories = relationship("TaskHistory", back_populates="task", cascade="all, delete-orphan", order_by="desc(TaskHistory.created_at)")
+
+
+class TaskApproverLink(Base):
+    __tablename__ = "task_approver_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    # status: 'pending', 'approved', 'revision_requested'
+    status = Column(String, default="pending", nullable=False)
+    note = Column(Text, nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+
+    task = relationship("Task", back_populates="approvers")
+    user = relationship("User", foreign_keys=[user_id])
+
+
+class TaskHistory(Base):
+    __tablename__ = "task_histories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+    from_status = Column(String, nullable=True)
+    to_status = Column(String, nullable=False)
+    comment = Column(Text, nullable=True)
+    changed_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    task = relationship("Task", back_populates="histories")
+    changed_by = relationship("User", foreign_keys=[changed_by_id])
+
 

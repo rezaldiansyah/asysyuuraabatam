@@ -73,6 +73,7 @@ export const navigation: MenuItem[] = [
         icon: 'pi pi-folder',
         key: 'internal',
         children: [
+            { label: 'Tugas Saya', to: '/dashboard/internal/tugas', key: 'internal.tugas' },
             { label: 'Pusat Unduhan', to: '/dashboard/internal/dokumen', key: 'internal.dokumen' },
             { label: 'Notulen Rapat', to: '/dashboard/internal/notulen', key: 'internal.notulen' },
             { label: 'Mutabaah Harian', to: '/dashboard/internal/mutabaah', key: 'internal.mutabaah' },

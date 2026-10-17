@@ -7,6 +7,9 @@
         <p class="text-slate-500 text-sm mt-1">Dokumentasi hasil rapat, pengesahan pimpinan, dan pelacakan tindak lanjut tugas (*action items*).</p>
       </div>
       <div class="flex items-center gap-2">
+        <NuxtLink to="/dashboard/internal/tugas">
+          <Button label="Papan Tugas Kanban" icon="pi pi-check-square" severity="secondary" outlined class="shadow-sm" />
+        </NuxtLink>
         <NuxtLink to="/dashboard/internal/notulen/buat">
           <Button label="Tulis Notulen Baru" icon="pi pi-plus" class="p-button-primary shadow-sm" />
         </NuxtLink>

@@ -756,3 +756,84 @@ class WeeklyMutabaah(WeeklyMutabaahBase):
 class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str
+
+
+# --- Task Management ("Tugas Saya") Schemas ---
+class TaskApproverLinkRead(BaseModel):
+    id: int
+    task_id: int
+    user_id: int
+    status: str
+    note: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    user: Optional[User] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TaskHistoryRead(BaseModel):
+    id: int
+    task_id: int
+    from_status: Optional[str] = None
+    to_status: str
+    comment: Optional[str] = None
+    changed_by_id: int
+    created_at: datetime
+    changed_by: Optional[User] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TaskCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    priority_level: int = 5
+    assignee_id: Optional[int] = None
+    unit_id: Optional[int] = None
+    deadline: Optional[datetime] = None
+    meeting_minute_id: Optional[int] = None
+    meeting_action_item_id: Optional[int] = None
+    approver_ids: Optional[List[int]] = []
+
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    priority_level: Optional[int] = None
+    assignee_id: Optional[int] = None
+    unit_id: Optional[int] = None
+    deadline: Optional[datetime] = None
+    comment: Optional[str] = None
+
+
+class TaskApproveRequest(BaseModel):
+    approved: bool
+    note: Optional[str] = None
+
+
+class TaskRead(BaseModel):
+    id: int
+    title: str
+    description: Optional[str] = None
+    status: str
+    priority_level: int
+    creator_id: int
+    assignee_id: Optional[int] = None
+    unit_id: Optional[int] = None
+    deadline: Optional[datetime] = None
+    meeting_minute_id: Optional[int] = None
+    meeting_action_item_id: Optional[int] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    creator: Optional[User] = None
+    assignee: Optional[User] = None
+    approvers: List[TaskApproverLinkRead] = []
+    histories: List[TaskHistoryRead] = []
+
+    class Config:
+        from_attributes = True
+

@@ -270,3 +270,121 @@ def send_test_email(to_email: str) -> Dict[str, Any]:
 
     html = _get_base_email_template("Tes Konfigurasi Email", content)
     return send_email(to_email, subject, html)
+
+
+def send_task_notification_email(
+    to_email: str,
+    to_name: str,
+    task_title: str,
+    action_type: str,  # "assignment", "approval_request", "revision_request", "done"
+    task_id: int,
+    actor_name: Optional[str] = None,
+    deadline_str: Optional[str] = None,
+    priority_level: int = 5,
+    note: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Send task management notifications:
+    - assignment: New task assigned to PIC
+    - approval_request: Task submitted for approver review
+    - revision_request: Approver requested revisions from PIC
+    - done: Task is completed & approved
+    """
+    frontend_url = os.getenv("FRONTEND_URL", "https://asy-syuuraabatam.or.id").rstrip("/")
+    task_url = f"{frontend_url}/dashboard/internal/tugas?task_id={task_id}"
+    
+    priority_map = {
+        1: ("🚨 Urgent / Sangat Tinggi", "#dc2626"),
+        2: ("⚠️ Tinggi", "#ea580c"),
+        3: ("⚡ Sedang", "#2563eb"),
+        4: ("🌱 Rendah", "#059669"),
+        5: ("📋 Normal", "#475569")
+    }
+    p_label, p_color = priority_map.get(priority_level, ("📋 Normal", "#475569"))
+    
+    actor = actor_name or "Pimpinan / Rekan Kerja"
+
+    if action_type == "assignment":
+        subject = f"[Tugas Baru] {task_title} — Asy-Syuuraa Batam"
+        header_badge = "📌 Penugasan Baru"
+        badge_bg = "#ecfdf5"
+        badge_text = "#065f46"
+        message_intro = f"Anda telah ditugaskan sebagai Penanggung Jawab (PIC) untuk tugas berikut oleh <b>{actor}</b>:"
+    elif action_type == "approval_request":
+        subject = f"[Permintaan Approval] {task_title} — Asy-Syuuraa Batam"
+        header_badge = "⏳ Menunggu Approval"
+        badge_bg = "#eff6ff"
+        badge_text = "#1e40af"
+        message_intro = f"Tugas berikut telah selesai dikerjakan oleh <b>{actor}</b> dan saat ini menunggu review & persetujuan Anda:"
+    elif action_type == "revision_request":
+        subject = f"[Butuh Revisi] {task_title} — Asy-Syuuraa Batam"
+        header_badge = "✏️ Butuh Revisi"
+        badge_bg = "#fff1f2"
+        badge_text = "#9f1239"
+        message_intro = f"Tugas Anda membutuhkan perbaikan atau revisi dari <b>{actor}</b>:"
+    elif action_type == "done":
+        subject = f"[Tugas Selesai] {task_title} — Asy-Syuuraa Batam"
+        header_badge = "✅ Tugas Selesai"
+        badge_bg = "#ecfdf5"
+        badge_text = "#065f46"
+        message_intro = f"Tugas berikut telah disetujui dan dinyatakan selesai oleh <b>{actor}</b>:"
+    else:
+        subject = f"[Update Tugas] {task_title} — Asy-Syuuraa Batam"
+        header_badge = "ℹ️ Update Tugas"
+        badge_bg = "#f1f5f9"
+        badge_text = "#334155"
+        message_intro = f"Ada pembaruan status pada tugas berikut oleh <b>{actor}</b>:"
+
+    note_section = ""
+    if note:
+        note_section = f"""
+        <div style="background-color: #fefce8; border-left: 4px solid #ca8a04; padding: 12px 16px; margin: 16px 0; border-radius: 4px; font-size: 13px; color: #854d0e;">
+          <b>Catatan / Feedback:</b><br>{note}
+        </div>
+        """
+
+    deadline_row = ""
+    if deadline_str:
+        deadline_row = f"""
+          <tr>
+            <td style="padding: 6px 0; color: #64748b;">Tenggat Waktu:</td>
+            <td style="padding: 6px 0; font-weight: 600; color: #b91c1c;">{deadline_str}</td>
+          </tr>
+        """
+
+    content = f"""
+      <p style="margin-top: 0;"><b>Assalamu'alaikum wr. wb.,</b></p>
+      <p>Halo <b>{to_name}</b>,</p>
+      
+      <div style="margin: 16px 0 20px 0;">
+        <span style="display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background-color: {badge_bg}; color: {badge_text};">
+          {header_badge}
+        </span>
+      </div>
+
+      <p>{message_intro}</p>
+
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; margin: 20px 0;">
+        <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #0f172a;">{task_title}</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; width: 130px;">Tingkat Prioritas:</td>
+            <td style="padding: 6px 0; font-weight: 600; color: {p_color};">{p_label}</td>
+          </tr>
+          {deadline_row}
+        </table>
+        {note_section}
+      </div>
+
+      <div style="text-align: center; margin: 28px 0;">
+        <a href="{task_url}" class="btn-primary" target="_blank">Lihat Detail Tugas di Sistem</a>
+      </div>
+
+      <p style="font-size: 11px; color: #94a3b8; word-break: break-all; margin-top: 24px;">
+        Tautan langsung: <a href="{task_url}" style="color: #059669;">{task_url}</a>
+      </p>
+    """
+
+    html = _get_base_email_template(subject, content)
+    return send_email(to_email, subject, html, to_name=to_name)
+
