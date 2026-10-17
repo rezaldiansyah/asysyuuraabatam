@@ -1440,6 +1440,7 @@ class FingerprintSyncRequest(BaseModel):
     source: Optional[str] = "manual"  # "manual" | "cron"
     employee_id: Optional[int] = None
     raw_logs: Optional[List[dict]] = None
+    record_log: Optional[bool] = True
 
 
 class FingerprintLogRecordRequest(BaseModel):
@@ -1455,7 +1456,7 @@ class FingerprintLogRecordRequest(BaseModel):
 
 
 def _append_fingerprint_sync_log(db: Session, entry: dict):
-    """Append a sync log entry to PageContent('fingerprint_sync_logs'), keeping the latest 100 entries."""
+    """Append a sync log entry to PageContent('fingerprint_sync_logs'), keeping the latest 200 entries."""
     try:
         row = db.query(models.PageContent).filter(
             models.PageContent.section_key == "fingerprint_sync_logs"
@@ -1470,7 +1471,7 @@ def _append_fingerprint_sync_log(db: Session, entry: dict):
                 logs = []
 
         logs.insert(0, entry)
-        logs = logs[:100]  # Keep last 100 logs
+        logs = logs[:200]  # Keep last 200 logs
 
         if not row:
             row = models.PageContent(
@@ -1906,6 +1907,7 @@ async def sync_fingerprint_attendance(
     date_str = (req.date if req and req.date else None) or date_param or wib_now.strftime("%Y-%m-%d")
     mode = (req.mode if req and req.mode else None) or mode_param or "all"
     source = (req.source if req and req.source else None) or source_param or ("cron" if req is None else "manual")
+    should_record = True if (req is None or req.record_log is not False) else False
 
     try:
         target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -1949,36 +1951,38 @@ async def sync_fingerprint_attendance(
         raw_logs = _fetch_sdit_fingerprint_logs(date_str, timeout_sec=12)
     except Exception as e:
         err_msg = f"Gagal menghubungi server mesin presensi (sdit.asysyuuraa.my.id / 192.168.188.222): {str(e)}"
-        _append_fingerprint_sync_log(db, {
-            "id": f"sync-{int(wib_now.timestamp() * 1000)}",
-            "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
-            "date_target": date_str,
-            "source": source,
-            "status": "failed",
-            "raw_count": 0,
-            "synced_employees": 0,
-            "failed_employees": 0,
-            "unmatched_logs": [],
-            "message": "Gagal menarik data dari mesin presensi (Koneksi ke 192.168.188.222 timeout/terputus).",
-            "error_detail": str(e)
-        })
+        if should_record:
+            _append_fingerprint_sync_log(db, {
+                "id": f"sync-{int(wib_now.timestamp() * 1000)}",
+                "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
+                "date_target": date_str,
+                "source": source,
+                "status": "failed",
+                "raw_count": 0,
+                "synced_employees": 0,
+                "failed_employees": 0,
+                "unmatched_logs": [],
+                "message": "Gagal menarik data dari mesin presensi (Koneksi ke 192.168.188.222 timeout/terputus).",
+                "error_detail": str(e)
+            })
         raise HTTPException(status_code=502, detail=err_msg)
 
     if not raw_logs:
         empty_msg = f"Tidak ditemukan data tap fingerprint pada tanggal {date_str}."
-        _append_fingerprint_sync_log(db, {
-            "id": f"sync-{int(wib_now.timestamp() * 1000)}",
-            "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
-            "date_target": date_str,
-            "source": source,
-            "status": "empty",
-            "raw_count": 0,
-            "synced_employees": 0,
-            "failed_employees": 0,
-            "unmatched_logs": [],
-            "message": empty_msg,
-            "error_detail": None
-        })
+        if should_record:
+            _append_fingerprint_sync_log(db, {
+                "id": f"sync-{int(wib_now.timestamp() * 1000)}",
+                "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
+                "date_target": date_str,
+                "source": source,
+                "status": "empty",
+                "raw_count": 0,
+                "synced_employees": 0,
+                "failed_employees": 0,
+                "unmatched_logs": [],
+                "message": empty_msg,
+                "error_detail": None
+            })
         return {
             "status": "empty",
             "date": date_str,
@@ -2047,19 +2051,20 @@ async def sync_fingerprint_attendance(
     if failed_count > 0:
         summary_msg += f" ({failed_count} gagal diproses)"
 
-    _append_fingerprint_sync_log(db, {
-        "id": f"sync-{int(wib_now.timestamp() * 1000)}",
-        "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
-        "date_target": date_str,
-        "source": source,
-        "status": final_status,
-        "raw_count": len(raw_logs),
-        "synced_employees": created_count + updated_count,
-        "failed_employees": failed_count,
-        "unmatched_logs": unmatched_list,
-        "message": summary_msg,
-        "error_detail": "; ".join(errors_detail) if errors_detail else None
-    })
+    if should_record:
+        _append_fingerprint_sync_log(db, {
+            "id": f"sync-{int(wib_now.timestamp() * 1000)}",
+            "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
+            "date_target": date_str,
+            "source": source,
+            "status": final_status,
+            "raw_count": len(raw_logs),
+            "synced_employees": created_count + updated_count,
+            "failed_employees": failed_count,
+            "unmatched_logs": unmatched_list,
+            "message": summary_msg,
+            "error_detail": "; ".join(errors_detail) if errors_detail else None
+        })
 
     return {
         "status": final_status,
@@ -2087,8 +2092,9 @@ async def sync_fingerprint_attendance_range(
     """
     Sync attendance for a date range (e.g. 2026-10-01 to today).
     Iterates day by day with pacing so external machine & database are not overloaded.
+    Consolidates range execution into 1 single recap log entry to prevent log bloat.
     """
-    from datetime import timedelta
+    from datetime import timedelta, timezone
     try:
         s_date = datetime.strptime(req.start_date, "%Y-%m-%d").date()
         e_date = datetime.strptime(req.end_date, "%Y-%m-%d").date()
@@ -2103,17 +2109,73 @@ async def sync_fingerprint_attendance_range(
 
     results = []
     curr = s_date
+    success_days = 0
+    empty_days = 0
+    failed_days = 0
+    failed_dates_detail = []
+    total_raw = 0
+    total_synced = 0
+    all_unmatched = set()
+
     while curr <= e_date:
         d_str = curr.strftime("%Y-%m-%d")
         try:
             res = await sync_fingerprint_attendance(
-                req=FingerprintSyncRequest(date=d_str, mode="all", source="manual"),
+                req=FingerprintSyncRequest(date=d_str, mode="all", source="manual", record_log=False),
                 db=db
             )
-            results.append({"date": d_str, "status": res.get("status"), "message": res.get("message")})
+            st = res.get("status")
+            if st == "success":
+                success_days += 1
+            elif st == "empty":
+                empty_days += 1
+            elif st == "failed":
+                failed_days += 1
+                failed_dates_detail.append(f"{d_str}: {res.get('message', 'Gagal')}")
+            else:
+                success_days += 1
+
+            total_raw += int(res.get("raw_count") or 0)
+            total_synced += int(res.get("synced_employees") or 0)
+            for u in res.get("unmatched_logs") or []:
+                all_unmatched.add(u)
+
+            results.append({"date": d_str, "status": st, "message": res.get("message")})
         except Exception as e:
+            failed_days += 1
+            failed_dates_detail.append(f"{d_str}: {str(e)}")
             results.append({"date": d_str, "status": "failed", "message": str(e)})
         curr += timedelta(days=1)
+
+    # Record 1 consolidated summary log for this bulk sync session
+    wib_now = datetime.now(timezone(timedelta(hours=7)))
+    overall_status = "success"
+    if failed_days > 0:
+        overall_status = "partial" if success_days > 0 else "failed"
+    elif success_days == 0 and empty_days > 0:
+        overall_status = "empty"
+
+    summary_msg = f"Rekap Tarik Massal ({req.start_date} s/d {req.end_date}): {len(results)} hari ({success_days} hari sukses, {empty_days} kosong/libur{f', {failed_days} gagal' if failed_days > 0 else ''}). Total {total_synced} pegawai disinkronkan."
+
+    err_detail = None
+    if failed_dates_detail:
+        err_detail = "Rincian Tanggal Gagal: " + "; ".join(failed_dates_detail[:10])
+        if len(failed_dates_detail) > 10:
+            err_detail += f" (+{len(failed_dates_detail) - 10} lainnya)"
+
+    _append_fingerprint_sync_log(db, {
+        "id": f"sync-range-{int(wib_now.timestamp() * 1000)}",
+        "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
+        "date_target": f"{req.start_date} s/d {req.end_date}",
+        "source": "manual_range",
+        "status": overall_status,
+        "raw_count": total_raw,
+        "synced_employees": total_synced,
+        "failed_employees": failed_days,
+        "unmatched_logs": sorted(list(all_unmatched)),
+        "message": summary_msg,
+        "error_detail": err_detail
+    })
 
     return {"status": "completed", "results": results}
 

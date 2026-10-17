@@ -895,46 +895,78 @@
           Belum ada riwayat log sinkronisasi yang tercatat.
         </div>
 
-        <div v-else class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
-          <div 
-            v-for="log in syncLogs" 
-            :key="log.id" 
-            class="p-3.5 rounded-xl border text-xs space-y-1.5"
-            :class="log.status === 'failed' 
-              ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800' 
-              : log.status === 'partial' || log.status === 'empty'
-                ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
-                : 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'"
-          >
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="flex items-center gap-2">
-                <span 
-                  class="px-2 py-0.5 rounded font-bold uppercase text-[10px]"
-                  :class="log.status === 'failed' 
-                    ? 'bg-rose-200 text-rose-800' 
-                    : log.status === 'empty' || log.status === 'partial'
-                      ? 'bg-amber-200 text-amber-800'
-                      : 'bg-emerald-200 text-emerald-800'"
-                >
-                  {{ log.status === 'failed' ? 'GAGAL' : log.status === 'empty' ? 'DATA KOSONG' : log.status === 'partial' ? 'SEBAGIAN' : 'BERHASIL' }}
-                </span>
-                <span class="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-[10px] uppercase">
-                  {{ log.source === 'cron' ? 'Cron Otomatis' : 'Tarik Manual' }}
-                </span>
-                <span class="font-bold text-slate-800 dark:text-white">
-                  Target Tanggal: {{ log.date_target }}
-                </span>
-                <Button 
-                  label="Buka Presensi Tanggal Ini" 
-                  icon="pi pi-arrow-up-right" 
-                  size="small" 
-                  text 
-                  class="!text-[11px] !py-0 !px-1.5"
-                  @click="goToLogDate(log.date_target)"
-                />
-              </div>
-              <span class="text-[11px] text-slate-500 font-mono">{{ log.timestamp }}</span>
+        <div v-else class="space-y-3">
+          <!-- Filter Tabs -->
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button
+                v-for="flt in logFilterOptions"
+                :key="flt.value"
+                type="button"
+                class="px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
+                :class="activeLogFilter === flt.value 
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs' 
+                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300'"
+                @click="activeLogFilter = flt.value"
+              >
+                {{ flt.label }} ({{ flt.count }})
+              </button>
             </div>
+            <span class="text-[11px] text-slate-400">Total: {{ syncLogs.length }} riwayat tersimpan</span>
+          </div>
+
+          <div v-if="filteredSyncLogs.length === 0" class="text-center py-8 text-slate-400 text-xs">
+            Tidak ada riwayat log yang sesuai dengan filter ini.
+          </div>
+
+          <div v-else class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+            <div 
+              v-for="log in filteredSyncLogs" 
+              :key="log.id" 
+              class="p-3.5 rounded-xl border text-xs space-y-1.5"
+              :class="log.status === 'failed' 
+                ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800' 
+                : log.status === 'partial' || log.status === 'empty'
+                  ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
+                  : 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span 
+                    class="px-2 py-0.5 rounded font-bold uppercase text-[10px]"
+                    :class="log.status === 'failed' 
+                      ? 'bg-rose-200 text-rose-800' 
+                      : log.status === 'empty' || log.status === 'partial'
+                        ? 'bg-amber-200 text-amber-800'
+                        : 'bg-emerald-200 text-emerald-800'"
+                  >
+                    {{ log.status === 'failed' ? 'GAGAL' : log.status === 'empty' ? 'DATA KOSONG' : log.status === 'partial' ? 'SEBAGIAN' : 'BERHASIL' }}
+                  </span>
+                  <span 
+                    class="px-2 py-0.5 rounded font-semibold text-[10px] uppercase"
+                    :class="log.source === 'cron' 
+                      ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' 
+                      : log.source === 'manual_range'
+                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'"
+                  >
+                    {{ log.source === 'cron' ? 'Cron Otomatis' : log.source === 'manual_range' ? 'Rekap Tarik Massal' : 'Tarik Manual' }}
+                  </span>
+                  <span class="font-bold text-slate-800 dark:text-white">
+                    Target: {{ log.date_target }}
+                  </span>
+                  <Button 
+                    v-if="!log.date_target.includes(' s/d ')"
+                    label="Buka Presensi Tanggal Ini" 
+                    icon="pi pi-arrow-up-right" 
+                    size="small" 
+                    text 
+                    class="!text-[11px] !py-0 !px-1.5"
+                    @click="goToLogDate(log.date_target)"
+                  />
+                </div>
+                <span class="text-[11px] text-slate-500 font-mono">{{ log.timestamp }}</span>
+              </div>
 
             <div class="text-slate-700 dark:text-slate-200 font-medium">
               {{ log.message }}
@@ -1293,6 +1325,35 @@ const showSyncLogsDialog = ref(false)
 const loadingSyncLogs = ref(false)
 const syncLogs = ref<any[]>([])
 const failedLogsCount = computed(() => syncLogs.value.filter(l => l.status === 'failed').length)
+
+const activeLogFilter = ref<'all' | 'cron' | 'manual' | 'issues'>('all')
+const cronLogsCount = computed(() => syncLogs.value.filter(l => l.source === 'cron').length)
+const manualLogsCount = computed(() => syncLogs.value.filter(l => l.source === 'manual' || l.source === 'manual_range').length)
+const issuesLogsCount = computed(() => syncLogs.value.filter(l => 
+  l.status === 'failed' || l.status === 'partial' || (l.unmatched_logs && l.unmatched_logs.length > 0) || Boolean(l.error_detail)
+).length)
+
+const logFilterOptions = computed(() => [
+  { label: 'Semua Log', value: 'all' as const, count: syncLogs.value.length },
+  { label: '🤖 Cron Otomatis', value: 'cron' as const, count: cronLogsCount.value },
+  { label: '🖐️ Tarik Manual', value: 'manual' as const, count: manualLogsCount.value },
+  { label: '⚠️ Ada Kendala/Catatan', value: 'issues' as const, count: issuesLogsCount.value },
+])
+
+const filteredSyncLogs = computed(() => {
+  if (activeLogFilter.value === 'cron') {
+    return syncLogs.value.filter(l => l.source === 'cron')
+  }
+  if (activeLogFilter.value === 'manual') {
+    return syncLogs.value.filter(l => l.source === 'manual' || l.source === 'manual_range')
+  }
+  if (activeLogFilter.value === 'issues') {
+    return syncLogs.value.filter(l => 
+      l.status === 'failed' || l.status === 'partial' || (l.unmatched_logs && l.unmatched_logs.length > 0) || Boolean(l.error_detail)
+    )
+  }
+  return syncLogs.value
+})
 
 // Grouped status options with extended leave types
 const statusOptions = [
@@ -2108,6 +2169,9 @@ const startBulkSync = async () => {
   bulkSyncFailedDays.value = 0
   bulkSyncLogs.value = []
   bulkSyncPercent.value = 0
+  let totalRawCount = 0
+  let totalSyncedCount = 0
+  const allUnmatchedLogs = new Set<string>()
 
   for (let i = 0; i < dates.length; i++) {
     if (bulkSyncCancelRequested.value) {
@@ -2123,7 +2187,8 @@ const startBulkSync = async () => {
       const res = await api.post<any>('/sdm/attendance/sync-fingerprint', {
         date: dStr,
         mode: 'all',
-        source: 'manual'
+        source: 'manual',
+        record_log: false
       })
 
       if (res?.status === 'empty') {
@@ -2131,6 +2196,11 @@ const startBulkSync = async () => {
         bulkSyncLogs.value.unshift({ date: dStr, status: 'empty', msg: 'Data kosong / Libur' })
       } else {
         bulkSyncSuccessDays.value++
+        totalRawCount += Number(res?.raw_count || 0)
+        totalSyncedCount += Number(res?.synced_employees || 0)
+        if (res?.unmatched_logs && Array.isArray(res.unmatched_logs)) {
+          res.unmatched_logs.forEach((u: string) => allUnmatchedLogs.add(u))
+        }
         bulkSyncLogs.value.unshift({ 
           date: dStr, 
           status: 'success', 
@@ -2150,6 +2220,29 @@ const startBulkSync = async () => {
   bulkSyncRunning.value = false
   bulkSyncFinished.value = true
   bulkSyncStatusText.value = `Selesai: ${bulkSyncSuccessDays.value} hari ada data, ${bulkSyncEmptyDays.value} hari libur/kosong.`
+
+  // Save 1 consolidated recap log for the entire bulk sync session
+  const failedItems = bulkSyncLogs.value.filter(l => l.status === 'failed')
+  const failedSummary = failedItems.length > 0 
+    ? 'Tanggal Gagal: ' + failedItems.map(f => `${f.date} (${f.msg})`).slice(0, 10).join('; ') + (failedItems.length > 10 ? ` (+${failedItems.length - 10} lainnya)` : '')
+    : null
+
+  try {
+    await api.post('/sdm/attendance/sync-logs', {
+      date: `${dates[0]} s/d ${dates[dates.length - 1]}`,
+      source: 'manual_range',
+      status: bulkSyncFailedDays.value > 0 ? (bulkSyncSuccessDays.value > 0 ? 'partial' : 'failed') : (bulkSyncSuccessDays.value > 0 ? 'success' : 'empty'),
+      raw_count: totalRawCount,
+      synced_employees: totalSyncedCount,
+      failed_employees: bulkSyncFailedDays.value,
+      unmatched_logs: Array.from(allUnmatchedLogs),
+      message: `Rekap Tarik Massal (${dates[0]} s/d ${dates[dates.length - 1]}): ${dates.length} hari (${bulkSyncSuccessDays.value} hari sukses, ${bulkSyncEmptyDays.value} libur/kosong${bulkSyncFailedDays.value > 0 ? `, ${bulkSyncFailedDays.value} gagal` : ''}). Total ${totalSyncedCount} pegawai disinkronkan.`,
+      error_detail: failedSummary
+    })
+  } catch (e) {
+    console.error('Failed to save bulk sync summary log:', e)
+  }
+
   await fetchSyncLogs()
 }
 
