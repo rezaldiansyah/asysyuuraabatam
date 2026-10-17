@@ -122,7 +122,7 @@
 
     <!-- Main Content -->
     <div 
-      class="flex-1 min-h-screen bg-slate-50 dark:bg-slate-900 transition-all duration-300 flex flex-col"
+      class="flex-1 min-h-screen bg-slate-50 dark:bg-slate-900 transition-all duration-300 flex flex-col min-w-0"
       :class="isCollapsed ? 'lg:ml-20' : 'lg:ml-64'"
     >
       <!-- Top Header -->
@@ -169,7 +169,7 @@
       </header>
 
       <!-- Page Content -->
-      <main class="p-4 lg:p-6 flex-1">
+      <main class="p-4 lg:p-6 flex-1 min-w-0">
         <slot />
       </main>
     </div>

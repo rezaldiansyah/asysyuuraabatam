@@ -684,10 +684,30 @@ class Document(Base):
     position_title = Column(String, nullable=True) # Jabatan resmi (e.g. "Kepala Unit SDIT", "Wakakur")
     term_start_date = Column(DateTime, nullable=True) # Tanggal mulai menjabat
     term_end_date = Column(DateTime, nullable=True) # Tanggal selesai menjabat / diberhentikan
+    # Tipe penetapan SK: 'individual' (1 pegawai) atau 'team' (kepanitiaan multi-pegawai)
+    recipient_type = Column(String, default="individual", nullable=True)
     
     uploader = relationship("User", foreign_keys=[uploaded_by])
     employee = relationship("User", foreign_keys=[employee_id])
     replaces = relationship("Document", remote_side=[id], backref="revisions", foreign_keys=[replaces_id])
+    team_members = relationship("DocumentTeamMember", back_populates="document", cascade="all, delete-orphan")
+
+
+class DocumentTeamMember(Base):
+    __tablename__ = "document_team_members"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    employee_name = Column(String, nullable=False)
+    role_in_team = Column(String, nullable=True) # e.g. "Ketua Panitia", "Sekretaris", "Bendahara", "Anggota", dll.
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    document = relationship("Document", back_populates="team_members")
+    user = relationship("User", foreign_keys=[user_id])
+    unit = relationship("Unit", foreign_keys=[unit_id])
+
 
 
 class DocumentDuplicateResolution(Base):

@@ -1,19 +1,19 @@
 <template>
   <div class="space-y-6 pb-12">
     <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2.5">
-          <span class="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg shadow-sm">
+        <h1 class="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2.5">
+          <span class="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg shadow-sm flex-shrink-0">
             <i class="pi pi-check-square"></i>
           </span>
-          Tugas Saya & Kanban Tim
+          <span>Tugas & Kolaborasi Tim</span>
         </h1>
-        <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">
-          Papan kelola alur kerja delegasi tugas, approval pimpinan bertingkat, dan notifikasi email terintegrasi.
+        <p class="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-1">
+          Papan kelola delegasi tugas, approval pimpinan bertingkat, monitoring deadline, dan integrasi beban kerja.
         </p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap flex-shrink-0">
         <Button 
           label="Segarkan" 
           icon="pi pi-refresh" 
@@ -34,7 +34,7 @@
     </div>
 
     <!-- Quick Stats Summary Cards -->
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
       <div 
         class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm transition hover:shadow cursor-pointer"
         :class="{ 'ring-2 ring-slate-400': activeStatusFilter === '' }"
@@ -132,9 +132,9 @@
         </button>
       </div>
 
-      <!-- Search & Priority Filters -->
-      <div class="flex items-center gap-2.5">
-        <div class="relative w-full md:w-64">
+      <!-- Search, Priority, and View Mode Filters -->
+      <div class="flex items-center gap-2.5 flex-wrap">
+        <div class="relative w-full sm:w-48 md:w-60">
           <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
           <input 
             v-model="searchQuery" 
@@ -157,11 +157,46 @@
           <option :value="4">🌱 P4 - Rendah</option>
           <option :value="5">📋 P5 - Normal</option>
         </select>
+
+        <!-- View Mode Switcher -->
+        <div class="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs">
+          <button 
+            type="button" 
+            @click="activeViewMode = 'kanban'"
+            class="px-2.5 py-1 rounded-md transition flex items-center gap-1.5"
+            :class="activeViewMode === 'kanban' ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'"
+            title="Tampilan Papan Kanban"
+          >
+            <i class="pi pi-th-large"></i>
+            <span class="hidden sm:inline">Kanban</span>
+          </button>
+          <button 
+            type="button" 
+            @click="activeViewMode = 'table'"
+            class="px-2.5 py-1 rounded-md transition flex items-center gap-1.5"
+            :class="activeViewMode === 'table' ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'"
+            title="Tampilan Tabel Rinci"
+          >
+            <i class="pi pi-list"></i>
+            <span class="hidden sm:inline">Tabel</span>
+          </button>
+          <button 
+            v-if="isLeadership"
+            type="button" 
+            @click="activeViewMode = 'monitoring'"
+            class="px-2.5 py-1 rounded-md transition flex items-center gap-1.5"
+            :class="activeViewMode === 'monitoring' ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-400 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'"
+            title="Monitoring Eksekutif Pimpinan"
+          >
+            <i class="pi pi-chart-line"></i>
+            <span class="hidden sm:inline">Monitoring Pimpinan</span>
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Kanban Board Grid (6 Kolom) -->
-    <div class="overflow-x-auto pb-4">
+    <!-- 1. KANBAN BOARD GRID (6 Kolom) -->
+    <div v-if="activeViewMode === 'kanban'" class="overflow-x-auto pb-4 w-full">
       <div class="flex gap-4 min-w-[1380px] items-start">
         <!-- Loop 6 Columns -->
         <div 
@@ -283,6 +318,232 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. TABLE VIEW -->
+    <div v-else-if="activeViewMode === 'table'" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden p-1">
+      <DataTable 
+        :value="tasks" 
+        :loading="loading" 
+        dataKey="id" 
+        class="p-datatable-sm text-xs" 
+        stripedRows 
+        responsiveLayout="scroll"
+        paginator 
+        :rows="15" 
+        :rowsPerPageOptions="[15, 30, 50, 100]"
+        currentPageReportTemplate="Menampilkan {first}–{last} dari {totalRecords} tugas"
+        paginatorTemplate="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+      >
+        <template #empty>
+          <div class="text-center py-10 text-slate-400">
+            <i class="pi pi-check-circle text-3xl mb-2 text-slate-300"></i>
+            <p>Tidak ada tugas yang sesuai filter.</p>
+          </div>
+        </template>
+
+        <Column field="title" header="Judul Tugas" sortable style="min-width: 250px">
+          <template #body="{ data }">
+            <div class="py-1">
+              <span 
+                class="font-bold text-slate-800 dark:text-white hover:text-primary cursor-pointer transition text-sm leading-snug"
+                @click="openDetailModal(data)"
+              >
+                {{ data.title }}
+              </span>
+              <p v-if="data.description" class="text-slate-400 text-[11px] truncate max-w-sm mt-0.5">
+                {{ data.description }}
+              </p>
+            </div>
+          </template>
+        </Column>
+
+        <Column field="priority_level" header="Prioritas" sortable style="min-width: 130px">
+          <template #body="{ data }">
+            <span 
+              class="text-[10px] font-bold px-2 py-0.5 rounded-md inline-flex items-center gap-1"
+              :class="getPriorityBadge(data.priority_level).class"
+            >
+              {{ getPriorityBadge(data.priority_level).label }}
+            </span>
+          </template>
+        </Column>
+
+        <Column field="status" header="Status" sortable style="min-width: 150px">
+          <template #body="{ data }">
+            <Tag :value="getStatusBadge(data.status).label" :class="getStatusBadge(data.status).class" class="text-[11px]" />
+          </template>
+        </Column>
+
+        <Column header="Penerima Tugas (PIC)" style="min-width: 170px">
+          <template #body="{ data }">
+            <div v-if="data.assignee" class="flex items-center gap-2 py-1">
+              <Avatar 
+                :label="getInitials(data.assignee.full_name)" 
+                shape="circle" 
+                size="small" 
+                class="bg-emerald-600 text-white font-bold text-[10px]" 
+              />
+              <div class="min-w-0">
+                <div class="font-medium text-slate-800 dark:text-white truncate">{{ data.assignee.full_name }}</div>
+                <div class="text-[10px] text-slate-400 truncate">{{ data.unit?.name || 'Yayasan' }}</div>
+              </div>
+            </div>
+            <div v-else class="text-slate-400 italic text-[11px]">
+              Belum ditugaskan
+            </div>
+          </template>
+        </Column>
+
+        <Column field="deadline" header="Deadline" sortable style="min-width: 140px">
+          <template #body="{ data }">
+            <div v-if="data.deadline" class="space-y-0.5 py-1">
+              <span 
+                class="text-[10px] font-medium inline-flex items-center gap-1 px-1.5 py-0.5 rounded"
+                :class="getDeadlineAlert(data.deadline, data.status)"
+              >
+                <i class="pi pi-calendar text-[9px]"></i>
+                {{ formatShortDate(data.deadline) }}
+              </span>
+            </div>
+            <span v-else class="text-slate-400 text-[11px]">-</span>
+          </template>
+        </Column>
+
+        <Column header="Aksi" style="min-width: 80px" alignFrozen="right" frozen>
+          <template #body="{ data }">
+            <Button 
+              label="Detail" 
+              icon="pi pi-eye" 
+              size="small" 
+              severity="secondary" 
+              outlined 
+              class="!text-xs !py-1 !px-2"
+              @click="openDetailModal(data)"
+            />
+          </template>
+        </Column>
+      </DataTable>
+    </div>
+
+    <!-- 3. EXECUTIVE LEADERSHIP MONITORING VIEW -->
+    <div v-else-if="activeViewMode === 'monitoring'" class="space-y-5">
+      <!-- Executive Alert Bar -->
+      <div class="p-4 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/40 dark:to-purple-950/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-lg font-bold shadow-md">
+            <i class="pi pi-shield"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-800 dark:text-white text-base">Dashboard Monitoring Eksekutif Pimpinan</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              Visibilitas terpusat delegasi tugas, potensi keterlambatan (overdue), dan cross-reference beban kerja guru.
+            </p>
+          </div>
+        </div>
+        <NuxtLink to="/dashboard/sdm/beban-kerja">
+          <Button 
+            label="Buka Radar Beban Kerja & Tim" 
+            icon="pi pi-gauge" 
+            class="p-button-primary shadow-sm !text-xs" 
+          />
+        </NuxtLink>
+      </div>
+
+      <!-- Overdue Tasks Spotlight Alert -->
+      <div v-if="overdueTasks.length > 0" class="p-4 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/20 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2 text-rose-700 dark:text-rose-300 font-bold text-sm">
+            <i class="pi pi-exclamation-triangle text-base"></i>
+            <span>Perhatian: Ada {{ overdueTasks.length }} Tugas Telah Melewati Deadline!</span>
+          </div>
+          <span class="text-xs text-rose-600 dark:text-rose-400 font-semibold">Tindakan Diperlukan</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          <div 
+            v-for="ot in overdueTasks" 
+            :key="ot.id"
+            class="p-3 rounded-lg bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-800 shadow-sm space-y-2 cursor-pointer hover:border-rose-400 transition"
+            @click="openDetailModal(ot)"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <span class="font-bold text-xs text-slate-800 dark:text-white leading-snug line-clamp-1">{{ ot.title }}</span>
+              <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200 flex-shrink-0">
+                Lewat {{ formatShortDate(ot.deadline) }}
+              </span>
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-slate-500">
+              <span>PIC: <strong class="text-slate-700 dark:text-slate-300">{{ ot.assignee?.full_name || 'Tanpa PIC' }}</strong></span>
+              <Tag :value="getStatusBadge(ot.status).label" :class="getStatusBadge(ot.status).class" class="text-[9px] px-1 py-0" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/40 dark:bg-emerald-950/20 flex items-center gap-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+        <i class="pi pi-verified text-base text-emerald-600"></i>
+        <span>Semua tugas tim berjalan sesuai jadwal! Tidak ada tugas yang melewati deadline hari ini.</span>
+      </div>
+
+      <!-- Assignee Task Load Distribution -->
+      <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+          <h4 class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
+            <i class="pi pi-users text-primary"></i>
+            <span>Distribusi Beban Tugas per Anggota Tim ({{ assigneeWorkloadSummary.length }} Orang)</span>
+          </h4>
+          <span class="text-xs text-slate-400">Monitoring pemerataan delegasi</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left">
+            <thead>
+              <tr class="border-b border-slate-100 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                <th class="py-2.5 px-3">Nama Anggota / Guru</th>
+                <th class="py-2.5 px-2 text-center">Total Tugas</th>
+                <th class="py-2.5 px-2 text-center">Dikerjakan</th>
+                <th class="py-2.5 px-2 text-center">Menunggu Approval</th>
+                <th class="py-2.5 px-2 text-center">Selesai</th>
+                <th class="py-2.5 px-2 text-center">Lewat Deadline</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+              <tr v-for="asg in assigneeWorkloadSummary" :key="asg.user_id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                <td class="py-2.5 px-3">
+                  <div class="font-bold text-slate-800 dark:text-white">{{ asg.name }}</div>
+                  <div class="text-[10px] text-slate-400">{{ asg.email }}</div>
+                </td>
+                <td class="py-2.5 px-2 text-center font-bold font-mono text-sm">{{ asg.total }}</td>
+                <td class="py-2.5 px-2 text-center">
+                  <span class="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold">
+                    {{ asg.in_progress }}
+                  </span>
+                </td>
+                <td class="py-2.5 px-2 text-center">
+                  <span class="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold">
+                    {{ asg.awaiting_approval }}
+                  </span>
+                </td>
+                <td class="py-2.5 px-2 text-center">
+                  <span class="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold">
+                    {{ asg.done }}
+                  </span>
+                </td>
+                <td class="py-2.5 px-2 text-center">
+                  <span 
+                    v-if="asg.overdue > 0"
+                    class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 font-bold animate-pulse"
+                  >
+                    {{ asg.overdue }}
+                  </span>
+                  <span v-else class="text-slate-400 font-mono">0</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -658,6 +919,53 @@ const form = ref({
   unit_id: null as number | null,
   deadline: '',
   approver_ids: [] as number[]
+})
+
+// View Modes: 'kanban' | 'table' | 'monitoring'
+const activeViewMode = ref<'kanban' | 'table' | 'monitoring'>('kanban')
+
+const isLeadership = computed(() => {
+  const r: any = authStore.user?.role
+  const roleCode = typeof r === 'string' ? r : (r?.code || '')
+  return ['superadmin', 'ketua_yayasan', 'wakil_ketua_yayasan', 'sekretaris_yayasan', 'bendahara_yayasan', 'kepala_bidang', 'kepala_sekolah', 'wakil_kepala_sekolah'].includes(roleCode)
+})
+
+const overdueTasks = computed(() => {
+  const now = new Date().getTime()
+  return tasks.value.filter(t => t.deadline && new Date(t.deadline).getTime() < now && t.status !== 'done')
+})
+
+const assigneeWorkloadSummary = computed(() => {
+  const map: Record<number, any> = {}
+  const now = new Date().getTime()
+
+  for (const t of tasks.value) {
+    if (!t.assignee) continue
+    const uid = t.assignee.id
+    if (!map[uid]) {
+      map[uid] = {
+        user_id: uid,
+        name: t.assignee.full_name || 'Tanpa Nama',
+        email: t.assignee.email || '',
+        total: 0,
+        in_progress: 0,
+        awaiting_approval: 0,
+        done: 0,
+        overdue: 0,
+        tasks: []
+      }
+    }
+    map[uid].total += 1
+    map[uid].tasks.push(t)
+    if (t.status === 'in_progress') map[uid].in_progress += 1
+    if (t.status === 'awaiting_approval') map[uid].awaiting_approval += 1
+    if (t.status === 'done') map[uid].done += 1
+    if (t.deadline && new Date(t.deadline).getTime() < now && t.status !== 'done') {
+      map[uid].overdue += 1
+    }
+  }
+
+  return Object.values(map).sort((a: any, b: any) => b.total - a.total)
 })
 
 // Scope Tabs

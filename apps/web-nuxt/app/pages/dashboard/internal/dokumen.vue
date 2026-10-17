@@ -225,9 +225,16 @@
                       <span>{{ data.attachments.length }} Formulir</span>
                     </button>
 
-                    <!-- Badge Kaitan Pegawai jika SK Karir -->
+                    <!-- Badge Kaitan Pegawai jika SK Karir / Tim SK -->
                     <span
-                      v-if="data.employee_name"
+                      v-if="data.recipient_type === 'team' || (data.team_members && data.team_members.length > 0)"
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+                    >
+                      <i class="pi pi-users text-[9px]"></i>
+                      <span>{{ data.position_title || 'Tim / Panitia' }} ({{ data.team_members?.length || 0 }} Anggota)</span>
+                    </span>
+                    <span
+                      v-else-if="data.employee_name"
                       class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
                     >
                       <i class="pi pi-user text-[9px]"></i>
@@ -700,54 +707,157 @@
           </p>
 
           <div v-if="form.is_career_sk" class="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-3">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <!-- Dropdown Pegawai Terdaftar -->
-              <div class="flex flex-col gap-1.5">
-                <label class="font-medium text-xs">Pilih Pegawai dari Sistem (opsional)</label>
-                <Select
-                  v-model="selectedUserObj"
-                  :options="usersBrief"
-                  optionLabel="full_name"
-                  filter
-                  placeholder="Cari nama pegawai/guru..."
-                  class="w-full text-xs"
-                  @change="onUserSelected"
-                  showClear
-                >
-                  <template #option="{ option }">
-                    <div class="flex items-center justify-between text-xs w-full">
-                      <span class="font-medium">{{ option.full_name }}</span>
-                      <span class="text-[10px] text-slate-400">({{ option.unit || option.role || '-' }})</span>
-                    </div>
-                  </template>
-                </Select>
+            <!-- Toggle Perorangan vs Tim -->
+            <div class="flex items-center gap-4 py-1.5 px-3 rounded-lg bg-white dark:bg-slate-700/60 border border-slate-200 dark:border-slate-600">
+              <span class="text-xs font-semibold text-slate-500">Tipe Penerima SK:</span>
+              <label class="flex items-center gap-1.5 text-xs cursor-pointer font-medium text-slate-700 dark:text-slate-200">
+                <input type="radio" value="individual" v-model="form.recipient_type" class="text-emerald-600 focus:ring-emerald-500" />
+                <span>Perorangan (1 Pegawai)</span>
+              </label>
+              <label class="flex items-center gap-1.5 text-xs cursor-pointer font-medium text-slate-700 dark:text-slate-200">
+                <input type="radio" value="team" v-model="form.recipient_type" class="text-emerald-600 focus:ring-emerald-500" />
+                <span class="font-bold text-purple-600 dark:text-purple-400">Tim / Kepanitiaan (Multi Pegawai)</span>
+              </label>
+            </div>
+
+            <!-- JIKA PERORANGAN -->
+            <div v-if="form.recipient_type === 'individual'" class="space-y-3">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <!-- Dropdown Pegawai Terdaftar -->
+                <div class="flex flex-col gap-1.5">
+                  <label class="font-medium text-xs">Pilih Pegawai dari Sistem (opsional)</label>
+                  <Select
+                    v-model="selectedUserObj"
+                    :options="usersBrief"
+                    optionLabel="full_name"
+                    filter
+                    placeholder="Cari nama pegawai/guru..."
+                    class="w-full text-xs"
+                    @change="onUserSelected"
+                    showClear
+                  >
+                    <template #option="{ option }">
+                      <div class="flex items-center justify-between text-xs w-full">
+                        <span class="font-medium">{{ option.full_name }}</span>
+                        <span class="text-[10px] text-slate-400">({{ option.unit || option.role || '-' }})</span>
+                      </div>
+                    </template>
+                  </Select>
+                </div>
+
+                <!-- Input Nama Lengkap Pegawai -->
+                <div class="flex flex-col gap-1.5">
+                  <label class="font-medium text-xs">Nama Lengkap Pegawai *</label>
+                  <InputText v-model="form.employee_name" placeholder="Contoh: Siti Yeni, S.Pd" class="w-full text-sm" />
+                </div>
               </div>
 
-              <!-- Input Nama Lengkap Pegawai -->
-              <div class="flex flex-col gap-1.5">
-                <label class="font-medium text-xs">Nama Lengkap Pegawai *</label>
-                <InputText v-model="form.employee_name" placeholder="Contoh: Siti Yeni, S.Pd" class="w-full text-sm" />
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <!-- Jenis SK Karir -->
+                <div class="flex flex-col gap-1.5">
+                  <label class="font-medium text-xs">Jenis Penetapan SK *</label>
+                  <Select
+                    v-model="form.sk_type"
+                    :options="skTypeOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="Pilih jenis SK"
+                    class="w-full text-xs"
+                  />
+                </div>
+
+                <!-- Nama Posisi / Jabatan -->
+                <div class="flex flex-col gap-1.5">
+                  <label class="font-medium text-xs">Nama Jabatan / Posisi *</label>
+                  <InputText v-model="form.position_title" placeholder="Contoh: Wakil Kurikulum / Kepala Sekolah" class="w-full text-sm" />
+                </div>
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <!-- Jenis SK Karir -->
-              <div class="flex flex-col gap-1.5">
-                <label class="font-medium text-xs">Jenis Penetapan SK *</label>
-                <Select
-                  v-model="form.sk_type"
-                  :options="skTypeOptions"
-                  optionLabel="label"
-                  optionValue="value"
-                  placeholder="Pilih jenis SK"
-                  class="w-full text-xs"
-                />
+            <!-- JIKA TIM / KEPANITIAAN -->
+            <div v-else class="space-y-3">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="flex flex-col gap-1.5">
+                  <label class="font-medium text-xs">Nama Tim / Kepanitiaan *</label>
+                  <InputText v-model="form.position_title" placeholder="Contoh: Tim PULAS / Panitia PPDB / Panitia 17-an" class="w-full text-sm" />
+                </div>
+                <div class="flex flex-col gap-1.5">
+                  <label class="font-medium text-xs">Jenis Penetapan</label>
+                  <Select
+                    v-model="form.sk_type"
+                    :options="skTypeOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    class="w-full text-xs"
+                  />
+                </div>
               </div>
 
-              <!-- Nama Posisi / Jabatan -->
-              <div class="flex flex-col gap-1.5">
-                <label class="font-medium text-xs">Nama Jabatan / Posisi *</label>
-                <InputText v-model="form.position_title" placeholder="Contoh: Wakil Kurikulum / Kepala Sekolah" class="w-full text-sm" />
+              <!-- Daftar Anggota Tim -->
+              <div class="border border-slate-200 dark:border-slate-700 rounded-xl p-3 bg-white dark:bg-slate-800 space-y-2">
+                <div class="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-700">
+                  <span class="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                    <i class="pi pi-users text-purple-600"></i>
+                    Susunan Anggota Tim / Panitia ({{ form.team_members.length }} orang)
+                  </span>
+                  <Button 
+                    type="button" 
+                    label="+ Tambah Anggota" 
+                    icon="pi pi-plus" 
+                    size="small" 
+                    severity="secondary" 
+                    class="!text-xs !py-1 !px-2"
+                    @click="addTeamMemberRow" 
+                  />
+                </div>
+
+                <div v-if="form.team_members.length === 0" class="text-center py-4 text-xs text-slate-400">
+                  Belum ada anggota tim. Klik tombol "+ Tambah Anggota" di atas untuk menambahkan susunan panitia.
+                </div>
+
+                <div v-else class="space-y-2">
+                  <div 
+                    v-for="(member, mIdx) in form.team_members" 
+                    :key="mIdx"
+                    class="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600"
+                  >
+                    <span class="text-[11px] font-bold text-slate-400 w-5 text-center">{{ mIdx + 1 }}.</span>
+                    
+                    <!-- Select Pegawai -->
+                    <div class="flex-1 min-w-[160px]">
+                      <Select
+                        v-model="member.user_id"
+                        :options="usersBrief"
+                        optionLabel="full_name"
+                        optionValue="id"
+                        filter
+                        placeholder="Pilih nama pegawai..."
+                        class="w-full text-xs"
+                        @change="(e) => onTeamMemberUserSelected(mIdx, e.value)"
+                      />
+                    </div>
+
+                    <!-- Input Peran / Jabatan di Tim -->
+                    <div class="w-36">
+                      <input 
+                        v-model="member.role_in_team" 
+                        type="text" 
+                        placeholder="Jabatan di Tim" 
+                        class="w-full px-2 py-1 text-xs rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none"
+                      />
+                    </div>
+
+                    <!-- Hapus Anggota -->
+                    <button 
+                      type="button" 
+                      class="text-rose-500 hover:text-rose-700 p-1 rounded" 
+                      title="Hapus anggota"
+                      @click="removeTeamMemberRow(mIdx)"
+                    >
+                      <i class="pi pi-trash text-xs"></i>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1099,8 +1209,30 @@
           </div>
         </div>
 
-        <!-- Career SK Info Banner jika dokumen ditautkan ke Karir Pegawai -->
-        <div v-if="previewDoc.employee_name" class="p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl flex items-center justify-between text-xs">
+        <!-- Team SK Info Banner jika dokumen ditautkan ke Tim / Kepanitiaan -->
+        <div v-if="previewDoc.recipient_type === 'team' || (previewDoc.team_members && previewDoc.team_members.length > 0)" class="p-3 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-2 text-xs">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold">
+              <i class="pi pi-users"></i>
+            </div>
+            <div>
+              <div class="font-bold text-slate-800 dark:text-white">SK Tim / Kepanitiaan: {{ previewDoc.position_title || previewDoc.title }}</div>
+              <div class="text-slate-500 dark:text-slate-400">
+                Total {{ previewDoc.team_members?.length || 0 }} Anggota Terdaftar
+                <span v-if="previewDoc.term_start_date"> &bull; Periode: {{ formatDate(previewDoc.term_start_date) }} s/d {{ previewDoc.term_end_date ? formatDate(previewDoc.term_end_date) : 'Selesai Tugas' }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-if="previewDoc.team_members && previewDoc.team_members.length > 0" class="pt-2 border-t border-indigo-100 dark:border-indigo-900/50 flex flex-wrap gap-1.5">
+            <div v-for="tm in previewDoc.team_members" :key="tm.id" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 text-xs">
+              <span class="font-medium text-slate-800 dark:text-slate-200">{{ tm.employee_name }}</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-semibold">{{ tm.role_in_team }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Career SK Info Banner jika dokumen ditautkan ke Karir Pegawai Perorangan -->
+        <div v-else-if="previewDoc.employee_name" class="p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl flex items-center justify-between text-xs">
           <div class="flex items-center gap-2.5">
             <div class="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold">
               <i class="pi pi-id-card"></i>
@@ -1759,12 +1891,14 @@ const form = reactive({
   }>,
   // Feature B: Career Metadata
   is_career_sk: false,
+  recipient_type: 'individual' as 'individual' | 'team',
   employee_id: null as number | null,
   employee_name: '',
   sk_type: 'PENGANGKATAN',
   position_title: '',
   term_start_date: '',
   term_end_date: '',
+  team_members: [] as Array<{ user_id: number | null, employee_name: string, role_in_team: string, unit_id?: number | null }>,
 })
 
 function onCategoryChange() {
@@ -1805,18 +1939,43 @@ function resetForm() {
   form.is_confidential = false
   form.attachments = []
   form.is_career_sk = false
+  form.recipient_type = 'individual'
   form.employee_id = null
   form.employee_name = ''
   form.sk_type = 'PENGANGKATAN'
   form.position_title = ''
   form.term_start_date = ''
   form.term_end_date = ''
+  form.team_members = []
   selectedUserObj.value = null
   allUnitsSelected.value = true
   selectedUnits.value = ['YYS', 'RA', 'SDIT', 'SMPIT']
   fileSourceMode.value = 'upload'
   gdriveInputUrl.value = ''
   uploadProgress.value = 0
+}
+
+function addTeamMemberRow() {
+  form.team_members.push({
+    user_id: null,
+    employee_name: '',
+    role_in_team: 'Anggota',
+    unit_id: null
+  })
+}
+
+function removeTeamMemberRow(index: number) {
+  form.team_members.splice(index, 1)
+}
+
+function onTeamMemberUserSelected(index: number, selectedId: any) {
+  if (selectedId && usersBrief.value) {
+    const found = usersBrief.value.find(u => u.id === selectedId)
+    if (found) {
+      form.team_members[index].user_id = found.id
+      form.team_members[index].employee_name = found.full_name
+    }
+  }
 }
 
 function openDialog(doc?: any) {
@@ -1838,13 +1997,15 @@ function openDialog(doc?: any) {
       expired_date: doc.expired_date ? doc.expired_date.substring(0, 10) : '',
       target_units: doc.target_units || 'ALL',
       is_confidential: !!doc.is_confidential,
+      recipient_type: doc.recipient_type || 'individual',
       employee_id: doc.employee_id || null,
       employee_name: doc.employee_name || '',
       sk_type: doc.sk_type || 'PENGANGKATAN',
       position_title: doc.position_title || '',
       term_start_date: doc.term_start_date ? doc.term_start_date.substring(0, 10) : '',
       term_end_date: doc.term_end_date ? doc.term_end_date.substring(0, 10) : '',
-      is_career_sk: !!(doc.employee_name || doc.employee_id || doc.position_title || doc.category === 'sk_yayasan'),
+      team_members: doc.team_members && Array.isArray(doc.team_members) ? doc.team_members.map((tm: any) => ({ ...tm })) : [],
+      is_career_sk: !!(doc.employee_name || doc.employee_id || doc.position_title || (doc.team_members && doc.team_members.length > 0) || doc.category === 'sk_yayasan'),
     })
 
     form.attachments = doc.attachments && Array.isArray(doc.attachments)
@@ -2133,15 +2294,32 @@ async function saveDocument() {
         file_size: a.file_size || 0,
       }))
 
-    // Career fields normalization
+    // Career and Team SK normalization
     if (!payload.is_career_sk) {
+      payload.recipient_type = 'individual'
       payload.employee_id = null
       payload.employee_name = null
       payload.sk_type = null
       payload.position_title = null
       payload.term_start_date = null
       payload.term_end_date = null
+      payload.team_members = []
     } else {
+      if (payload.recipient_type === 'team') {
+        payload.employee_id = null
+        payload.employee_name = form.position_title ? `Tim: ${form.position_title}` : 'Tim / Panitia'
+        payload.team_members = (form.team_members || [])
+          .filter((m: any) => m.user_id && m.employee_name)
+          .map((m: any) => ({
+            user_id: m.user_id,
+            employee_name: m.employee_name,
+            role_in_team: m.role_in_team || 'Anggota',
+            unit_id: m.unit_id || null,
+          }))
+      } else {
+        payload.recipient_type = 'individual'
+        payload.team_members = []
+      }
       if (!payload.term_start_date) payload.term_start_date = null
       if (!payload.term_end_date) payload.term_end_date = null
     }

@@ -101,7 +101,8 @@ async def get_documents(
     
     docs = query.options(
         joinedload(models.Document.uploader),
-        joinedload(models.Document.employee)
+        joinedload(models.Document.employee),
+        joinedload(models.Document.team_members)
     ).order_by(models.Document.created_at.desc()).all()
     
     user_role = current_user.role.code if current_user.role else "guest"
@@ -161,12 +162,22 @@ async def get_documents(
             
             # Attachments & Career info
             "attachments": _parse_attachments(doc.attachments),
+            "recipient_type": doc.recipient_type or "individual",
             "employee_id": doc.employee_id,
             "employee_name": emp_name,
             "sk_type": doc.sk_type,
             "position_title": doc.position_title,
             "term_start_date": doc.term_start_date.isoformat() if doc.term_start_date else None,
             "term_end_date": doc.term_end_date.isoformat() if doc.term_end_date else None,
+            "team_members": [
+                {
+                    "id": tm.id,
+                    "user_id": tm.user_id,
+                    "employee_name": tm.employee_name,
+                    "role_in_team": tm.role_in_team or "Anggota",
+                    "unit_id": tm.unit_id
+                } for tm in (doc.team_members or [])
+            ]
         })
     
     return result
@@ -208,6 +219,7 @@ async def create_document(
         
         # New fields
         attachments=_format_attachments(data.get("attachments")),
+        recipient_type=data.get("recipient_type", "individual"),
         employee_id=emp_id,
         employee_name=emp_name,
         sk_type=data.get("sk_type"),
@@ -216,6 +228,26 @@ async def create_document(
         term_end_date=_parse_doc_date(data.get("term_end_date")),
     )
     db.add(doc)
+    db.flush()
+
+    # Save team members if recipient_type == "team"
+    if doc.recipient_type == "team" and data.get("team_members"):
+        for m_data in data.get("team_members", []):
+            m_name = m_data.get("employee_name") or m_data.get("name")
+            m_uid = m_data.get("user_id")
+            if not m_name and m_uid:
+                u = db.query(models.User).filter(models.User.id == m_uid).first()
+                m_name = u.full_name if u else "Anggota"
+            if m_name:
+                tm = models.DocumentTeamMember(
+                    document_id=doc.id,
+                    user_id=m_uid,
+                    employee_name=m_name,
+                    role_in_team=m_data.get("role_in_team", "Anggota"),
+                    unit_id=m_data.get("unit_id")
+                )
+                db.add(tm)
+
     db.commit()
     db.refresh(doc)
     return {"id": doc.id, "message": "Dokumen berhasil disimpan"}
@@ -227,7 +259,7 @@ async def update_document(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update a document entry including attachments and career metadata."""
+    """Update a document entry including attachments, team members, and career metadata."""
     from deps import check_user_perm
     if not check_user_perm(current_user, "internal.dokumen:update"):
         raise HTTPException(status_code=403, detail="Akses ditolak: Anda tidak memiliki izin untuk mengedit dokumen.")
@@ -239,7 +271,7 @@ async def update_document(
     for field in [
         "title", "document_number", "description", "category", "file_url", 
         "file_name", "file_size", "visibility", "version", "replaces_id",
-        "employee_id", "employee_name", "sk_type", "position_title"
+        "recipient_type", "employee_id", "employee_name", "sk_type", "position_title"
     ]:
         if field in data:
             setattr(doc, field, data[field])
@@ -265,6 +297,26 @@ async def update_document(
     if "is_confidential" in data:
         doc.is_confidential = bool(data["is_confidential"])
         
+    # Handle team members update
+    if "team_members" in data:
+        db.query(models.DocumentTeamMember).filter(models.DocumentTeamMember.document_id == doc.id).delete()
+        if doc.recipient_type == "team":
+            for m_data in data.get("team_members", []):
+                m_name = m_data.get("employee_name") or m_data.get("name")
+                m_uid = m_data.get("user_id")
+                if not m_name and m_uid:
+                    u = db.query(models.User).filter(models.User.id == m_uid).first()
+                    m_name = u.full_name if u else "Anggota"
+                if m_name:
+                    tm = models.DocumentTeamMember(
+                        document_id=doc.id,
+                        user_id=m_uid,
+                        employee_name=m_name,
+                        role_in_team=m_data.get("role_in_team", "Anggota"),
+                        unit_id=m_data.get("unit_id")
+                    )
+                    db.add(tm)
+
     # Auto-resolve employee_name if employee_id updated
     if doc.employee_id and not doc.employee_name:
         u = db.query(models.User).filter(models.User.id == doc.employee_id).first()

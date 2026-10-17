@@ -350,6 +350,7 @@ const menuDefinitions = [
     children: [
       { key: 'kepegawaian.pegawai', label: 'Data Pegawai & SK' },
       { key: 'kepegawaian.presensi', label: 'Presensi Pegawai' },
+      { key: 'kepegawaian.beban_kerja', label: 'Beban Kerja & Tim (Workload)' },
     ]
   },
   { 

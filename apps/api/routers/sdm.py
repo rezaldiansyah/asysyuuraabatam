@@ -2180,3 +2180,291 @@ async def sync_fingerprint_attendance_range(
     return {"status": "completed", "results": results}
 
 
+@router.get("/workload-radar")
+async def get_workload_radar(
+    unit_id: Optional[int] = None,
+    search: Optional[str] = None,
+    status_filter: Optional[str] = None,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Holistic Workload & Anti-Burnout Engine.
+    Aggregates:
+    1. KBM / Teaching Load (from schedules table)
+    2. Structural Leadership Roles (from position & role)
+    3. Active Committee / Team SKs (from documents & document_team_members)
+    4. Active Kanban Tasks (from tasks table)
+    Outputs an Unified Workload Index (0-100%) and identifies burnout vs passive employees.
+    """
+    now = datetime.utcnow()
+
+    # 1. Fetch active employees
+    emp_query = db.query(models.Employee).options(
+        joinedload(models.Employee.user).joinedload(models.User.role),
+        joinedload(models.Employee.unit)
+    ).filter(or_(models.Employee.is_active == True, models.Employee.is_active.is_(None)))
+
+    if unit_id:
+        emp_query = emp_query.filter(models.Employee.unit_id == unit_id)
+
+    if search:
+        s = f"%{search}%"
+        emp_query = emp_query.filter(
+            or_(
+                models.Employee.nama_lengkap.ilike(s),
+                models.Employee.nik_kepegawaian.ilike(s),
+                models.Employee.position.ilike(s)
+            )
+        )
+
+    employees = emp_query.all()
+    user_ids = [e.user_id for e in employees if e.user_id]
+
+    # 2. Batch fetch schedules (teaching load)
+    schedules_by_user = {}
+    if user_ids:
+        schedules = db.query(models.Schedule).options(
+            joinedload(models.Schedule.subject),
+            joinedload(models.Schedule.classroom)
+        ).filter(models.Schedule.teacher_id.in_(user_ids)).all()
+
+        for sc in schedules:
+            uid = sc.teacher_id
+            if uid not in schedules_by_user:
+                schedules_by_user[uid] = []
+            schedules_by_user[uid].append(sc)
+
+    # 3. Batch fetch active SK documents
+    # A) Individual SK: doc.employee_id
+    individual_sks_by_user = {}
+    if user_ids:
+        ind_docs = db.query(models.Document).filter(
+            models.Document.employee_id.in_(user_ids),
+            models.Document.is_active == True,
+            or_(models.Document.term_end_date == None, models.Document.term_end_date >= now)
+        ).all()
+        for doc in ind_docs:
+            uid = doc.employee_id
+            if uid not in individual_sks_by_user:
+                individual_sks_by_user[uid] = []
+            individual_sks_by_user[uid].append(doc)
+
+    # B) Team SK: DocumentTeamMember
+    team_members_by_user = {}
+    if user_ids:
+        try:
+            team_links = db.query(models.DocumentTeamMember).options(
+                joinedload(models.DocumentTeamMember.document)
+            ).filter(
+                models.DocumentTeamMember.user_id.in_(user_ids)
+            ).all()
+
+            for link in team_links:
+                doc = link.document
+                if doc and doc.is_active:
+                    if doc.term_end_date and doc.term_end_date < now:
+                        continue
+                    uid = link.user_id
+                    if uid not in team_members_by_user:
+                        team_members_by_user[uid] = []
+                    team_members_by_user[uid].append({
+                        "doc_id": doc.id,
+                        "doc_number": doc.document_number,
+                        "title": doc.title,
+                        "role_in_team": link.role_in_team or "Anggota",
+                        "term_start": doc.term_start_date.isoformat() if doc.term_start_date else None,
+                        "term_end": doc.term_end_date.isoformat() if doc.term_end_date else None
+                    })
+        except Exception as e:
+            # Table might be empty or newly created
+            pass
+
+    # 4. Batch fetch active tasks
+    tasks_by_user = {}
+    if user_ids:
+        try:
+            tasks = db.query(models.Task).filter(
+                models.Task.assignee_id.in_(user_ids),
+                models.Task.is_active == True,
+                models.Task.status != "done"
+            ).all()
+
+            for t in tasks:
+                uid = t.assignee_id
+                if uid not in tasks_by_user:
+                    tasks_by_user[uid] = []
+                tasks_by_user[uid].append(t)
+        except Exception:
+            pass
+
+    # 5. Compile workload profiles
+    radar_list = []
+    summary_counts = {
+        "overload": 0,
+        "padat": 0,
+        "optimal": 0,
+        "underload": 0,
+        "total": len(employees)
+    }
+
+    for emp in employees:
+        uid = emp.user_id
+
+        # KBM Calculations
+        sc_list = schedules_by_user.get(uid, [])
+        total_kbm_slots = len(sc_list)
+        # Approximate 1 slot = 1.5 hours
+        kbm_hours_est = total_kbm_slots * 1.5
+
+        days_teaching = list(dict.fromkeys([s.day for s in sc_list if s.day]))
+        kbm_breakdown = []
+        for s in sc_list:
+            subj_name = s.subject.name if s.subject else "Pelajaran"
+            class_name = s.classroom.name if s.classroom else ""
+            kbm_breakdown.append(f"{subj_name} ({class_name}) - {s.day} {s.start_time or ''}")
+
+        kbm_score = min(kbm_hours_est * 2.0, 40.0)
+
+        # Structural Position Calculations
+        pos_title = (emp.position or "").strip()
+        role_name = emp.user.role.name if emp.user and emp.user.role else ""
+        combined_pos = f"{pos_title} {role_name}".lower()
+
+        is_high_leadership = any(k in combined_pos for k in ["kepala sekolah", "kepala unit", "wakil kepala", "wakakur", "wakasis", "kepala bidang", "kabid", "kepala tu"])
+        is_medium_leadership = any(k in combined_pos for k in ["wali kelas", "koordinator", "pembina"])
+
+        if is_high_leadership:
+            structural_score = 25.0
+        elif is_medium_leadership:
+            structural_score = 15.0
+        else:
+            structural_score = 5.0
+
+        # Committees & Active Teams
+        ind_sks = individual_sks_by_user.get(uid, [])
+        team_sks = team_members_by_user.get(uid, [])
+        active_committees = []
+
+        for doc in ind_sks:
+            active_committees.append({
+                "type": "individual",
+                "title": doc.title,
+                "role": doc.position_title or "Penetapan SK",
+                "doc_number": doc.document_number,
+                "term_end": doc.term_end_date.isoformat() if doc.term_end_date else None
+            })
+
+        for tm in team_sks:
+            active_committees.append({
+                "type": "team",
+                "title": tm["title"],
+                "role": tm["role_in_team"],
+                "doc_number": tm["doc_number"],
+                "term_end": tm["term_end"]
+            })
+
+        committee_score = len(active_committees) * 15.0
+
+        # Active Tasks
+        t_list = tasks_by_user.get(uid, [])
+        active_task_count = len(t_list)
+        overdue_task_count = sum(1 for t in t_list if t.deadline and t.deadline < now)
+        task_score = active_task_count * 5.0
+
+        # Total Unified Workload Index
+        raw_score = kbm_score + structural_score + committee_score + task_score
+        total_score = min(int(round(raw_score)), 100)
+
+        # Classification
+        if total_score >= 80 or len(active_committees) >= 4 or (is_high_leadership and len(active_committees) >= 2):
+            w_status = "overload"
+            status_label = "Risiko Burnout / Overload"
+            badge_color = "rose"
+            summary_counts["overload"] += 1
+        elif total_score >= 60 or len(active_committees) == 3 or (kbm_hours_est >= 24 and len(active_committees) >= 1):
+            w_status = "padat"
+            status_label = "Beban Padat"
+            badge_color = "amber"
+            summary_counts["padat"] += 1
+        elif total_score >= 35:
+            w_status = "optimal"
+            status_label = "Ideal / Seimbang"
+            badge_color = "emerald"
+            summary_counts["optimal"] += 1
+        else:
+            w_status = "underload"
+            status_label = "Pasif / Siap Ditugaskan"
+            badge_color = "slate"
+            summary_counts["underload"] += 1
+
+        if status_filter and w_status != status_filter:
+            continue
+
+        radar_list.append({
+            "employee_id": emp.id,
+            "user_id": uid,
+            "nama_lengkap": emp.nama_lengkap,
+            "nik": emp.nik_kepegawaian,
+            "photo_url": emp.photo_url,
+            "unit_id": emp.unit_id,
+            "unit_name": emp.unit.name if emp.unit else "Yayasan",
+            "position": emp.position or (emp.user.role.name if emp.user and emp.user.role else "Staf"),
+            "workload_score": total_score,
+            "workload_status": w_status,
+            "status_label": status_label,
+            "badge_color": badge_color,
+            "breakdown": {
+                "kbm_hours": kbm_hours_est,
+                "kbm_slots": total_kbm_slots,
+                "days_teaching": days_teaching,
+                "kbm_schedule_summary": kbm_breakdown[:5],
+                "active_committees_count": len(active_committees),
+                "active_committees": active_committees,
+                "active_tasks_count": active_task_count,
+                "overdue_tasks_count": overdue_task_count
+            }
+        })
+
+    # Sort: highest workload first
+    radar_list.sort(key=lambda x: x["workload_score"], reverse=True)
+
+    # 6. List of all active teams/committees in foundation
+    all_active_teams = []
+    try:
+        active_team_docs = db.query(models.Document).options(
+            joinedload(models.Document.team_members).joinedload(models.DocumentTeamMember.user)
+        ).filter(
+            models.Document.is_active == True,
+            models.Document.recipient_type == "team",
+            or_(models.Document.term_end_date == None, models.Document.term_end_date >= now)
+        ).all()
+
+        for d in active_team_docs:
+            members = []
+            for tm in d.team_members:
+                members.append({
+                    "name": tm.employee_name,
+                    "role": tm.role_in_team or "Anggota",
+                    "user_id": tm.user_id
+                })
+            all_active_teams.append({
+                "id": d.id,
+                "title": d.title,
+                "document_number": d.document_number,
+                "term_start": d.term_start_date.isoformat() if d.term_start_date else None,
+                "term_end": d.term_end_date.isoformat() if d.term_end_date else None,
+                "members_count": len(members),
+                "members": members
+            })
+    except Exception:
+        pass
+
+    return {
+        "summary": summary_counts,
+        "employees": radar_list,
+        "active_teams": all_active_teams
+    }
+
+
+
