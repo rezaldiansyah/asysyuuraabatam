@@ -163,6 +163,12 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
+from pydantic import BaseModel
+
+class TestEmailRequest(BaseModel):
+    to_email: str
+
+
 @app.post("/auth/forgot-password")
 async def forgot_password(request: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == request.email).first()
@@ -171,13 +177,36 @@ async def forgot_password(request: schemas.ForgotPasswordRequest, db: Session = 
         return {"message": "If email exists, a reset link has been sent."}
     
     token = auth.create_password_reset_token(request.email)
-    # Simulate sending email
-    print(f"--- PASSWORD RESET LINK ---")
-    print(f"To: {request.email}")
-    print(f"Link: http://localhost:3000/reset-password?token={token}")
-    print(f"---------------------------")
+    
+    # Send email via ZeptoMail
+    try:
+        from email_service import send_password_reset_email
+        send_password_reset_email(
+            to_email=request.email,
+            reset_token=token,
+            user_name=user.full_name or ""
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Failed to send password reset email to {request.email}: {e}")
     
     return {"message": "If email exists, a reset link has been sent."}
+
+
+@app.post("/auth/test-email")
+async def test_email(req: TestEmailRequest):
+    """Endpoint untuk menguji koneksi & pengiriman email ZeptoMail."""
+    from email_service import send_test_email
+    try:
+        res = send_test_email(to_email=req.to_email)
+        return {
+            "status": "success",
+            "message": f"Email uji coba berhasil dikirim ke {req.to_email}",
+            "details": res
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal mengirim email: {str(e)}")
+
 
 @app.post("/auth/reset-password")
 async def reset_password(request: schemas.ResetPasswordRequest, db: Session = Depends(get_db)):
