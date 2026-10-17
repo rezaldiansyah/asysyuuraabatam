@@ -105,8 +105,12 @@ async def get_documents(
         joinedload(models.Document.team_members)
     ).order_by(models.Document.created_at.desc()).all()
     
-    user_role = current_user.role.code if current_user.role else "guest"
-    is_pimpinan_or_tu = user_role in ["superadmin", "kabid_umum", "kabid_keuangan", "tu_yayasan", "kepala_unit", "wakil_kepala", "tu_unit"]
+    user_role = (current_user.role.code or "").lower() if current_user.role else "guest"
+    is_superadmin = (user_role in ["superadmin", "super_admin"])
+    is_pimpinan_or_tu = is_superadmin or user_role in [
+        "ketua_yayasan", "wakil_ketua_yayasan", "sekretaris_yayasan", "bendahara_yayasan",
+        "kabid_umum", "kabid_keuangan", "tu_yayasan", "kepala_unit", "wakil_kepala", "tu_unit", "kepala_sekolah", "wakil_kepala_sekolah"
+    ]
     
     # User's assigned units (e.g. RA, SDIT, SMPIT, YYS)
     user_units = set()
@@ -117,26 +121,42 @@ async def get_documents(
     
     result = []
     for doc in docs:
-        # Visibility Check
-        if not is_pimpinan_or_tu:
-            # 1. Dokumen konfidensial hanya bisa dilihat pimpinan & TU
-            if doc.is_confidential:
-                continue
-            
-            # 2. Cek filter target unit jika tidak "ALL" dan bukan dokumen publik
-            if doc.visibility != "public" and doc.target_units and doc.target_units != "ALL":
-                try:
-                    targets = json.loads(doc.target_units) if doc.target_units.startswith("[") else [doc.target_units]
-                    targets_upper = [t.upper() for t in targets]
-                    if "ALL" not in targets_upper and user_units and not any(u in targets_upper for u in user_units):
-                        continue
-                except Exception:
-                    pass
+        # Superadmin sees all documents. Non-superadmin performs visibility checks:
+        if not is_superadmin:
+            if not is_pimpinan_or_tu:
+                # 1. Dokumen konfidensial hanya bisa dilihat pimpinan & TU
+                if doc.is_confidential:
+                    continue
+                
+                # 2. Cek filter target unit jika tidak "ALL" dan bukan dokumen publik
+                if doc.visibility != "public" and doc.target_units and doc.target_units != "ALL":
+                    try:
+                        targets = json.loads(doc.target_units) if doc.target_units.startswith("[") else [doc.target_units]
+                        targets_upper = [t.upper() for t in targets]
+                        if "ALL" not in targets_upper and user_units and not any(u in targets_upper for u in user_units):
+                            continue
+                    except Exception:
+                        pass
 
         # Resolve employee name
         emp_name = doc.employee_name
         if not emp_name and doc.employee:
             emp_name = doc.employee.full_name
+
+        # Resolve team members safely
+        t_members = []
+        try:
+            if doc.team_members:
+                for tm in doc.team_members:
+                    t_members.append({
+                        "id": tm.id,
+                        "user_id": tm.user_id,
+                        "employee_name": tm.employee_name,
+                        "role_in_team": tm.role_in_team or "Anggota",
+                        "unit_id": tm.unit_id
+                    })
+        except Exception:
+            t_members = []
 
         result.append({
             "id": doc.id,
@@ -162,22 +182,14 @@ async def get_documents(
             
             # Attachments & Career info
             "attachments": _parse_attachments(doc.attachments),
-            "recipient_type": doc.recipient_type or "individual",
+            "recipient_type": getattr(doc, "recipient_type", "individual") or "individual",
             "employee_id": doc.employee_id,
             "employee_name": emp_name,
             "sk_type": doc.sk_type,
             "position_title": doc.position_title,
             "term_start_date": doc.term_start_date.isoformat() if doc.term_start_date else None,
             "term_end_date": doc.term_end_date.isoformat() if doc.term_end_date else None,
-            "team_members": [
-                {
-                    "id": tm.id,
-                    "user_id": tm.user_id,
-                    "employee_name": tm.employee_name,
-                    "role_in_team": tm.role_in_team or "Anggota",
-                    "unit_id": tm.unit_id
-                } for tm in (doc.team_members or [])
-            ]
+            "team_members": t_members
         })
     
     return result

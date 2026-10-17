@@ -281,6 +281,23 @@ async def create_meeting_minute(
                     notes=item.get("notes")
                 )
                 db.add(ai)
+                db.flush()
+
+                # Also create corresponding Kanban Task
+                task = models.Task(
+                    title=ai.task_description,
+                    description=f"Ditugaskan dari Notulen Rapat: {minute.title} (#{minute.nomor_notulen or '-'})\nCatatan: {ai.notes or '-'}",
+                    status="antrian",
+                    priority_level=2 if ai.deadline else 3,
+                    creator_id=minute.notulis_id or current_user.id,
+                    assignee_id=ai.pic_user_id,
+                    unit_id=minute.unit_id,
+                    deadline=ai.deadline,
+                    meeting_minute_id=minute.id,
+                    meeting_action_item_id=ai.id,
+                    is_active=True
+                )
+                db.add(task)
         db.commit()
         db.refresh(minute)
         
@@ -444,6 +461,32 @@ async def update_meeting_minute(
                 ai.status = item.get("status", ai.status)
                 ai.notes = item.get("notes", ai.notes)
                 sent_ids.add(ai_id)
+
+                # Sync linked Task
+                task = db.query(models.Task).filter(models.Task.meeting_action_item_id == ai.id).first()
+                if task:
+                    task.title = ai.task_description
+                    task.assignee_id = ai.pic_user_id
+                    task.deadline = ai.deadline
+                    if ai.status == "done":
+                        task.status = "done"
+                    elif ai.status == "in_progress" and task.status == "antrian":
+                        task.status = "in_progress"
+                else:
+                    new_t = models.Task(
+                        title=ai.task_description,
+                        description=f"Ditugaskan dari Notulen Rapat: {m.title} (#{m.nomor_notulen or '-'})\nCatatan: {ai.notes or '-'}",
+                        status="antrian" if ai.status != "done" else "done",
+                        priority_level=2 if ai.deadline else 3,
+                        creator_id=m.notulis_id or current_user.id,
+                        assignee_id=ai.pic_user_id,
+                        unit_id=m.unit_id,
+                        deadline=ai.deadline,
+                        meeting_minute_id=m.id,
+                        meeting_action_item_id=ai.id,
+                        is_active=True
+                    )
+                    db.add(new_t)
             else:
                 # Add new
                 if item.get("task_description"):
@@ -456,10 +499,27 @@ async def update_meeting_minute(
                         notes=item.get("notes")
                     )
                     db.add(new_ai)
+                    db.flush()
+
+                    new_t = models.Task(
+                        title=new_ai.task_description,
+                        description=f"Ditugaskan dari Notulen Rapat: {m.title} (#{m.nomor_notulen or '-'})\nCatatan: {new_ai.notes or '-'}",
+                        status="antrian" if new_ai.status != "done" else "done",
+                        priority_level=2 if new_ai.deadline else 3,
+                        creator_id=m.notulis_id or current_user.id,
+                        assignee_id=new_ai.pic_user_id,
+                        unit_id=m.unit_id,
+                        deadline=new_ai.deadline,
+                        meeting_minute_id=m.id,
+                        meeting_action_item_id=new_ai.id,
+                        is_active=True
+                    )
+                    db.add(new_t)
                     
         # Remove items that were deleted in the UI
         for ai_id, ai in existing_items.items():
             if ai_id not in sent_ids:
+                db.query(models.Task).filter(models.Task.meeting_action_item_id == ai.id).delete()
                 db.delete(ai)
                 
     m.updated_at = datetime.utcnow()
@@ -682,6 +742,17 @@ async def update_action_item_status(
             ai.completion_date = datetime.utcnow()
         elif new_status != "done":
             ai.completion_date = None
+            
+        # Sync to linked Task
+        t = db.query(models.Task).filter(models.Task.meeting_action_item_id == ai.id).first()
+        if t:
+            if new_status == "done":
+                t.status = "done"
+            elif new_status == "in_progress":
+                t.status = "in_progress"
+            elif new_status == "pending":
+                t.status = "antrian"
+            t.updated_at = datetime.utcnow()
             
     if "notes" in data:
         ai.notes = data["notes"]

@@ -2156,8 +2156,9 @@ async function fetchDocuments() {
         created_timestamp: doc.created_at ? new Date(doc.created_at).getTime() : 0,
       }
     })
-  } catch (e) {
+  } catch (e: any) {
     console.error('Failed to fetch documents', e)
+    toast.add({ severity: 'error', summary: 'Gagal Memuat Dokumen', detail: e?.message || 'Gagal mengambil data dokumen dari server', life: 4000 })
   } finally {
     loading.value = false
   }

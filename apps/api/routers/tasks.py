@@ -341,7 +341,26 @@ async def update_task(
             comment=comment_msg,
             changed_by_id=current_user.id
         )
-        db.add(h)
+        # Sync to linked MeetingActionItem if task originated from a meeting
+        if task.meeting_action_item_id:
+            m_ai = db.query(models.MeetingActionItem).filter(models.MeetingActionItem.id == task.meeting_action_item_id).first()
+            if m_ai:
+                if task.status == "done":
+                    m_ai.status = "done"
+                    if not m_ai.completion_date:
+                        m_ai.completion_date = datetime.utcnow()
+                elif task.status == "in_progress":
+                    m_ai.status = "in_progress"
+                    m_ai.completion_date = None
+                else:
+                    m_ai.status = "pending"
+                    m_ai.completion_date = None
+
+                if new_assignee_assigned:
+                    m_ai.pic_user_id = task.assignee_id
+                if payload.deadline is not None:
+                    m_ai.deadline = task.deadline
+                m_ai.updated_at = datetime.utcnow()
 
     task.updated_at = datetime.utcnow()
     db.commit()

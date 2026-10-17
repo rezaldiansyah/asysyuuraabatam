@@ -86,6 +86,17 @@ app.include_router(tasks.router)
 
 @app.on_event("startup")
 def run_migrations_on_startup():
+    # 1. Run direct DDL self-healing for new columns on existing tables
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS recipient_type VARCHAR DEFAULT 'individual'"))
+            conn.commit()
+            print("[Startup] Verified column documents.recipient_type exists.")
+    except Exception as e:
+        print(f"[Startup] DDL recipient_type note: {e}")
+
+    # 2. Run Alembic auto-migration
     try:
         from alembic.config import Config
         from alembic import command
@@ -94,11 +105,57 @@ def run_migrations_on_startup():
         print("[Startup] Alembic auto-migration executed to head.")
     except Exception as e:
         print(f"[Startup] Alembic auto-migration note: {e}")
+
+    # 3. Create all missing tables
     try:
         models.Base.metadata.create_all(bind=engine)
         print("[Startup] Database tables verified/created via SQLAlchemy.")
     except Exception as e:
         print(f"[Startup] Metadata create_all note: {e}")
+
+    # 4. Synchronize existing MeetingActionItem to Kanban Task
+    try:
+        from database import SessionLocal
+        sync_db = SessionLocal()
+        action_items = sync_db.query(models.MeetingActionItem).options(
+            joinedload(models.MeetingActionItem.meeting)
+        ).all()
+        synced_count = 0
+        for ai in action_items:
+            existing = sync_db.query(models.Task).filter(models.Task.meeting_action_item_id == ai.id).first()
+            if not existing:
+                meeting = ai.meeting
+                m_title = meeting.title if meeting else "Rapat Yayasan"
+                m_nomor = meeting.nomor_notulen if meeting else "-"
+                
+                t_status = "antrian"
+                if ai.status == "in_progress":
+                    t_status = "in_progress"
+                elif ai.status == "done":
+                    t_status = "done"
+
+                creator_id = meeting.notulis_id if (meeting and meeting.notulis_id) else (ai.pic_user_id or 1)
+                new_task = models.Task(
+                    title=ai.task_description,
+                    description=f"Ditugaskan dari Notulen Rapat: {m_title} (#{m_nomor})\nCatatan: {ai.notes or '-'}",
+                    status=t_status,
+                    priority_level=2 if ai.deadline else 3,
+                    creator_id=creator_id,
+                    assignee_id=ai.pic_user_id,
+                    unit_id=meeting.unit_id if meeting else None,
+                    deadline=ai.deadline,
+                    meeting_minute_id=ai.meeting_id,
+                    meeting_action_item_id=ai.id,
+                    is_active=True
+                )
+                sync_db.add(new_task)
+                synced_count += 1
+        if synced_count > 0:
+            sync_db.commit()
+            print(f"[Startup] Synchronized {synced_count} meeting action items to tasks.")
+        sync_db.close()
+    except Exception as e:
+        print(f"[Startup] Sync meeting action items note: {e}")
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
