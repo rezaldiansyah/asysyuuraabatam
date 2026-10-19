@@ -1808,7 +1808,12 @@ async def update_page_content(section_key: str, content: schemas.PageContentCrea
     return db_content
 
 @app.post("/cms/upload")
-async def upload_file(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
+async def upload_file(
+    file: UploadFile = File(...),
+    folder: Optional[str] = Form(None),
+    folder_param: Optional[str] = Query(None, alias="folder"),
+    current_user: models.User = Depends(get_current_user)
+):
     try:
         from storage import upload_to_r2, is_r2_configured
         import logging
@@ -1823,12 +1828,17 @@ async def upload_file(file: UploadFile = File(...), current_user: models.User = 
         if not file.filename:
             raise HTTPException(status_code=400, detail="Nama file tidak valid")
         
+        # Determine target folder (sanitize against directory traversal)
+        raw_folder = folder or folder_param or "uploads"
+        clean_parts = [p.strip() for p in raw_folder.replace("\\", "/").split("/") if p.strip() and p.strip() != ".."]
+        target_folder = "/".join(clean_parts) if clean_parts else "uploads"
+
         r2_configured = is_r2_configured()
-        logger.info(f"Upload request: filename={file.filename}, size={len(file_bytes)}, r2_configured={r2_configured}")
+        logger.info(f"Upload request: filename={file.filename}, folder={target_folder}, size={len(file_bytes)}, r2_configured={r2_configured}")
         
         if r2_configured:
             # Upload to Cloudflare R2 (with auto image compression)
-            url = upload_to_r2(file_bytes, file.filename, folder="uploads")
+            url = upload_to_r2(file_bytes, file.filename, folder=target_folder)
             logger.info(f"Upload to R2 successful: {url}")
             return {"url": url}
         else:
@@ -1836,19 +1846,137 @@ async def upload_file(file: UploadFile = File(...), current_user: models.User = 
             logger.warning("R2 not configured, falling back to local storage. Images may be lost on container restart!")
             file_extension = os.path.splitext(file.filename)[1]
             unique_filename = f"{uuid.uuid4()}{file_extension}"
-            file_path = os.path.join(UPLOAD_DIR, unique_filename)
+            folder_dir = os.path.join(UPLOAD_DIR, *clean_parts) if clean_parts else UPLOAD_DIR
+            os.makedirs(folder_dir, exist_ok=True)
+            file_path = os.path.join(folder_dir, unique_filename)
             
             with open(file_path, "wb") as buffer:
                 buffer.write(file_bytes)
                 
             base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
-            return {"url": f"{base_url.rstrip('/')}/uploads/{unique_filename}"}
+            rel_path = f"{target_folder}/{unique_filename}" if target_folder != "uploads" else unique_filename
+            return {"url": f"{base_url.rstrip('/')}/uploads/{rel_path}"}
     except HTTPException:
         raise
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
+@app.post("/cms/migrate-letterhead-logo")
+async def migrate_letterhead_logo(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Safely migrate letterhead logo from 'uploads/' to 'branding/logo/' in Cloudflare R2 and update DB.
+    Guarantees:
+    - 4-step safeguard: Copy -> Verify -> Update DB -> Delete Old
+    - Rollback if verification fails
+    - Safe if already in branding/logo/
+    """
+    from storage import copy_r2_object, check_r2_object_exists, delete_r2_object, is_r2_configured
+    import json
+    import os
+
+    row = db.query(models.PageContent).filter(models.PageContent.section_key == "settings_letterhead").first()
+    if not row or (not row.image_url and not row.content_json):
+        raise HTTPException(status_code=404, detail="Pengaturan kop surat (settings_letterhead) belum memiliki logo yang dikonfigurasi.")
+
+    data = {}
+    if row.content_json:
+        try:
+            data = json.loads(row.content_json)
+        except Exception:
+            data = {}
+
+    current_url = row.image_url or data.get("logo_url")
+    if not current_url:
+        raise HTTPException(status_code=400, detail="Tidak ada logo_url yang tersimpan pada kop surat.")
+
+    public_r2_url = os.getenv("R2_PUBLIC_URL", "").rstrip("/")
+
+    # Check if already migrated
+    if "branding/logo/" in current_url:
+        return {
+            "status": "already_migrated",
+            "message": "Logo kop surat sudah berada di folder 'branding/logo/'.",
+            "current_url": current_url
+        }
+
+    # Extract relative key
+    if public_r2_url and public_r2_url in current_url:
+        old_key = current_url.replace(public_r2_url, "").lstrip("/")
+    elif "/uploads/" in current_url:
+        old_key = "uploads/" + current_url.split("/uploads/")[-1]
+    else:
+        raise HTTPException(status_code=400, detail=f"Format URL logo tidak dikenali sebagai aset storage: {current_url}")
+
+    filename = old_key.split("/")[-1]
+    new_key = f"branding/logo/{filename}"
+    new_url = f"{public_r2_url}/{new_key}" if public_r2_url else current_url.replace("/uploads/", "/uploads/branding/logo/")
+
+    if is_r2_configured():
+        # 1. Copy in R2
+        try:
+            copy_r2_object(old_key, new_key)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Gagal menyalin objek di Cloudflare R2: {str(e)}")
+
+        # 2. Verify new key exists in R2
+        if not check_r2_object_exists(new_key):
+            raise HTTPException(status_code=500, detail=f"Verifikasi gagal: file baru belum ditemukan di R2 ({new_key}). Proses dibatalkan demi keamanan.")
+
+        # 3. Update Database
+        row.image_url = new_url
+        if data:
+            data["logo_url"] = new_url
+            row.content_json = json.dumps(data)
+        db.commit()
+
+        # 4. Delete old object from R2 (only after successful commit)
+        try:
+            delete_r2_object(old_key)
+        except Exception:
+            pass
+
+        return {
+            "status": "success",
+            "message": "Berhasil memindahkan logo kop surat ke folder 'branding/logo/'!",
+            "old_url": current_url,
+            "new_url": new_url,
+            "old_key": old_key,
+            "new_key": new_key
+        }
+    else:
+        # Local fallback migration
+        old_local_path = os.path.join(UPLOAD_DIR, filename)
+        new_dir = os.path.join(UPLOAD_DIR, "branding", "logo")
+        os.makedirs(new_dir, exist_ok=True)
+        new_local_path = os.path.join(new_dir, filename)
+
+        import shutil
+        if os.path.exists(old_local_path):
+            shutil.copy2(old_local_path, new_local_path)
+            row.image_url = new_url
+            if data:
+                data["logo_url"] = new_url
+                row.content_json = json.dumps(data)
+            db.commit()
+            try:
+                os.remove(old_local_path)
+            except Exception:
+                pass
+            return {
+                "status": "success",
+                "message": "Berhasil memindahkan logo kop surat lokal ke folder 'branding/logo/'!",
+                "old_url": current_url,
+                "new_url": new_url
+            }
+        else:
+            raise HTTPException(status_code=404, detail="File logo lama tidak ditemukan di storage lokal.")
+
 
 @app.post("/cms/upload/batch")
 async def upload_files_batch(files: List[UploadFile] = File(...), current_user: models.User = Depends(get_current_user)):

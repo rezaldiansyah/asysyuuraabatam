@@ -208,7 +208,7 @@ async function handleFileUpload(event: Event) {
   const file = input.files[0]
   uploading.value = true
   try {
-    const result = await api.upload('/cms/upload', file)
+    const result = await api.upload('/cms/upload', file, { folder: 'cms/berita' })
     form.image_url = result.url
     toast.add({ severity: 'success', summary: 'Upload berhasil', detail: 'Gambar berhasil diupload', life: 3000 })
   } catch (e) {

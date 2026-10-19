@@ -100,6 +100,7 @@ const props = defineProps<{
   label?: string
   placeholder?: string
   accept?: string
+  folder?: string
 }>()
 
 const emit = defineEmits(['update:modelValue'])
@@ -150,7 +151,7 @@ async function uploadFile(file: File) {
 
   try {
     const api = useApi()
-    const response = await api.upload('/cms/upload', file)
+    const response = await api.upload('/cms/upload', file, { folder: props.folder })
 
     emit('update:modelValue', response.url)
     toast.add({ severity: 'success', summary: 'Berhasil', detail: 'File berhasil diupload', life: 3000 })

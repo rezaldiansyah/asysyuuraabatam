@@ -2092,7 +2092,7 @@ async function handleAttachmentFileSelect(e: Event) {
   
   targetAtt.uploading = true
   try {
-    const result = await api.upload('/cms/upload', file)
+    const result = await api.upload('/cms/upload', file, { folder: 'documents' })
     targetAtt.file_url = result.url
     targetAtt.file_name = file.name
     targetAtt.file_size = file.size
@@ -2239,7 +2239,7 @@ async function uploadFile(file: File) {
   
   uploadProgress.value = 10
   try {
-    const result = await api.upload('/cms/upload', file)
+    const result = await api.upload('/cms/upload', file, { folder: 'documents' })
     form.file_url = result.url
     form.file_name = file.name
     form.file_size = file.size

@@ -194,7 +194,7 @@ async function uploadFile(item: UploadItem) {
   if (!item.file) return
   
   try {
-    const response = await api.upload('/cms/upload', item.file)
+    const response = await api.upload('/cms/upload', item.file, { folder: 'ppdb/posters' })
     
     const index = items.value.findIndex(i => i.id === item.id)
     if (index !== -1) {

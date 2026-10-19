@@ -345,7 +345,7 @@ async function handlePhotoUpload(event: Event) {
 
   uploadingPhoto.value = true
   try {
-    const res = await api.upload('/cms/upload', file)
+    const res = await api.upload('/cms/upload', file, { folder: 'employees/photos' })
     await api.put(`/sdm/employees/${route.params.id}`, { photo_url: res.url })
     employee.value.photo_url = res.url
     toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Pasfoto berhasil diupload ke Cloudflare R2', life: 3500 })
@@ -375,7 +375,7 @@ async function handleDialogPhotoUpload(event: Event) {
 
   uploadingDialogPhoto.value = true
   try {
-    const res = await api.upload('/cms/upload', file)
+    const res = await api.upload('/cms/upload', file, { folder: 'employees/photos' })
     form.value.photo_url = res.url
     toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Pasfoto terpilih dan siap disimpan', life: 3000 })
   } catch (e: any) {

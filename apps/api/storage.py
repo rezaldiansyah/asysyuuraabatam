@@ -138,3 +138,62 @@ def is_r2_configured() -> bool:
         os.getenv("R2_SECRET_ACCESS_KEY"),
         os.getenv("R2_PUBLIC_URL"),
     ])
+
+
+def check_r2_object_exists(key: str) -> bool:
+    """Check if an object exists in Cloudflare R2."""
+    client = get_r2_client()
+    bucket = os.getenv("R2_BUCKET_NAME", "asy-syuuraa-assets")
+    try:
+        client.head_object(Bucket=bucket, Key=key)
+        return True
+    except Exception:
+        return False
+
+
+def copy_r2_object(source_key: str, destination_key: str) -> bool:
+    """
+    Safely copy an object in Cloudflare R2 from source_key to destination_key.
+    Uses S3 CopySource syntax: '{bucket}/{source_key}'.
+    """
+    client = get_r2_client()
+    bucket = os.getenv("R2_BUCKET_NAME", "asy-syuuraa-assets")
+    copy_source = {"Bucket": bucket, "Key": source_key}
+    client.copy_object(
+        Bucket=bucket,
+        CopySource=copy_source,
+        Key=destination_key
+    )
+    return True
+
+
+def delete_r2_object(key: str) -> bool:
+    """Delete an object from Cloudflare R2."""
+    client = get_r2_client()
+    bucket = os.getenv("R2_BUCKET_NAME", "asy-syuuraa-assets")
+    client.delete_object(Bucket=bucket, Key=key)
+    return True
+
+
+def move_r2_object(source_key: str, destination_key: str) -> bool:
+    """
+    Safely move an object in Cloudflare R2 with 4-step safeguard:
+    1. Copy source to destination
+    2. Verify destination exists
+    3. Delete source only after verification succeeds
+    If any error occurs, source is preserved untouched.
+    """
+    if source_key == destination_key:
+        return True
+
+    # 1. Copy
+    copy_r2_object(source_key, destination_key)
+
+    # 2. Verify destination
+    if not check_r2_object_exists(destination_key):
+        raise RuntimeError(f"Gagal memverifikasi keberadaan file tujuan di R2: {destination_key}")
+
+    # 3. Delete source
+    delete_r2_object(source_key)
+    return True
+

@@ -55,12 +55,43 @@
           <div>
             <CmsImageUploader 
               v-model="form.logo_url" 
+              folder="branding/logo"
               label="Logo Lembaga / Yayasan" 
               placeholder="https://... atau upload file PNG berlatar transparan"
             />
             <p class="text-[11px] text-slate-400 mt-1.5">
               Disarankan menggunakan gambar PNG berlatar transparan atau persegi (minimal 200x200 px). Jika logo dikosongkan, kop surat otomatis ditampilkan dalam format teks terpusat (*centered*).
             </p>
+
+            <!-- Status Lokasi Penyimpanan di R2 / Test Migrasi -->
+            <div 
+              v-if="form.logo_url && form.logo_url.includes('/uploads/')" 
+              class="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-xs"
+            >
+              <div class="flex items-center gap-2">
+                <i class="pi pi-info-circle text-amber-600 text-base shrink-0"></i>
+                <div>
+                  <div class="font-bold">File logo saat ini berada di folder umum (<code>uploads/</code>)</div>
+                  <div class="text-[11px] text-amber-700 dark:text-amber-300">Uji coba pindahkan ke folder rapi <code>branding/logo/</code> secara aman.</div>
+                </div>
+              </div>
+              <Button 
+                label="Pindahkan ke branding/logo/" 
+                icon="pi pi-arrow-right" 
+                size="small" 
+                severity="warn" 
+                class="!text-xs font-semibold shrink-0"
+                :loading="migratingLogo"
+                @click="migrateLogo"
+              />
+            </div>
+            <div 
+              v-else-if="form.logo_url && form.logo_url.includes('branding/logo')" 
+              class="mt-3 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2"
+            >
+              <i class="pi pi-check-circle text-emerald-600"></i>
+              <span>File logo telah tersimpan rapi di folder khusus: <b>branding/logo/</b></span>
+            </div>
           </div>
         </div>
 
@@ -355,6 +386,33 @@ function resetToDefault() {
     detail: 'Konfigurasi dikembalikan ke default. Klik Simpan untuk mempermanenkan.',
     life: 3000
   })
+}
+
+const migratingLogo = ref(false)
+async function migrateLogo() {
+  migratingLogo.value = true
+  try {
+    const res = await api.post<any>('/cms/migrate-letterhead-logo')
+    if (res?.new_url) {
+      form.logo_url = res.new_url
+    }
+    toast.add({
+      severity: 'success',
+      summary: 'Migrasi Berhasil',
+      detail: res?.message || 'Logo berhasil dipindahkan ke folder branding/logo/!',
+      life: 4000
+    })
+  } catch (e: any) {
+    console.error('Migrasi logo gagal:', e)
+    toast.add({
+      severity: 'error',
+      summary: 'Gagal Migrasi',
+      detail: e?.data?.detail || e?.message || 'Terjadi kesalahan saat memindahkan logo.',
+      life: 5000
+    })
+  } finally {
+    migratingLogo.value = false
+  }
 }
 
 onMounted(() => {

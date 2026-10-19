@@ -107,9 +107,12 @@ export function useApi() {
     }
 
     // Upload file (multipart/form-data)
-    async function upload(endpoint: string, file: File): Promise<{ url: string }> {
+    async function upload(endpoint: string, file: File, options?: { folder?: string }): Promise<{ url: string }> {
         const formData = new FormData()
         formData.append('file', file)
+        if (options?.folder) {
+            formData.append('folder', options.folder)
+        }
 
         const headers: Record<string, string> = {}
         const token = resolveToken()
