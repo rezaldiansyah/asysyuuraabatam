@@ -2075,17 +2075,86 @@ async def sync_fingerprint_attendance(
             "message": holiday_msg
         }
 
-    # AUTO-CATCHUP: On Cron working days, check if previous working day was missed or failed
+    # AUTO-CATCHUP: On Cron working days, check yesterday (including Sunday/Holiday piket and failed workdays)
     if source == "cron" and not is_holiday:
         try:
             prev_day = target_date - timedelta(days=1)
-            p_holiday, _ = _check_is_holiday(db, prev_day)
-            # If yesterday was Sunday, check Saturday instead
-            if p_holiday and prev_day.weekday() == 6:
-                prev_day = target_date - timedelta(days=2)
-                p_holiday, _ = _check_is_holiday(db, prev_day)
+            p_holiday, p_holiday_desc = _check_is_holiday(db, prev_day)
 
-            if not p_holiday:
+            if p_holiday:
+                # Yesterday was a Holiday (e.g. Sunday or Academic Calendar Holiday).
+                # Check machine for any piket teachers / competition trainers now that the machine is online!
+                p_date_str = prev_day.strftime("%Y-%m-%d")
+                recent_logs = await get_fingerprint_sync_logs(limit=25, db=db)
+                already_caught_up = any(
+                    l.get("date_target") == p_date_str and (int(l.get("synced_employees") or 0) > 0 or "Susulan" in l.get("message", ""))
+                    for l in (recent_logs or [])
+                )
+                if not already_caught_up:
+                    try:
+                        raw_h = _fetch_sdit_fingerprint_logs(p_date_str, timeout_sec=8)
+                        if raw_h:
+                            h_emp_punches, _, _ = _match_and_group_punches(db, raw_h, prev_day)
+                            if h_emp_punches:
+                                for h_emp_id, h_punches in h_emp_punches.items():
+                                    _save_single_employee_punches(
+                                        db, h_emp_id, h_punches, prev_day, sh, sm, tol_mins,
+                                        auto_commit=False,
+                                        is_holiday_day=True,
+                                        holiday_desc=p_holiday_desc
+                                    )
+                                db.commit()
+                                _append_fingerprint_sync_log(db, {
+                                    "id": f"sync-holiday-catchup-{int(wib_now.timestamp() * 1000)}",
+                                    "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
+                                    "date_target": p_date_str,
+                                    "source": "cron",
+                                    "status": "holiday",
+                                    "raw_count": len(raw_h),
+                                    "synced_employees": len(h_emp_punches),
+                                    "failed_employees": 0,
+                                    "unmatched_logs": [],
+                                    "message": f"[Susulan Hari Libur ({p_holiday_desc})] Berhasil menarik data {len(h_emp_punches)} guru/pegawai piket atau kegiatan lomba dari {len(raw_h)} log mesin.",
+                                    "error_detail": None
+                                })
+                    except Exception:
+                        db.rollback()
+
+                # If yesterday was Sunday, also verify Saturday sync was completed
+                if prev_day.weekday() == 6:
+                    sat_day = target_date - timedelta(days=2)
+                    sat_holiday, _ = _check_is_holiday(db, sat_day)
+                    if not sat_holiday:
+                        sat_date_str = sat_day.strftime("%Y-%m-%d")
+                        sat_logs = [l for l in (recent_logs or []) if l.get("date_target") == sat_date_str]
+                        sat_success = any(l.get("status") in ("success", "partial", "empty", "holiday") for l in sat_logs)
+                        if not sat_success:
+                            try:
+                                raw_sat = _fetch_sdit_fingerprint_logs(sat_date_str, timeout_sec=8)
+                                if raw_sat:
+                                    sat_punches, _, _ = _match_and_group_punches(db, raw_sat, sat_day)
+                                    for sat_emp_id, sat_p in sat_punches.items():
+                                        _save_single_employee_punches(db, sat_emp_id, sat_p, sat_day, sh, sm, tol_mins, auto_commit=False)
+                                    db.commit()
+                                    _mark_missing_fingerprint_employees(db, sat_day)
+                                    _append_fingerprint_sync_log(db, {
+                                        "id": f"sync-catchup-sat-{int(wib_now.timestamp() * 1000)}",
+                                        "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
+                                        "date_target": sat_date_str,
+                                        "source": "cron",
+                                        "status": "success",
+                                        "raw_count": len(raw_sat),
+                                        "synced_employees": len(sat_punches),
+                                        "failed_employees": 0,
+                                        "unmatched_logs": [],
+                                        "message": f"[Auto-Catchup] Berhasil menarik data susulan hari Sabtu ({sat_date_str}) untuk {len(sat_punches)} pegawai.",
+                                        "error_detail": None
+                                    })
+                            except Exception:
+                                db.rollback()
+
+            else:
+                # Yesterday was a regular working day: check if missed or failed
                 p_date_str = prev_day.strftime("%Y-%m-%d")
                 recent_logs = await get_fingerprint_sync_logs(limit=25, db=db)
                 p_logs = [l for l in (recent_logs or []) if l.get("date_target") == p_date_str]
