@@ -30,9 +30,31 @@ class UserBase(BaseModel):
     full_name: Optional[str] = None
     nik: Optional[str] = None
 
-class TeacherCreate(UserBase):
-    unit_id: int
-    password: str # Initial password
+class TeacherCreate(BaseModel):
+    full_name: str
+    nik: str # NIK Kepegawaian / Yayasan
+    email: Optional[str] = None
+    password: Optional[str] = None # Optional, will default to birthdate or default
+    unit_id: Optional[int] = None
+    position: Optional[str] = "Guru"
+    nuptk: Optional[str] = None
+    nip: Optional[str] = None
+    no_hp: Optional[str] = None
+    employee_type: Optional[str] = "tetap"
+    employee_id: Optional[int] = None # If linking an existing employee
+
+class TeacherUpdate(BaseModel):
+    full_name: Optional[str] = None
+    nik: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+    unit_id: Optional[int] = None
+    position: Optional[str] = None
+    nuptk: Optional[str] = None
+    nip: Optional[str] = None
+    no_hp: Optional[str] = None
+    employee_type: Optional[str] = None
+    is_active: Optional[bool] = None
 
 class UserCreate(UserBase):
     password: str
@@ -57,8 +79,16 @@ class User(UserBase):
         from_attributes = True
 
 class Teacher(User):
-    # For response, might want to include unit info later
-    pass
+    employee_id: Optional[int] = None
+    nuptk: Optional[str] = None
+    nip: Optional[str] = None
+    position: Optional[str] = None
+    employee_type: Optional[str] = None
+    unit_id: Optional[int] = None
+    unit_name: Optional[str] = None
+    photo_url: Optional[str] = None
+    no_hp: Optional[str] = None
+    gender: Optional[str] = None
 
 # --- Academic/Schedule Schemas ---
 class SubjectBase(BaseModel):

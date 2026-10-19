@@ -74,6 +74,7 @@ class User(Base):
     # Relationships
     role = relationship("Role", back_populates="users")
     unit_assignments = relationship("UserUnit", back_populates="user")
+    employee = relationship("Employee", back_populates="user", uselist=False)
 
 class UserUnit(Base):
     __tablename__ = "user_units"
@@ -373,7 +374,7 @@ class Employee(Base):
     photo_url = Column(String, nullable=True)
     
     # Relationships
-    user = relationship("User")
+    user = relationship("User", back_populates="employee")
     unit = relationship("Unit")
     education_history = relationship("EducationHistory", back_populates="employee", cascade="all, delete-orphan")
     position_history = relationship("PositionHistory", back_populates="employee", cascade="all, delete-orphan")

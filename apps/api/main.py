@@ -721,45 +721,363 @@ async def activate_academic_year(
     db.refresh(target)
     return target
 
+def _format_teacher_response(u: models.User, emp: Optional[models.Employee] = None) -> dict:
+    unit_id = None
+    unit_name = None
+    if emp and emp.unit:
+        unit_id = emp.unit_id
+        unit_name = emp.unit.name
+    elif u.unit_assignments:
+        primary_ua = next((ua for ua in u.unit_assignments if ua.is_primary), u.unit_assignments[0])
+        unit_id = primary_ua.unit_id
+        unit_name = primary_ua.unit.name if primary_ua.unit else None
+        
+    return {
+        "id": u.id,
+        "email": u.email,
+        "full_name": (emp.nama_lengkap if emp and emp.nama_lengkap else u.full_name) or "",
+        "nik": (emp.nik_kepegawaian if emp and emp.nik_kepegawaian else u.nik) or "",
+        "is_active": emp.is_active if (emp and emp.is_active is not None) else u.is_active,
+        "role_id": u.role_id,
+        "role": u.role,
+        "employee_id": emp.id if emp else None,
+        "nuptk": emp.nuptk if emp else None,
+        "nip": emp.nip if emp else None,
+        "position": (emp.position if emp and emp.position else "Guru") or "Guru",
+        "employee_type": (emp.employee_type if emp and emp.employee_type else "tetap") or "tetap",
+        "unit_id": unit_id,
+        "unit_name": unit_name,
+        "photo_url": emp.photo_url if emp else None,
+        "no_hp": emp.no_hp if emp else None,
+        "gender": emp.jenis_kelamin if emp else None,
+    }
+
 @app.get("/academic/teachers", response_model=List[schemas.Teacher])
-async def get_teachers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+async def get_teachers(
+    unit_id: Optional[int] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
     guru_role = db.query(models.Role).filter(models.Role.code == "guru").first()
-    if not guru_role:
-        return []
     
-    teachers = db.query(models.User).filter(models.User.role_id == guru_role.id).offset(skip).limit(limit).all()
-    return teachers
+    # 1. Query Employees who are teachers (role is guru OR position has guru/pengajar/ustadz/tahfidz/nuptk)
+    emp_query = db.query(models.Employee).options(
+        joinedload(models.Employee.user).joinedload(models.User.role),
+        joinedload(models.Employee.unit)
+    )
+    
+    if unit_id:
+        emp_query = emp_query.filter(models.Employee.unit_id == unit_id)
+        
+    all_emps = emp_query.all()
+    
+    teacher_emps = []
+    for emp in all_emps:
+        is_guru_role = emp.user and emp.user.role and emp.user.role.code == "guru"
+        pos_lower = (emp.position or "").lower()
+        has_guru_pos = any(k in pos_lower for k in ["guru", "pengajar", "ustadz", "ustadzah", "tahfidz", "wali kelas"])
+        has_nuptk = bool(emp.nuptk and emp.nuptk.strip())
+        
+        if is_guru_role or has_guru_pos or has_nuptk:
+            teacher_emps.append(emp)
+
+    results = []
+    seen_user_ids = set()
+
+    for emp in teacher_emps:
+        # Ensure user account exists
+        u = emp.user
+        if not u:
+            # Auto-link or auto-create User account for employee if missing
+            u = db.query(models.User).filter(models.User.nik == emp.nik_kepegawaian).first()
+            if not u:
+                pw_plain = emp.tanggal_lahir.strftime("%d%m%Y") if emp.tanggal_lahir else "password123"
+                u = models.User(
+                    nik=emp.nik_kepegawaian,
+                    full_name=emp.nama_lengkap,
+                    password_hash=auth.get_password_hash(pw_plain),
+                    role_id=guru_role.id if guru_role else None,
+                    is_active=emp.is_active if emp.is_active is not None else True,
+                    must_change_password=True
+                )
+                db.add(u)
+                db.flush()
+            emp.user_id = u.id
+            db.commit()
+            db.refresh(emp)
+
+        seen_user_ids.add(u.id)
+        results.append(_format_teacher_response(u, emp))
+
+    # 2. Also query Users with role 'guru' who might not have an Employee record yet
+    if guru_role:
+        u_query = db.query(models.User).options(
+            joinedload(models.User.role),
+            joinedload(models.User.unit_assignments).joinedload(models.UserUnit.unit)
+        ).filter(models.User.role_id == guru_role.id)
+        
+        if seen_user_ids:
+            u_query = u_query.filter(~models.User.id.in_(seen_user_ids))
+            
+        orphan_gurus = u_query.all()
+        for u in orphan_gurus:
+            # Check unit filter if requested
+            if unit_id:
+                has_unit = any(ua.unit_id == unit_id for ua in u.unit_assignments)
+                if not has_unit:
+                    continue
+            results.append(_format_teacher_response(u, None))
+
+    # Optional search filtering in memory
+    if search:
+        s = search.lower().strip()
+        results = [
+            t for t in results
+            if s in (t["full_name"] or "").lower()
+            or s in (t["nik"] or "").lower()
+            or s in (t["nuptk"] or "").lower()
+            or s in (t["position"] or "").lower()
+        ]
+
+    # Sort alphabetically by name
+    results.sort(key=lambda x: (x["full_name"] or "").lower())
+    return results
+
+@app.get("/academic/teachers/candidates")
+async def get_teacher_candidates(db: Session = Depends(get_db)):
+    """Returns employees from SDM who are not yet assigned as Guru."""
+    guru_role = db.query(models.Role).filter(models.Role.code == "guru").first()
+    
+    # Get all active employees
+    emps = db.query(models.Employee).options(
+        joinedload(models.Employee.user).joinedload(models.User.role),
+        joinedload(models.Employee.unit)
+    ).filter(or_(models.Employee.is_active == True, models.Employee.is_active.is_(None))).order_by(models.Employee.nama_lengkap.asc()).all()
+    
+    candidates = []
+    for emp in emps:
+        is_guru_role = emp.user and emp.user.role and emp.user.role.code == "guru"
+        pos_lower = (emp.position or "").lower()
+        has_guru_pos = any(k in pos_lower for k in ["guru", "pengajar", "ustadz", "ustadzah", "tahfidz", "wali kelas"])
+        
+        # Candidate is someone who isn't already recognized as guru
+        if not (is_guru_role or has_guru_pos):
+            candidates.append({
+                "id": emp.id,
+                "nama_lengkap": emp.nama_lengkap,
+                "nik_kepegawaian": emp.nik_kepegawaian,
+                "position": emp.position or "Staf",
+                "unit_id": emp.unit_id,
+                "unit_name": emp.unit.name if emp.unit else "-",
+                "user_id": emp.user_id
+            })
+            
+    return candidates
 
 @app.post("/academic/teachers", response_model=schemas.Teacher)
 async def create_teacher(teacher: schemas.TeacherCreate, db: Session = Depends(get_db)):
-    # 1. Get Guru Role
     guru_role = db.query(models.Role).filter(models.Role.code == "guru").first()
     if not guru_role:
-        raise HTTPException(status_code=400, detail="Role 'guru' not found in system")
+        raise HTTPException(status_code=400, detail="Role 'guru' belum tersedia di sistem")
 
-    # 2. Create User
-    hashed_pw = auth.get_password_hash(teacher.password)
+    # CASE A: Linking an existing Employee from SDM
+    if teacher.employee_id:
+        emp = db.query(models.Employee).options(joinedload(models.Employee.unit)).filter(models.Employee.id == teacher.employee_id).first()
+        if not emp:
+            raise HTTPException(status_code=404, detail="Data pegawai tidak ditemukan")
+            
+        u = emp.user
+        if not u:
+            u = db.query(models.User).filter(models.User.nik == emp.nik_kepegawaian).first()
+            if not u:
+                pw_plain = teacher.password or (emp.tanggal_lahir.strftime("%d%m%Y") if emp.tanggal_lahir else "password123")
+                u = models.User(
+                    nik=emp.nik_kepegawaian,
+                    full_name=emp.nama_lengkap,
+                    email=teacher.email or (emp.user.email if hasattr(emp, 'user') and emp.user else None),
+                    password_hash=auth.get_password_hash(pw_plain),
+                    role_id=guru_role.id,
+                    is_active=True,
+                    must_change_password=True
+                )
+                db.add(u)
+                db.flush()
+            emp.user_id = u.id
+            
+        u.role_id = guru_role.id
+        if teacher.email:
+            u.email = teacher.email
+            
+        # Update position if provided or currently not guru
+        if teacher.position:
+            emp.position = teacher.position
+        elif not emp.position or "guru" not in emp.position.lower():
+            emp.position = "Guru"
+            
+        if teacher.unit_id:
+            emp.unit_id = teacher.unit_id
+            
+        # Update / add user unit
+        target_unit_id = teacher.unit_id or emp.unit_id
+        if target_unit_id:
+            existing_ua = db.query(models.UserUnit).filter(models.UserUnit.user_id == u.id, models.UserUnit.unit_id == target_unit_id).first()
+            if not existing_ua:
+                db.add(models.UserUnit(user_id=u.id, unit_id=target_unit_id, is_primary=True))
+                
+        db.commit()
+        db.refresh(u)
+        db.refresh(emp)
+        return _format_teacher_response(u, emp)
+
+    # CASE B: Creating fresh new teacher (creates both User and Employee)
+    if teacher.nik:
+        existing_u = db.query(models.User).filter(models.User.nik == teacher.nik).first()
+        if existing_u:
+            raise HTTPException(status_code=400, detail=f"NIK {teacher.nik} sudah terdaftar pada pengguna lain")
+        existing_emp = db.query(models.Employee).filter(models.Employee.nik_kepegawaian == teacher.nik).first()
+        if existing_emp:
+            raise HTTPException(status_code=400, detail=f"NIK {teacher.nik} sudah terdaftar di data pegawai SDM")
+
+    pw_plain = teacher.password or "password123"
+    hashed_pw = auth.get_password_hash(pw_plain)
+    
     db_user = models.User(
         email=teacher.email,
         full_name=teacher.full_name,
         nik=teacher.nik,
         password_hash=hashed_pw,
-        role_id=guru_role.id
+        role_id=guru_role.id,
+        is_active=True,
+        must_change_password=True
     )
     db.add(db_user)
+    db.flush()
+
+    # Create matching Employee profile
+    db_emp = models.Employee(
+        user_id=db_user.id,
+        nama_lengkap=teacher.full_name,
+        nik_kepegawaian=teacher.nik,
+        nuptk=teacher.nuptk,
+        nip=teacher.nip,
+        position=teacher.position or "Guru",
+        employee_type=teacher.employee_type or "tetap",
+        unit_id=teacher.unit_id,
+        no_hp=teacher.no_hp,
+        is_active=True
+    )
+    db.add(db_emp)
+
+    if teacher.unit_id:
+        db.add(models.UserUnit(user_id=db_user.id, unit_id=teacher.unit_id, is_primary=True))
+
     db.commit()
     db.refresh(db_user)
+    db.refresh(db_emp)
+    return _format_teacher_response(db_user, db_emp)
 
-    # 3. Assign directly to Unit (Assuming unit exists)
-    db_assignment = models.UserUnit(
-        user_id=db_user.id,
-        unit_id=teacher.unit_id,
-        is_primary=True
-    )
-    db.add(db_assignment)
+@app.put("/academic/teachers/{teacher_id}", response_model=schemas.Teacher)
+async def update_teacher(teacher_id: int, payload: schemas.TeacherUpdate, db: Session = Depends(get_db)):
+    u = db.query(models.User).options(
+        joinedload(models.User.role),
+        joinedload(models.User.employee),
+        joinedload(models.User.unit_assignments)
+    ).filter(models.User.id == teacher_id).first()
+    
+    if not u:
+        raise HTTPException(status_code=404, detail="Guru tidak ditemukan")
+
+    if payload.full_name:
+        u.full_name = payload.full_name
+    if payload.email is not None:
+        u.email = payload.email or None
+    if payload.nik:
+        u.nik = payload.nik
+    if payload.is_active is not None:
+        u.is_active = payload.is_active
+    if payload.password and payload.password.strip():
+        u.password_hash = auth.get_password_hash(payload.password.strip())
+
+    emp = u.employee
+    if not emp:
+        emp = models.Employee(
+            user_id=u.id,
+            nama_lengkap=u.full_name,
+            nik_kepegawaian=u.nik,
+            position=payload.position or "Guru",
+            unit_id=payload.unit_id,
+            is_active=u.is_active
+        )
+        db.add(emp)
+        db.flush()
+
+    if payload.full_name:
+        emp.nama_lengkap = payload.full_name
+    if payload.nik:
+        emp.nik_kepegawaian = payload.nik
+    if payload.position:
+        emp.position = payload.position
+    if payload.unit_id is not None:
+        emp.unit_id = payload.unit_id
+    if payload.nuptk is not None:
+        emp.nuptk = payload.nuptk.strip() or None
+    if payload.nip is not None:
+        emp.nip = payload.nip.strip() or None
+    if payload.no_hp is not None:
+        emp.no_hp = payload.no_hp
+    if payload.employee_type:
+        emp.employee_type = payload.employee_type
+    if payload.is_active is not None:
+        emp.is_active = payload.is_active
+
+    target_unit_id = payload.unit_id or emp.unit_id
+    if target_unit_id:
+        ua = db.query(models.UserUnit).filter(models.UserUnit.user_id == u.id).first()
+        if ua:
+            ua.unit_id = target_unit_id
+        else:
+            db.add(models.UserUnit(user_id=u.id, unit_id=target_unit_id, is_primary=True))
+
     db.commit()
+    db.refresh(u)
+    db.refresh(emp)
+    return _format_teacher_response(u, emp)
 
-    return db_user
+@app.delete("/academic/teachers/{teacher_id}")
+async def delete_teacher(teacher_id: int, db: Session = Depends(get_db)):
+    u = db.query(models.User).filter(models.User.id == teacher_id).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="Guru tidak ditemukan")
+
+    active_classroom = db.query(models.Classroom).filter(models.Classroom.homeroom_teacher_id == teacher_id).first()
+    if active_classroom:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tidak dapat menghapus: Guru ini masih tercatat sebagai Wali Kelas di '{active_classroom.name}'. Silakan ganti wali kelas terlebih dahulu atau nonaktifkan status aktifnya."
+        )
+
+    active_schedule = db.query(models.Schedule).filter(models.Schedule.teacher_id == teacher_id).first()
+    if active_schedule:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tidak dapat menghapus: Guru ini masih memiliki Jadwal Pelajaran aktif. Silakan hapus/pindahkan jadwal mengajarnya terlebih dahulu atau nonaktifkan status aktifnya."
+        )
+
+    emp = db.query(models.Employee).filter(models.Employee.user_id == teacher_id).first()
+    karyawan_role = db.query(models.Role).filter(models.Role.code == "karyawan").first()
+
+    if emp:
+        if karyawan_role:
+            u.role_id = karyawan_role.id
+        if emp.position and "guru" in emp.position.lower():
+            emp.position = "Karyawan"
+        db.commit()
+        return {"message": "Status penugasan guru berhasil dicabut. Akun dan data pegawai tetap tersimpan sebagai staf/karyawan."}
+    else:
+        db.query(models.UserUnit).filter(models.UserUnit.user_id == teacher_id).delete()
+        db.delete(u)
+        db.commit()
+        return {"message": "Data guru berhasil dihapus dari sistem."}
 
 # --- Subject Routes ---
 @app.get("/academic/subjects", response_model=List[schemas.Subject])
