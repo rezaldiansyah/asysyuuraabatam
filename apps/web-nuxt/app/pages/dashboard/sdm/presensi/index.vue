@@ -215,6 +215,29 @@
       </template>
     </Card>
 
+    <!-- Holiday Banner if selected date is Sunday or Academic Holiday -->
+    <div 
+      v-if="dateInfo?.is_holiday"
+      class="p-3.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-sky-900 dark:text-sky-200 text-xs flex items-center justify-between gap-3 shadow-xs"
+    >
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-sky-100 dark:bg-sky-900/60 text-sky-600 dark:text-sky-400 flex items-center justify-center text-base shrink-0 shadow-xs">
+          <i class="pi pi-sun"></i>
+        </div>
+        <div>
+          <div class="font-bold flex items-center gap-2">
+            <span class="text-sm text-sky-950 dark:text-white">{{ dateInfo.holiday_desc }}</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-sky-200/80 dark:bg-sky-800 text-sky-800 dark:text-sky-200 font-bold uppercase tracking-wider">
+              Hari Libur
+            </span>
+          </div>
+          <p class="text-[11px] text-sky-700 dark:text-sky-300 mt-0.5">
+            Jam kerja reguler diliburkan (tidak ada potongan alpa). Kehadiran guru piket atau pelatih lomba yang hadir tetap dicatat dengan jam longgar/fleksibel.
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- Status Banner: Saved in Database vs Draft/Unsaved -->
     <div 
       v-if="attendances.length > 0"
@@ -926,21 +949,25 @@
               class="p-3.5 rounded-xl border text-xs space-y-1.5"
               :class="log.status === 'failed' 
                 ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800' 
-                : log.status === 'partial' || log.status === 'empty'
-                  ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
-                  : 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'"
+                : log.status === 'holiday'
+                  ? 'bg-sky-50/70 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800'
+                  : log.status === 'partial' || log.status === 'empty' || log.status === 'likely_holiday'
+                    ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
+                    : 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'"
             >
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2">
                   <span 
                     class="px-2 py-0.5 rounded font-bold uppercase text-[10px]"
                     :class="log.status === 'failed' 
-                      ? 'bg-rose-200 text-rose-800' 
-                      : log.status === 'empty' || log.status === 'partial'
-                        ? 'bg-amber-200 text-amber-800'
-                        : 'bg-emerald-200 text-emerald-800'"
+                      ? 'bg-rose-200 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200' 
+                      : log.status === 'holiday'
+                        ? 'bg-sky-200 text-sky-800 dark:bg-sky-900/60 dark:text-sky-200'
+                        : log.status === 'empty' || log.status === 'partial' || log.status === 'likely_holiday'
+                          ? 'bg-amber-200 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200'
+                          : 'bg-emerald-200 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200'"
                   >
-                    {{ log.status === 'failed' ? 'GAGAL' : log.status === 'empty' ? 'DATA KOSONG' : log.status === 'partial' ? 'SEBAGIAN' : 'BERHASIL' }}
+                    {{ log.status === 'failed' ? 'GAGAL' : log.status === 'holiday' ? 'HARI LIBUR' : log.status === 'likely_holiday' ? 'DIDUGA LIBUR' : log.status === 'empty' ? 'DATA KOSONG' : log.status === 'partial' ? 'SEBAGIAN' : 'BERHASIL' }}
                   </span>
                   <span 
                     class="px-2 py-0.5 rounded font-semibold text-[10px] uppercase"
@@ -1275,6 +1302,15 @@ const saving = ref(false)
 const syncingFingerprint = ref(false)
 const isSavedInDb = ref(false)
 
+// Holiday & Calendar info for active date
+const dateInfo = ref<{
+  date: string
+  day_name: string
+  is_holiday: boolean
+  holiday_desc: string
+  is_sunday: boolean
+} | null>(null)
+
 // Work Hours & Late Tolerance State
 const showWorkHoursDialog = ref(false)
 const savingWorkHours = ref(false)
@@ -1566,6 +1602,13 @@ const fetchData = async () => {
   loading.value = true
   try {
     const dateStr = formatLocalDate(filterDate.value)
+
+    // Fetch date info & holiday calendar status
+    try {
+      dateInfo.value = await api.get<any>(`/sdm/attendance/date-info?date=${dateStr}`)
+    } catch {
+      dateInfo.value = null
+    }
     
     // Fetch active employees
     const empQuery = new URLSearchParams({ is_active: 'true' })
@@ -1583,6 +1626,11 @@ const fetchData = async () => {
     isSavedInDb.value = existingAtts.length > 0
     
     // Merge data: If record exists in DB, use its real status & check-in. If not, mark as UNRECORDED
+    const isHolidayDay = Boolean(dateInfo.value?.is_holiday)
+    const defaultNote = isHolidayDay 
+      ? `Libur: ${dateInfo.value?.holiday_desc || 'Hari Libur'}` 
+      : 'Tidak ada data di Fingerprint'
+
     attendances.value = (emps || []).map(emp => {
       const existing = existingAtts.find((a: any) => a.employee_id === emp.id)
       
@@ -1594,8 +1642,12 @@ const fetchData = async () => {
         if (existing.check_out) check_out = new Date(existing.check_out)
       }
 
-      const rawNotes = existing?.notes || (existing ? 'Tidak ada data di Fingerprint' : '')
-      const isAutoLocked = (existing?.check_in_distance != null) || rawNotes.includes('Sinkronisasi Fingerprint') || rawNotes.includes('Presensi Mandiri GPS')
+      const rawNotes = existing?.notes || (existing ? (isHolidayDay ? defaultNote : 'Tidak ada data di Fingerprint') : '')
+      const isAutoLocked = (existing?.check_in_distance != null) 
+        || rawNotes.includes('Sinkronisasi Fingerprint') 
+        || rawNotes.includes('Presensi Mandiri GPS')
+        || rawNotes.includes('Piket')
+        || rawNotes.includes('Hari Libur')
       
       return {
         employee_id: emp.id,
@@ -1608,7 +1660,7 @@ const fetchData = async () => {
         check_in: check_in,
         check_out: check_out,
         check_in_distance: existing?.check_in_distance,
-        notes: isAutoLocked ? (rawNotes || `Presensi Mandiri GPS (Jarak ${existing?.check_in_distance}m)`) : (rawNotes || 'Tidak ada data di Fingerprint'),
+        notes: isAutoLocked ? (rawNotes || `Presensi Mandiri GPS (Jarak ${existing?.check_in_distance}m)`) : (rawNotes || defaultNote),
         manual_notes: isAutoLocked ? '' : extractManualNote(rawNotes)
       }
     })

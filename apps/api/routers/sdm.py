@@ -1506,11 +1506,56 @@ async def get_fingerprint_sync_logs(
     return []
 
 
-def _mark_missing_fingerprint_employees(db: Session, target_date: date) -> int:
+
+def _check_is_holiday(db: Session, target_date: date) -> tuple[bool, str]:
+    """
+    Check if target_date is a designated holiday:
+    1. Weekly routine holiday: Sunday / Ahad (target_date.weekday() == 6)
+    2. Academic Calendar Holiday: AcademicCalendarEvent with is_holiday == True
+       covering target_date (between date and end_date, or exact date).
+    Returns (is_holiday: bool, description: str).
+    """
+    # 1. Weekly routine holiday: Sunday
+    if target_date.weekday() == 6:
+        return True, "Hari Libur Rutin (Ahad)"
+
+    # 2. Check Academic Calendar
+    try:
+        t_start = datetime.combine(target_date, datetime.min.time())
+        t_end = datetime.combine(target_date, datetime.max.time())
+        events = db.query(models.AcademicCalendarEvent).filter(
+            models.AcademicCalendarEvent.is_holiday == True,
+            models.AcademicCalendarEvent.date <= t_end
+        ).all()
+
+        for ev in events:
+            ev_start = ev.date.date() if hasattr(ev.date, "date") else ev.date
+            ev_end = ev.end_date.date() if (ev.end_date and hasattr(ev.end_date, "date")) else ev_start
+            if ev_start <= target_date <= ev_end:
+                desc = ev.description or "Libur Kalender Pendidikan"
+                return True, desc
+    except Exception:
+        pass
+
+    return False, ""
+
+
+def _mark_missing_fingerprint_employees(
+    db: Session, 
+    target_date: date,
+    is_holiday_day: bool = False,
+    is_likely_holiday: bool = False,
+    holiday_desc: str = ""
+) -> int:
     """
     Ensure any active employee who had NO tap in the fingerprint machine on target_date
     has a note stating 'Tidak ada data di Fingerprint' so Admin must fill their status & reason manually.
+    CRITICAL: If target_date is a designated holiday or detected likely holiday (>90% no tap),
+    DO NOT mark employees as ABSENT / Alpa!
     """
+    if is_holiday_day or is_likely_holiday:
+        return 0
+
     active_emps = db.query(models.Employee).filter(
         or_(models.Employee.is_active == True, models.Employee.is_active.is_(None))
     ).all()
@@ -1549,6 +1594,8 @@ def _mark_missing_fingerprint_employees(db: Session, target_date: date) -> int:
                 row.check_in_distance is not None
                 or "Sinkronisasi Fingerprint" in curr_note
                 or "Presensi Mandiri GPS" in curr_note
+                or "Piket" in curr_note
+                or "Hari Libur" in curr_note
             )
             if not is_auto and not curr_note:
                 row.notes = "Tidak ada data di Fingerprint"
@@ -1557,6 +1604,34 @@ def _mark_missing_fingerprint_employees(db: Session, target_date: date) -> int:
     if marked_count > 0:
         db.commit()
     return marked_count
+
+
+@router.get("/attendance/date-info")
+async def get_attendance_date_info(
+    date: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Check holiday and calendar info for a specific date (used by presensi UI & sync)."""
+    from datetime import timezone, timedelta
+    wib_now = datetime.now(timezone(timedelta(hours=7)))
+    d_str = date or wib_now.strftime("%Y-%m-%d")
+    try:
+        t_date = datetime.strptime(d_str, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Format date tidak valid. Gunakan YYYY-MM-DD.")
+
+    is_holiday, holiday_desc = _check_is_holiday(db, t_date)
+    day_names = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Ahad"]
+    day_name = day_names[t_date.weekday()]
+
+    return {
+        "date": d_str,
+        "day_name": day_name,
+        "is_holiday": is_holiday,
+        "holiday_desc": holiday_desc,
+        "is_sunday": t_date.weekday() == 6
+    }
+
 
 
 @router.post("/attendance/sync-logs")
@@ -1813,7 +1888,9 @@ def _save_single_employee_punches(
     sh: int,
     sm: int,
     tol_mins: int = 0,
-    auto_commit: bool = True
+    auto_commit: bool = True,
+    is_holiday_day: bool = False,
+    holiday_desc: str = ""
 ) -> tuple[str, str, Optional[str], Optional[str]]:
     """Save a single employee's grouped punches to DB and return (action, status_str, check_in_str, check_out_str)."""
     punches.sort()
@@ -1835,18 +1912,33 @@ def _save_single_employee_punches(
             check_out_dt = last_punch
 
     status_val = models.AttendanceStatus.PRESENT
-    if check_in_dt:
-        cutoff_minutes = (sh * 60) + sm + max(0, tol_mins)
-        checkin_minutes = (check_in_dt.hour * 60) + check_in_dt.minute
-        if checkin_minutes > cutoff_minutes:
-            status_val = models.AttendanceStatus.LATE
+    if not is_holiday_day:
+        if check_in_dt:
+            cutoff_minutes = (sh * 60) + sm + max(0, tol_mins)
+            checkin_minutes = (check_in_dt.hour * 60) + check_in_dt.minute
+            if checkin_minutes > cutoff_minutes:
+                status_val = models.AttendanceStatus.LATE
+        note_tag = f"Sinkronisasi Fingerprint ({len(punches)}x tap)"
+    else:
+        # On holidays/Sundays/Semester breaks:
+        # Flexible hours for piket teachers, competition trainers, maintenance staff.
+        # No late penalty (always PRESENT), and note duration at school.
+        status_val = models.AttendanceStatus.PRESENT
+        h_label = holiday_desc or "Hari Libur"
+        duration_info = ""
+        if check_in_dt and check_out_dt and check_in_dt != check_out_dt:
+            diff_sec = (check_out_dt - check_in_dt).total_seconds()
+            hours = int(diff_sec // 3600)
+            mins = int((diff_sec % 3600) // 60)
+            duration_info = f", Durasi: {hours}j {mins}m"
+            if hours >= 4:
+                duration_info += " [Piket/Tugas Cukup]"
+        note_tag = f"Piket / Tugas Hari Libur ({h_label}{duration_info}) - {len(punches)}x tap"
 
     existing = db.query(models.EmployeeAttendance).filter(
         models.EmployeeAttendance.employee_id == emp_id,
         models.EmployeeAttendance.date == target_date
     ).first()
-
-    note_tag = f"Sinkronisasi Fingerprint ({len(punches)}x tap)"
 
     if existing:
         curr_status = existing.status.value if hasattr(existing.status, "value") else str(existing.status)
@@ -1856,7 +1948,7 @@ def _save_single_employee_punches(
             existing.check_in = check_in_dt
         if check_out_dt and (not existing.check_out or check_out_dt > existing.check_out):
             existing.check_out = check_out_dt
-        if not existing.notes or "Sinkronisasi Fingerprint" in existing.notes or "Tidak ada data di Fingerprint" in existing.notes:
+        if not existing.notes or "Sinkronisasi Fingerprint" in existing.notes or "Tidak ada data di Fingerprint" in existing.notes or "Piket / Tugas Hari Libur" in existing.notes:
             existing.notes = note_tag
         action = "updated"
     else:
@@ -1899,6 +1991,11 @@ async def sync_fingerprint_attendance(
     - mode="fetch_raw": Only fetches raw logs & matches employee queue so frontend can process 1-by-1 with progress bar.
     - mode="process_one": Processes a single employee's punches (step-by-step from frontend).
     - mode="all" (default / cron): Processes employee by employee sequentially with a small delay and logs the result.
+    Features:
+    - Auto-skips routine Sunday and Academic Calendar holidays on Cron.
+    - Loose hours & duration calculation for holiday piket / competition trainers.
+    - Auto-detects likely holidays (>90% no tap) and prevents mass Alpa.
+    - Auto-catchup missed/failed sync from previous working day.
     """
     import time
     from datetime import timezone, timedelta
@@ -1913,6 +2010,8 @@ async def sync_fingerprint_attendance(
         target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
     except ValueError:
         raise HTTPException(status_code=400, detail="Format tanggal tidak valid. Gunakan YYYY-MM-DD.")
+
+    is_holiday, holiday_desc = _check_is_holiday(db, target_date)
 
     geofence = get_geofence_config(db)
     work_start = geofence.get("work_start_time", "07:30")
@@ -1936,7 +2035,10 @@ async def sync_fingerprint_attendance(
                 pass
         if not punches:
             raise HTTPException(status_code=400, detail="Format waktu tap tidak valid.")
-        action, st_val, c_in, c_out = _save_single_employee_punches(db, req.employee_id, punches, target_date, sh, sm, tol_mins)
+        action, st_val, c_in, c_out = _save_single_employee_punches(
+            db, req.employee_id, punches, target_date, sh, sm, tol_mins,
+            is_holiday_day=is_holiday, holiday_desc=holiday_desc
+        )
         return {
             "status": "success",
             "employee_id": req.employee_id,
@@ -1946,10 +2048,105 @@ async def sync_fingerprint_attendance(
             "check_out": c_out
         }
 
+    # CRON AUTO-SKIP ON HOLIDAY (Ahad / Libur Semester / Libur Ramadhan)
+    if source == "cron" and is_holiday:
+        holiday_msg = f"Hari Libur ({holiday_desc}) — Sinkronisasi mesin otomatis dilewati."
+        if should_record:
+            _append_fingerprint_sync_log(db, {
+                "id": f"sync-{int(wib_now.timestamp() * 1000)}",
+                "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
+                "date_target": date_str,
+                "source": source,
+                "status": "holiday",
+                "raw_count": 0,
+                "synced_employees": 0,
+                "failed_employees": 0,
+                "unmatched_logs": [],
+                "message": holiday_msg,
+                "error_detail": None
+            })
+        return {
+            "status": "holiday",
+            "date": date_str,
+            "raw_count": 0,
+            "synced_employees": 0,
+            "queue": [],
+            "unmatched_logs": [],
+            "message": holiday_msg
+        }
+
+    # AUTO-CATCHUP: On Cron working days, check if previous working day was missed or failed
+    if source == "cron" and not is_holiday:
+        try:
+            prev_day = target_date - timedelta(days=1)
+            p_holiday, _ = _check_is_holiday(db, prev_day)
+            # If yesterday was Sunday, check Saturday instead
+            if p_holiday and prev_day.weekday() == 6:
+                prev_day = target_date - timedelta(days=2)
+                p_holiday, _ = _check_is_holiday(db, prev_day)
+
+            if not p_holiday:
+                p_date_str = prev_day.strftime("%Y-%m-%d")
+                recent_logs = await get_fingerprint_sync_logs(limit=25, db=db)
+                p_logs = [l for l in (recent_logs or []) if l.get("date_target") == p_date_str]
+                has_success = any(l.get("status") in ("success", "partial", "empty", "holiday") for l in p_logs)
+                if not has_success:
+                    try:
+                        raw_prev = _fetch_sdit_fingerprint_logs(p_date_str, timeout_sec=8)
+                        if raw_prev:
+                            p_emp_punches, p_emp_map, _ = _match_and_group_punches(db, raw_prev, prev_day)
+                            for p_emp_id, p_punches in p_emp_punches.items():
+                                _save_single_employee_punches(db, p_emp_id, p_punches, prev_day, sh, sm, tol_mins, auto_commit=False)
+                            db.commit()
+                            _mark_missing_fingerprint_employees(db, prev_day)
+                            _append_fingerprint_sync_log(db, {
+                                "id": f"sync-catchup-{int(wib_now.timestamp() * 1000)}",
+                                "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
+                                "date_target": p_date_str,
+                                "source": "cron",
+                                "status": "success",
+                                "raw_count": len(raw_prev),
+                                "synced_employees": len(p_emp_punches),
+                                "failed_employees": 0,
+                                "unmatched_logs": [],
+                                "message": f"[Auto-Catchup] Berhasil menarik data susulan hari kerja kemarin ({p_date_str}) untuk {len(p_emp_punches)} pegawai.",
+                                "error_detail": None
+                            })
+                    except Exception:
+                        db.rollback()
+        except Exception:
+            pass
+
     # Fetch raw logs from sdit.asysyuuraa.my.id (12s strict timeout to prevent Gunicorn 30s worker kill)
     try:
         raw_logs = _fetch_sdit_fingerprint_logs(date_str, timeout_sec=12)
     except Exception as e:
+        if is_holiday:
+            h_msg = f"Mesin presensi tidak merespons pada Hari Libur ({holiday_desc})."
+            if should_record:
+                _append_fingerprint_sync_log(db, {
+                    "id": f"sync-{int(wib_now.timestamp() * 1000)}",
+                    "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
+                    "date_target": date_str,
+                    "source": source,
+                    "status": "holiday",
+                    "raw_count": 0,
+                    "synced_employees": 0,
+                    "failed_employees": 0,
+                    "unmatched_logs": [],
+                    "message": h_msg,
+                    "error_detail": str(e)
+                })
+            return {
+                "status": "holiday",
+                "date": date_str,
+                "raw_count": 0,
+                "synced_employees": 0,
+                "queue": [],
+                "unmatched_logs": [],
+                "message": h_msg
+            }
+
         err_msg = f"Gagal menghubungi server mesin presensi (sdit.asysyuuraa.my.id / 192.168.188.222): {str(e)}"
         if should_record:
             _append_fingerprint_sync_log(db, {
@@ -1969,13 +2166,17 @@ async def sync_fingerprint_attendance(
 
     if not raw_logs:
         empty_msg = f"Tidak ditemukan data tap fingerprint pada tanggal {date_str}."
+        if is_holiday:
+            empty_msg = f"Tidak ada data tap fingerprint pada Hari Libur ({holiday_desc})."
+
+        status_empty = "holiday" if is_holiday else "empty"
         if should_record:
             _append_fingerprint_sync_log(db, {
                 "id": f"sync-{int(wib_now.timestamp() * 1000)}",
                 "timestamp": wib_now.strftime("%Y-%m-%d %H:%M:%S WIB"),
                 "date_target": date_str,
                 "source": source,
-                "status": "empty",
+                "status": status_empty,
                 "raw_count": 0,
                 "synced_employees": 0,
                 "failed_employees": 0,
@@ -1984,7 +2185,7 @@ async def sync_fingerprint_attendance(
                 "error_detail": None
             })
         return {
-            "status": "empty",
+            "status": status_empty,
             "date": date_str,
             "raw_count": 0,
             "synced_employees": 0,
@@ -1994,6 +2195,17 @@ async def sync_fingerprint_attendance(
         }
 
     emp_punches, emp_map, unmatched_list = _match_and_group_punches(db, raw_logs, target_date)
+
+    # Smart Heuristic: Detect unexpected holidays (>90% missing tap on working days)
+    active_emp_count = db.query(models.Employee).filter(
+        or_(models.Employee.is_active == True, models.Employee.is_active.is_(None))
+    ).count()
+
+    is_likely_holiday = False
+    if not is_holiday and active_emp_count > 0:
+        if len(emp_punches) > 0 and (len(emp_punches) / active_emp_count) < 0.10:
+            is_likely_holiday = True
+            holiday_desc = f"Diduga Hari Libur / Diliburkan (Hanya {len(emp_punches)}/{active_emp_count} pegawai tap)"
 
     # MODE 2: Return matched queue to frontend so UI can process one by one with live progress bar
     if mode == "fetch_raw":
@@ -2007,13 +2219,15 @@ async def sync_fingerprint_attendance(
                 "punches": [{"timestamp": p.strftime("%Y-%m-%d %H:%M:%S")} for p in sorted(punches)]
             })
         return {
-            "status": "success",
+            "status": "holiday" if is_holiday else ("likely_holiday" if is_likely_holiday else "success"),
             "date": date_str,
+            "is_holiday": is_holiday or is_likely_holiday,
+            "holiday_desc": holiday_desc,
             "raw_count": len(raw_logs),
             "synced_employees": len(queue),
             "queue": queue,
             "unmatched_logs": unmatched_list,
-            "message": f"Ditemukan {len(raw_logs)} log untuk {len(queue)} pegawai. Memulai pemrosesan satu per satu..."
+            "message": f"Ditemukan {len(raw_logs)} log untuk {len(queue)} pegawai{' pada Hari Libur (' + holiday_desc + ')' if (is_holiday or is_likely_holiday) else ''}. Memulai pemrosesan..."
         }
 
     # MODE 3: Sequential one-by-one processing (for Cron Job or direct call)
@@ -2024,7 +2238,12 @@ async def sync_fingerprint_attendance(
 
     for emp_id, punches in emp_punches.items():
         try:
-            action, _, _, _ = _save_single_employee_punches(db, emp_id, punches, target_date, sh, sm, tol_mins, auto_commit=False)
+            action, _, _, _ = _save_single_employee_punches(
+                db, emp_id, punches, target_date, sh, sm, tol_mins,
+                auto_commit=False,
+                is_holiday_day=(is_holiday or is_likely_holiday),
+                holiday_desc=holiday_desc
+            )
             if action == "created":
                 created_count += 1
             else:
@@ -2041,14 +2260,28 @@ async def sync_fingerprint_attendance(
         db.rollback()
 
     # Mark remaining active employees who had NO fingerprint data on target_date
+    # CRITICAL: If target_date is a designated holiday or likely holiday (>90% no tap), DO NOT mark employees as ABSENT!
     try:
-        _mark_missing_fingerprint_employees(db, target_date)
+        _mark_missing_fingerprint_employees(
+            db, target_date,
+            is_holiday_day=is_holiday,
+            is_likely_holiday=is_likely_holiday,
+            holiday_desc=holiday_desc
+        )
     except Exception:
         db.rollback()
 
-    final_status = "success" if failed_count == 0 else ("partial" if (created_count + updated_count) > 0 else "failed")
+    if is_holiday:
+        final_status = "holiday"
+    elif is_likely_holiday:
+        final_status = "likely_holiday"
+    else:
+        final_status = "success" if failed_count == 0 else ("partial" if (created_count + updated_count) > 0 else "failed")
+
     summary_msg = f"Berhasil menyinkronkan {created_count + updated_count} pegawai dari {len(raw_logs)} log mesin fingerprint pada tanggal {date_str}."
-    if failed_count > 0:
+    if is_holiday or is_likely_holiday:
+        summary_msg = f"Kehadiran Hari Libur ({holiday_desc}): Berhasil mencatat {created_count + updated_count} pegawai piket/kegiatan dari {len(raw_logs)} log mesin."
+    elif failed_count > 0:
         summary_msg += f" ({failed_count} gagal diproses)"
 
     if should_record:
