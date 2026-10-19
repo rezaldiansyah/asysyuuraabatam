@@ -164,6 +164,52 @@ def run_migrations_on_startup():
     except Exception as e:
         print(f"[Startup] Sync meeting action items note: {e}")
 
+    # 5. Auto-migrate letterhead logo from 'uploads/' to 'branding/logo/' in Cloudflare R2
+    try:
+        from storage import is_r2_configured, copy_r2_object, check_r2_object_exists, delete_r2_object
+        import json
+        if is_r2_configured():
+            from database import SessionLocal
+            m_db = SessionLocal()
+            row = m_db.query(models.PageContent).filter(models.PageContent.section_key == "settings_letterhead").first()
+            if row and row.image_url and "branding/logo/" not in row.image_url:
+                c_url = row.image_url
+                pub_url = os.getenv("R2_PUBLIC_URL", "").rstrip("/")
+                if pub_url and pub_url in c_url:
+                    old_k = c_url.replace(pub_url, "").lstrip("/")
+                elif "/uploads/" in c_url:
+                    old_k = "uploads/" + c_url.split("/uploads/")[-1]
+                else:
+                    old_k = None
+                
+                if old_k:
+                    fname = old_k.split("/")[-1]
+                    new_k = f"branding/logo/{fname}"
+                    new_u = f"{pub_url}/{new_k}" if pub_url else c_url.replace("/uploads/", "/uploads/branding/logo/")
+                    print(f"[Startup R2 Migration] Detected legacy logo: {old_k}. Migrating to {new_k}...")
+                    copy_r2_object(old_k, new_k)
+                    if check_r2_object_exists(new_k):
+                        row.image_url = new_u
+                        if row.content_json:
+                            try:
+                                cdata = json.loads(row.content_json)
+                                cdata["logo_url"] = new_u
+                                row.content_json = json.dumps(cdata)
+                            except Exception:
+                                pass
+                        m_db.commit()
+                        print(f"[Startup R2 Migration] Successfully migrated letterhead logo to {new_u}")
+                        try:
+                            delete_r2_object(old_k)
+                            print(f"[Startup R2 Migration] Cleaned up legacy object {old_k}")
+                        except Exception as del_err:
+                            print(f"[Startup R2 Migration] Note deleting old key: {del_err}")
+                    else:
+                        print(f"[Startup R2 Migration] Verification failed for {new_k}")
+            m_db.close()
+    except Exception as e:
+        print(f"[Startup R2 Migration] Note: {e}")
+
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
