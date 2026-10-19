@@ -1359,14 +1359,17 @@ async def get_employee_attendance_recap(
                     monthly_trend[m_key]["alpa"] += 1
                 monthly_trend[m_key]["total"] += 1
 
-                # Check Overtime (Checkout >= 18:00) and Sunday (weekday == 6)
+                # Check Overtime (Checkout >= 18:00) and Sunday / Holiday Piket
                 is_sunday = att.date.weekday() == 6 if hasattr(att.date, "weekday") else False
+                notes_text = att.notes or ""
+                is_holiday_duty = is_sunday or ("Piket" in notes_text or "Hari Libur" in notes_text)
+
                 is_late_checkout = False
                 if att.check_out and hasattr(att.check_out, "time"):
                     is_late_checkout = bool(att.check_out.time() >= dt.strptime("18:00", "%H:%M").time())
                 is_active_present = st in ['PRESENT', 'LATE', 'DISPENSATION'] or att.check_in is not None
 
-                if is_sunday and is_active_present:
+                if is_holiday_duty and is_active_present:
                     total_ahad += 1
                     monthly_trend[m_key]["ahad"] += 1
 
@@ -1374,8 +1377,7 @@ async def get_employee_attendance_recap(
                     total_lembur += 1
                     monthly_trend[m_key]["lembur"] += 1
 
-                if (is_sunday and is_active_present) or is_late_checkout:
-                    notes_text = att.notes or ""
+                if (is_holiday_duty and is_active_present) or is_late_checkout:
                     cat = extract_activity_category(notes_text)
                     is_duty = "[tugas luar" in notes_text.lower() or "dinas" in notes_text.lower()
                     date_str = att.date.strftime("%Y-%m-%d") if hasattr(att.date, "strftime") else str(att.date)[:10]
@@ -1387,6 +1389,7 @@ async def get_employee_attendance_recap(
                         "date": date_str,
                         "day_name": day_name,
                         "is_sunday": is_sunday,
+                        "is_holiday_duty": is_holiday_duty,
                         "is_overtime": is_late_checkout,
                         "check_in": att.check_in.strftime("%H:%M") if (att.check_in and hasattr(att.check_in, "strftime")) else "-",
                         "check_out": att.check_out.strftime("%H:%M") if (att.check_out and hasattr(att.check_out, "strftime")) else "-",
