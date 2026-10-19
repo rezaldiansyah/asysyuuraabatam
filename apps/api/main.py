@@ -290,6 +290,7 @@ async def reset_password(request: schemas.ResetPasswordRequest, db: Session = De
         raise HTTPException(status_code=404, detail="User not found")
         
     user.password_hash = auth.get_password_hash(request.new_password)
+    user.must_change_password = False
     db.commit()
     
     return {"message": "Password has been reset successfully"}

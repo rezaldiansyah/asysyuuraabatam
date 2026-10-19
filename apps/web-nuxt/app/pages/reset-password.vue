@@ -121,12 +121,14 @@
 
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
+import { useAuthStore } from '~/stores/auth'
 
 definePageMeta({ layout: false })
 
 const route = useRoute()
 const api = useApi()
 const toast = useToast()
+const authStore = useAuthStore()
 
 const token = computed(() => (route.query.token as string) || '')
 const password = ref('')
@@ -137,6 +139,13 @@ const errorMessage = ref('')
 const countdown = ref(3)
 
 let timer: any = null
+
+onMounted(() => {
+  // Clear any existing active session to prevent conflict with password recovery
+  if (authStore.isAuthenticated) {
+    authStore.logout()
+  }
+})
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
