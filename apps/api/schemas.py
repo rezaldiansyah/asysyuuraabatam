@@ -90,46 +90,6 @@ class Teacher(User):
     no_hp: Optional[str] = None
     gender: Optional[str] = None
 
-# --- Academic/Schedule Schemas ---
-class SubjectBase(BaseModel):
-    name: str # Matematika
-    code: Optional[str] = None # MTK
-    unit_id: int
-
-class SubjectCreate(SubjectBase):
-    pass
-
-class Subject(SubjectBase):
-    id: int
-
-    class Config:
-        from_attributes = True
-
-class ScheduleBase(BaseModel):
-    academic_year_id: int
-    classroom_id: int
-    subject_id: int
-    teacher_id: int
-    day: str # SENIN, SELASA...
-    start_time: str # 07:30
-    end_time: str # 09:00
-
-class ScheduleCreate(ScheduleBase):
-    pass
-
-class Schedule(ScheduleBase):
-    id: int
-    academic_year_id: int # Relationships
-    
-    # We might want nested objects for the list view
-    subject: Optional[Subject] = None
-    teacher: Optional[Teacher] = None
-    
-    teacher: Optional[Teacher] = None
-    
-    class Config:
-        from_attributes = True
-
 # --- Finance Schemas ---
 # Accounting Schemas
 class AccountBase(BaseModel):
@@ -457,6 +417,60 @@ class Classroom(ClassroomBase):
     
     class Config:
         from_attributes = True
+
+# --- Academic: Subject Schemas ---
+class SubjectBase(BaseModel):
+    name: str # Matematika
+    code: Optional[str] = None # MTK
+    unit_id: int
+
+class SubjectCreate(SubjectBase):
+    pass
+
+class SubjectUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    unit_id: Optional[int] = None
+
+class Subject(SubjectBase):
+    id: int
+    unit: Optional[Unit] = None
+
+    class Config:
+        from_attributes = True
+
+# --- Academic: Schedule Schemas ---
+class ScheduleBase(BaseModel):
+    academic_year_id: Optional[int] = None
+    classroom_id: int
+    subject_id: int
+    teacher_id: int
+    day: str # SENIN, SELASA...
+    start_time: str # 07:30
+    end_time: str # 09:00
+
+class ScheduleCreate(ScheduleBase):
+    pass
+
+class ScheduleUpdate(BaseModel):
+    academic_year_id: Optional[int] = None
+    classroom_id: Optional[int] = None
+    subject_id: Optional[int] = None
+    teacher_id: Optional[int] = None
+    day: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+
+class Schedule(ScheduleBase):
+    id: int
+    classroom: Optional[Classroom] = None
+    subject: Optional[Subject] = None
+    teacher: Optional[Teacher] = None
+    academic_year: Optional[AcademicYear] = None
+    
+    class Config:
+        from_attributes = True
+
 StudentBill.model_rebuild()
 
 class ForgotPasswordRequest(BaseModel):

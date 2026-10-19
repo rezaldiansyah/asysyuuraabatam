@@ -1244,69 +1244,280 @@ async def delete_teacher(teacher_id: int, db: Session = Depends(get_db)):
 
 # --- Subject Routes ---
 @app.get("/academic/subjects", response_model=List[schemas.Subject])
-async def get_subjects(unit_id: Optional[int] = None, db: Session = Depends(get_db)):
-    query = db.query(models.Subject)
+async def get_subjects(unit_id: Optional[int] = None, search: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(models.Subject).options(joinedload(models.Subject.unit))
     if unit_id:
         query = query.filter(models.Subject.unit_id == unit_id)
-    return query.all()
+    if search:
+        s = f"%{search.strip()}%"
+        query = query.filter(or_(models.Subject.name.ilike(s), models.Subject.code.ilike(s)))
+    return query.order_by(models.Subject.name.asc()).all()
 
 @app.post("/academic/subjects", response_model=schemas.Subject)
 async def create_subject(subject: schemas.SubjectCreate, db: Session = Depends(get_db)):
+    existing = db.query(models.Subject).filter(
+        models.Subject.name == subject.name,
+        models.Subject.unit_id == subject.unit_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Mata pelajaran '{subject.name}' sudah ada di unit ini.")
+
     db_subject = models.Subject(**subject.dict())
     db.add(db_subject)
     db.commit()
     db.refresh(db_subject)
-    return db_subject
+    return db.query(models.Subject).options(joinedload(models.Subject.unit)).filter(models.Subject.id == db_subject.id).first()
+
+@app.put("/academic/subjects/{subject_id}", response_model=schemas.Subject)
+async def update_subject(subject_id: int, payload: schemas.SubjectUpdate, db: Session = Depends(get_db)):
+    sb = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
+    if not sb:
+        raise HTTPException(status_code=404, detail="Mata pelajaran tidak ditemukan")
+    
+    data = payload.dict(exclude_unset=True)
+    for field, val in data.items():
+        setattr(sb, field, val)
+    db.commit()
+    db.refresh(sb)
+    return db.query(models.Subject).options(joinedload(models.Subject.unit)).filter(models.Subject.id == sb.id).first()
+
+@app.delete("/academic/subjects/{subject_id}")
+async def delete_subject(subject_id: int, db: Session = Depends(get_db)):
+    sb = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
+    if not sb:
+        raise HTTPException(status_code=404, detail="Mata pelajaran tidak ditemukan")
+
+    count = db.query(models.Schedule).filter(models.Schedule.subject_id == subject_id).count()
+    if count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tidak dapat menghapus: Mata pelajaran '{sb.name}' masih digunakan dalam {count} jadwal pelajaran."
+        )
+
+    db.delete(sb)
+    db.commit()
+    return {"message": f"Mata pelajaran '{sb.name}' berhasil dihapus."}
 
 # --- Schedule Routes ---
+def _format_schedule_response(sc: models.Schedule) -> dict:
+    teacher_dict = None
+    if sc.teacher:
+        u = sc.teacher
+        emp = u.employee
+        teacher_dict = {
+            "id": u.id,
+            "full_name": (emp.nama_lengkap if emp and emp.nama_lengkap else u.full_name) or "",
+            "nik": (emp.nik_kepegawaian if emp and emp.nik_kepegawaian else u.nik) or "",
+            "email": u.email,
+            "nuptk": emp.nuptk if emp else None,
+            "nip": emp.nip if emp else None,
+            "position": emp.position if emp else "Guru",
+            "photo_url": emp.photo_url if emp else None,
+            "no_hp": emp.no_hp if emp else None,
+            "unit_id": emp.unit_id if emp else None,
+            "unit_name": emp.unit.name if emp and emp.unit else None
+        }
+
+    return {
+        "id": sc.id,
+        "academic_year_id": sc.academic_year_id,
+        "classroom_id": sc.classroom_id,
+        "subject_id": sc.subject_id,
+        "teacher_id": sc.teacher_id,
+        "day": sc.day,
+        "start_time": sc.start_time,
+        "end_time": sc.end_time,
+        "classroom": sc.classroom,
+        "subject": sc.subject,
+        "teacher": teacher_dict,
+        "academic_year": sc.academic_year
+    }
+
+DAY_ORDER = {
+    "SENIN": 1,
+    "SELASA": 2,
+    "RABU": 3,
+    "KAMIS": 4,
+    "JUMAT": 5,
+    "SABTU": 6,
+    "AHAD": 7
+}
+
 @app.get("/academic/schedules", response_model=List[schemas.Schedule])
-async def get_schedules(classroom_id: Optional[int] = None, teacher_id: Optional[int] = None, db: Session = Depends(get_db)):
-    query = db.query(models.Schedule)
+async def get_schedules(
+    classroom_id: Optional[int] = None,
+    teacher_id: Optional[int] = None,
+    unit_id: Optional[int] = None,
+    academic_year_id: Optional[int] = None,
+    day: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.Schedule).options(
+        joinedload(models.Schedule.classroom).joinedload(models.Classroom.unit),
+        joinedload(models.Schedule.subject).joinedload(models.Subject.unit),
+        joinedload(models.Schedule.teacher).joinedload(models.User.employee).joinedload(models.Employee.unit),
+        joinedload(models.Schedule.academic_year)
+    )
+
     if classroom_id:
         query = query.filter(models.Schedule.classroom_id == classroom_id)
     if teacher_id:
         query = query.filter(models.Schedule.teacher_id == teacher_id)
-    
-    # Order by day and start time
-    # Note: Sorting by Day Enum might need custom logic if not ordered in DB, but let's assume UI handles it or simple sort
-    return query.all()
+    if academic_year_id:
+        query = query.filter(models.Schedule.academic_year_id == academic_year_id)
+    if day:
+        query = query.filter(models.Schedule.day == day.upper())
+    if unit_id:
+        query = query.join(models.Classroom).filter(models.Classroom.unit_id == unit_id)
+
+    schedules = query.all()
+    schedules.sort(key=lambda s: (DAY_ORDER.get(str(s.day).upper(), 99), s.start_time or ""))
+    return [_format_schedule_response(s) for s in schedules]
 
 @app.post("/academic/schedules", response_model=schemas.Schedule)
 async def create_schedule(schedule: schemas.ScheduleCreate, db: Session = Depends(get_db)):
-    try:
-        # 1. Check Room Conflict
-        room_conflict = db.query(models.Schedule).filter(
-            models.Schedule.day == schedule.day,
-            models.Schedule.classroom_id == schedule.classroom_id,
-            models.Schedule.start_time < schedule.end_time,
-            models.Schedule.end_time > schedule.start_time
-        ).first()
-        
-        if room_conflict:
-            raise HTTPException(status_code=400, detail=f"Room Conflict: Classroom is already booked from {room_conflict.start_time} to {room_conflict.end_time}")
+    target_ay_id = schedule.academic_year_id
+    if not target_ay_id:
+        active_year = db.query(models.AcademicYear).filter(models.AcademicYear.is_active == True).first()
+        if not active_year:
+            active_year = db.query(models.AcademicYear).order_by(models.AcademicYear.id.desc()).first()
+        if active_year:
+            target_ay_id = active_year.id
 
-        # 2. Check Teacher Conflict
-        teacher_conflict = db.query(models.Schedule).filter(
-            models.Schedule.day == schedule.day,
-            models.Schedule.teacher_id == schedule.teacher_id,
-            models.Schedule.start_time < schedule.end_time,
-            models.Schedule.end_time > schedule.start_time
-        ).first()
+    day_val = schedule.day.upper()
+    start_t = schedule.start_time.strip()
+    end_t = schedule.end_time.strip()
 
-        if teacher_conflict:
-            raise HTTPException(status_code=400, detail=f"Teacher Conflict: Teacher is already teaching in another class from {teacher_conflict.start_time} to {teacher_conflict.end_time}")
+    if start_t >= end_t:
+        raise HTTPException(status_code=400, detail="Jam mulai harus lebih awal dari jam selesai.")
 
-        db_schedule = models.Schedule(**schedule.dict())
-        db.add(db_schedule)
-        db.commit()
-        db.refresh(db_schedule)
-        return db_schedule
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
+    # 1. Check Room Conflict
+    room_conflict = db.query(models.Schedule).options(
+        joinedload(models.Schedule.classroom),
+        joinedload(models.Schedule.subject)
+    ).filter(
+        models.Schedule.day == day_val,
+        models.Schedule.classroom_id == schedule.classroom_id,
+        models.Schedule.academic_year_id == target_ay_id,
+        models.Schedule.start_time < end_t,
+        models.Schedule.end_time > start_t
+    ).first()
+    
+    if room_conflict:
+        cr_name = room_conflict.classroom.name if room_conflict.classroom else f"ID {schedule.classroom_id}"
+        mapel_name = room_conflict.subject.name if room_conflict.subject else "Mapel lain"
+        raise HTTPException(
+            status_code=400,
+            detail=f"Bentrok Ruangan: Kelas '{cr_name}' sudah memiliki jadwal mapel '{mapel_name}' pada hari {day_val} jam {room_conflict.start_time} - {room_conflict.end_time}."
+        )
+
+    # 2. Check Teacher Conflict
+    teacher_conflict = db.query(models.Schedule).options(
+        joinedload(models.Schedule.classroom),
+        joinedload(models.Schedule.teacher).joinedload(models.User.employee)
+    ).filter(
+        models.Schedule.day == day_val,
+        models.Schedule.teacher_id == schedule.teacher_id,
+        models.Schedule.academic_year_id == target_ay_id,
+        models.Schedule.start_time < end_t,
+        models.Schedule.end_time > start_t
+    ).first()
+
+    if teacher_conflict:
+        t_name = teacher_conflict.teacher.full_name if teacher_conflict.teacher else f"Guru ID {schedule.teacher_id}"
+        cr_conflict = teacher_conflict.classroom.name if teacher_conflict.classroom else "kelas lain"
+        raise HTTPException(
+            status_code=400,
+            detail=f"Bentrok Jadwal Guru: {t_name} sudah mengajar di {cr_conflict} pada hari {day_val} jam {teacher_conflict.start_time} - {teacher_conflict.end_time}."
+        )
+
+    db_schedule = models.Schedule(
+        academic_year_id=target_ay_id,
+        classroom_id=schedule.classroom_id,
+        subject_id=schedule.subject_id,
+        teacher_id=schedule.teacher_id,
+        day=day_val,
+        start_time=start_t,
+        end_time=end_t
+    )
+    db.add(db_schedule)
+    db.commit()
+    db.refresh(db_schedule)
+    
+    reloaded = db.query(models.Schedule).options(
+        joinedload(models.Schedule.classroom).joinedload(models.Classroom.unit),
+        joinedload(models.Schedule.subject).joinedload(models.Subject.unit),
+        joinedload(models.Schedule.teacher).joinedload(models.User.employee).joinedload(models.Employee.unit),
+        joinedload(models.Schedule.academic_year)
+    ).filter(models.Schedule.id == db_schedule.id).first()
+    return _format_schedule_response(reloaded)
+
+@app.put("/academic/schedules/{schedule_id}", response_model=schemas.Schedule)
+async def update_schedule(schedule_id: int, payload: schemas.ScheduleUpdate, db: Session = Depends(get_db)):
+    sc = db.query(models.Schedule).filter(models.Schedule.id == schedule_id).first()
+    if not sc:
+        raise HTTPException(status_code=404, detail="Jadwal pelajaran tidak ditemukan")
+
+    target_ay_id = payload.academic_year_id or sc.academic_year_id
+    classroom_id = payload.classroom_id or sc.classroom_id
+    teacher_id = payload.teacher_id or sc.teacher_id
+    day_val = (payload.day or sc.day).upper()
+    start_t = (payload.start_time or sc.start_time).strip()
+    end_t = (payload.end_time or sc.end_time).strip()
+
+    if start_t >= end_t:
+        raise HTTPException(status_code=400, detail="Jam mulai harus lebih awal dari jam selesai.")
+
+    # 1. Check Room Conflict (exclude self)
+    room_conflict = db.query(models.Schedule).filter(
+        models.Schedule.id != schedule_id,
+        models.Schedule.day == day_val,
+        models.Schedule.classroom_id == classroom_id,
+        models.Schedule.academic_year_id == target_ay_id,
+        models.Schedule.start_time < end_t,
+        models.Schedule.end_time > start_t
+    ).first()
+    if room_conflict:
+        raise HTTPException(status_code=400, detail=f"Bentrok Ruangan: Kelas sudah terpakai pada {day_val} jam {room_conflict.start_time} - {room_conflict.end_time}.")
+
+    # 2. Check Teacher Conflict (exclude self)
+    teacher_conflict = db.query(models.Schedule).filter(
+        models.Schedule.id != schedule_id,
+        models.Schedule.day == day_val,
+        models.Schedule.teacher_id == teacher_id,
+        models.Schedule.academic_year_id == target_ay_id,
+        models.Schedule.start_time < end_t,
+        models.Schedule.end_time > start_t
+    ).first()
+    if teacher_conflict:
+        raise HTTPException(status_code=400, detail=f"Bentrok Guru: Guru sudah mengajar pada {day_val} jam {teacher_conflict.start_time} - {teacher_conflict.end_time}.")
+
+    data = payload.dict(exclude_unset=True)
+    for field, val in data.items():
+        if field == "day" and val:
+            setattr(sc, field, val.upper())
+        else:
+            setattr(sc, field, val)
+
+    db.commit()
+    db.refresh(sc)
+
+    reloaded = db.query(models.Schedule).options(
+        joinedload(models.Schedule.classroom).joinedload(models.Classroom.unit),
+        joinedload(models.Schedule.subject).joinedload(models.Subject.unit),
+        joinedload(models.Schedule.teacher).joinedload(models.User.employee).joinedload(models.Employee.unit),
+        joinedload(models.Schedule.academic_year)
+    ).filter(models.Schedule.id == sc.id).first()
+    return _format_schedule_response(reloaded)
+
+@app.delete("/academic/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: int, db: Session = Depends(get_db)):
+    sc = db.query(models.Schedule).filter(models.Schedule.id == schedule_id).first()
+    if not sc:
+        raise HTTPException(status_code=404, detail="Jadwal pelajaran tidak ditemukan")
+    db.delete(sc)
+    db.commit()
+    return {"message": "Jadwal pelajaran berhasil dihapus."}
 
 # --- Finance Routes ---
 
