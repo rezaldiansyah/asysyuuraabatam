@@ -334,6 +334,8 @@ class CalendarEventType(str, Enum):
     EXAM = "EXAM"
     EVENT = "EVENT"
     EFFECTIVE = "EFFECTIVE"
+    PHBI = "PHBI"
+    PHBN = "PHBN"
 
 # --- Academic Schemas ---
 

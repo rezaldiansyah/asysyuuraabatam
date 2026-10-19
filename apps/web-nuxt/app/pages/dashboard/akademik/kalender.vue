@@ -184,14 +184,16 @@
             <span><i class="kp-dot" style="background:#dbeafe"></i>Hari Efektif</span>
             <span><i class="kp-dot" style="background:#fee2e2"></i>Libur</span>
             <span><i class="kp-dot" style="background:#fef3c7"></i>Ujian</span>
-            <span><i class="kp-dot" style="background:#d1fae5"></i>Kegiatan</span>
+            <span><i class="kp-dot" style="background:#ccfbf1"></i>PHBI</span>
+            <span><i class="kp-dot" style="background:#e0e7ff"></i>PHBN</span>
+            <span><i class="kp-dot" style="background:#d1fae5"></i>Kegiatan Sekolah</span>
           </div>
 
           <div v-if="viewMode !== 'month'" class="kp-summary">
             <div class="kp-sum"><b>{{ totals.effective }}</b>Hari Efektif (Sen–Jum)</div>
             <div class="kp-sum"><b style="color:#b91c1c">{{ totals.holidayDays }}</b>Hari Libur (hari kerja)</div>
             <div class="kp-sum"><b style="color:#92400e">{{ totals.exams }}</b>Agenda Ujian</div>
-            <div class="kp-sum"><b style="color:#047857">{{ totals.events }}</b>Kegiatan Sekolah</div>
+            <div class="kp-sum"><b style="color:#0f766e">{{ totals.phbiCount + totals.phbnCount }}</b>Agenda PHBI/PHBN</div>
           </div>
 
           <div v-for="m in monthBlocks" :key="m.key" class="kp-month">
@@ -369,6 +371,8 @@ const eventTypes = [
   { label: 'Hari Efektif Belajar', value: 'EFFECTIVE' },
   { label: 'Libur Nasional / Cuti Bersama', value: 'HOLIDAY' },
   { label: 'Ujian (PTS/PAS/US)', value: 'EXAM' },
+  { label: 'PHBI (Peringatan Hari Besar Islam)', value: 'PHBI' },
+  { label: 'PHBN (Peringatan Hari Besar Nasional)', value: 'PHBN' },
   { label: 'Event Sekolah', value: 'EVENT' },
 ]
 const typeFilterOptions = [
@@ -376,12 +380,16 @@ const typeFilterOptions = [
   { label: 'Hari Efektif', value: 'EFFECTIVE' },
   { label: 'Libur', value: 'HOLIDAY' },
   { label: 'Ujian', value: 'EXAM' },
+  { label: 'PHBI', value: 'PHBI' },
+  { label: 'PHBN', value: 'PHBN' },
   { label: 'Event Sekolah', value: 'EVENT' },
 ]
 const legendItems = [
   { label: 'Hari Efektif', title: 'KBM Biasa', desc: 'Wajib presensi kehadiran guru dan siswa', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
   { label: 'Libur', title: 'Tanggal Merah / Cuti', desc: 'Sistem presensi meniadakan kewajiban absen', cls: 'bg-red-50 text-red-700 border-red-200' },
   { label: 'Ujian', title: 'PTS, PAS, Asesmen / US', desc: 'Fokus ujian, tidak ada KBM reguler', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  { label: 'PHBI', title: 'Hari Besar Islam', desc: 'Maulid, Isra Miraj, Muharram, Ramadhan', cls: 'bg-teal-50 text-teal-700 border-teal-200' },
+  { label: 'PHBN', title: 'Hari Besar Nasional', desc: '17 Agustus, Hari Guru, Hari Pahlawan', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   { label: 'Kegiatan', title: 'Acara & Perlombaan', desc: 'Classmeeting, Lomba, Upacara, Manasik', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 ]
 
@@ -391,6 +399,7 @@ const statCards = computed(() => [
   { label: 'Total Agenda', value: events.value.length, color: 'text-slate-800 dark:text-white', icon: 'pi-calendar' },
   { label: 'Hari Libur', value: events.value.filter(isHolidayEv).length, color: 'text-red-600', icon: 'pi-flag' },
   { label: 'Jadwal Ujian', value: events.value.filter(e => e.type === 'EXAM').length, color: 'text-amber-600', icon: 'pi-file-edit' },
+  { label: 'PHBI / PHBN', value: events.value.filter(e => e.type === 'PHBI' || e.type === 'PHBN').length, color: 'text-teal-600', icon: 'pi-bookmark' },
   { label: 'Event Sekolah', value: events.value.filter(e => e.type === 'EVENT').length, color: 'text-purple-600', icon: 'pi-sparkles' },
 ])
 const activeYearLabel = computed(() => academicYears.value.find(y => y.id === selectedAcademicYearId.value)?.label || 'Seluruh Kegiatan')
@@ -601,7 +610,14 @@ function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('id-ID', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
 }
 function getEventSeverity(type: string) {
-  return type === 'HOLIDAY' ? 'danger' : type === 'EXAM' ? 'warn' : type === 'EVENT' ? 'success' : 'info'
+  switch (type) {
+    case 'HOLIDAY': return 'danger'
+    case 'EXAM': return 'warn'
+    case 'PHBI': return 'success'
+    case 'PHBN': return 'info'
+    case 'EVENT': return 'help'
+    default: return 'secondary'
+  }
 }
 function getEventLabel(type: string) {
   return eventTypes.find(t => t.value === type)?.label || type
@@ -676,8 +692,13 @@ function eachDayKey(startK: string, endK: string, cb: (k: string, dt: Date) => v
     cb(keyOf(dt.getFullYear(), dt.getMonth(), dt.getDate()), dt)
   }
 }
-const evKind = (e: any): 'holiday' | 'exam' | 'event' | 'effective' =>
-  isHolidayEv(e) ? 'holiday' : e.type === 'EXAM' ? 'exam' : e.type === 'EVENT' ? 'event' : 'effective'
+const evKind = (e: any): 'holiday' | 'exam' | 'phbi' | 'phbn' | 'event' | 'effective' =>
+  isHolidayEv(e) ? 'holiday' 
+  : e.type === 'EXAM' ? 'exam' 
+  : e.type === 'PHBI' ? 'phbi'
+  : e.type === 'PHBN' ? 'phbn'
+  : e.type === 'EVENT' ? 'event' 
+  : 'effective'
 
 // Coverage map: dateKey -> { kinds:Set, tips:string[] }
 const coverage = computed(() => {
@@ -701,6 +722,8 @@ function cellClass(kinds?: Set<string>) {
   if (!kinds) return ''
   if (kinds.has('holiday')) return 'holiday'
   if (kinds.has('exam')) return 'exam'
+  if (kinds.has('phbi')) return 'phbi'
+  if (kinds.has('phbn')) return 'phbn'
   if (kinds.has('event')) return 'event'
   if (kinds.has('effective')) return 'effective'
   return ''
@@ -722,6 +745,8 @@ const SECTION_DEFS = [
   { kind: 'effective', title: 'Periode Hari Efektif', color: '#93c5fd' },
   { kind: 'holiday', title: 'Libur', color: '#fca5a5' },
   { kind: 'exam', title: 'Ujian', color: '#fcd34d' },
+  { kind: 'phbi', title: 'Peringatan Hari Besar Islam (PHBI)', color: '#5eead4' },
+  { kind: 'phbn', title: 'Peringatan Hari Besar Nasional (PHBN)', color: '#a5b4fc' },
   { kind: 'event', title: 'Kegiatan Yayasan / Sekolah', color: '#6ee7b7' },
 ]
 
@@ -798,6 +823,8 @@ const totals = computed(() => {
     effective: monthBlocks.value.reduce((a, b) => a + b.effective, 0),
     holidayDays: monthBlocks.value.reduce((a, b) => a + b.holidayDays, 0),
     exams: inRange.filter(e => evKind(e) === 'exam').length,
+    phbiCount: inRange.filter(e => evKind(e) === 'phbi').length,
+    phbnCount: inRange.filter(e => evKind(e) === 'phbn').length,
     events: inRange.filter(e => evKind(e) === 'event').length,
   }
 })
@@ -844,6 +871,8 @@ const PRINT_CSS = `
 .kp-grid td.effective{background:#dbeafe}
 .kp-grid td.event{background:#d1fae5;color:#047857;font-weight:700}
 .kp-grid td.exam{background:#fef3c7;color:#92400e;font-weight:700}
+.kp-grid td.phbi{background:#ccfbf1;color:#0f766e;font-weight:700}
+.kp-grid td.phbn{background:#e0e7ff;color:#4338ca;font-weight:700}
 .kp-grid td.holiday{background:#fee2e2;color:#b91c1c;font-weight:700}
 .kp-eff{background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:5px 8px;font-size:11px;margin-bottom:8px}
 .kp-sec{margin-bottom:8px}

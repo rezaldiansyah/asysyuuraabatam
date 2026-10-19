@@ -26,6 +26,8 @@ class CalendarEventType(str, enum.Enum):
     EXAM = "EXAM"             # Ujian (UTS/UAS)
     EVENT = "EVENT"           # Kegiatan Sekolah (Classmeeting, Lomba)
     EFFECTIVE = "EFFECTIVE"   # Hari Efektif Belajar (Default)
+    PHBI = "PHBI"             # Peringatan Hari Besar Islam
+    PHBN = "PHBN"             # Peringatan Hari Besar Nasional
 
 
 # Models

@@ -92,8 +92,14 @@ def run_migrations_on_startup():
         from sqlalchemy import text
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS recipient_type VARCHAR DEFAULT 'individual'"))
+            # Self-healing for PostgreSQL enum types if native enum was created
+            try:
+                conn.execute(text("ALTER TYPE calendareventtype ADD VALUE IF NOT EXISTS 'PHBI'"))
+                conn.execute(text("ALTER TYPE calendareventtype ADD VALUE IF NOT EXISTS 'PHBN'"))
+            except Exception:
+                pass
             conn.commit()
-            print("[Startup] Verified column documents.recipient_type exists.")
+            print("[Startup] Verified column documents.recipient_type and calendar enums exist.")
     except Exception as e:
         print(f"[Startup] DDL recipient_type note: {e}")
 
