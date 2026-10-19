@@ -401,23 +401,6 @@ class Student(StudentBase):
     class Config:
         from_attributes = True
 
-# Classroom
-class ClassroomBase(BaseModel):
-    name: str
-    level: int
-    unit_id: int
-    academic_year_id: int
-    homeroom_teacher_id: Optional[int] = None
-
-class ClassroomCreate(ClassroomBase):
-    pass
-
-class Classroom(ClassroomBase):
-    id: int
-    
-    class Config:
-        from_attributes = True
-
 # Academic Year
 class AcademicYearBase(BaseModel):
     name: str
@@ -431,6 +414,46 @@ class AcademicYearCreate(AcademicYearBase):
 
 class AcademicYear(AcademicYearBase):
     id: int
+    
+    class Config:
+        from_attributes = True
+
+# Classroom (Rombel)
+class ClassroomBase(BaseModel):
+    name: str
+    level: int
+    unit_id: int
+    academic_year_id: Optional[int] = None
+    homeroom_teacher_id: Optional[int] = None
+
+class ClassroomCreate(ClassroomBase):
+    pass
+
+class ClassroomUpdate(BaseModel):
+    name: Optional[str] = None
+    level: Optional[int] = None
+    unit_id: Optional[int] = None
+    academic_year_id: Optional[int] = None
+    homeroom_teacher_id: Optional[int] = None
+
+class ClassroomHomeroomTeacher(BaseModel):
+    id: int
+    full_name: str
+    nik: Optional[str] = None
+    email: Optional[str] = None
+    nuptk: Optional[str] = None
+    nip: Optional[str] = None
+    photo_url: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+class Classroom(ClassroomBase):
+    id: int
+    unit: Optional[Unit] = None
+    academic_year: Optional[AcademicYear] = None
+    homeroom_teacher: Optional[ClassroomHomeroomTeacher] = None
+    student_count: Optional[int] = 0
     
     class Config:
         from_attributes = True

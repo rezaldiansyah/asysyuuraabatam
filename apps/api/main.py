@@ -561,18 +561,181 @@ async def delete_student(
     db.commit()
     return {"ok": True}
 
+def _format_classroom_response(c: models.Classroom) -> dict:
+    teacher_dict = None
+    if c.homeroom_teacher:
+        ht = c.homeroom_teacher
+        emp = ht.employee
+        teacher_dict = {
+            "id": ht.id,
+            "full_name": (emp.nama_lengkap if emp and emp.nama_lengkap else ht.full_name) or "",
+            "nik": (emp.nik_kepegawaian if emp and emp.nik_kepegawaian else ht.nik) or "",
+            "email": ht.email,
+            "nuptk": emp.nuptk if emp else None,
+            "nip": emp.nip if emp else None,
+            "photo_url": emp.photo_url if emp else None,
+        }
+        
+    student_count = len([s for s in (c.students or []) if s.status == "ACTIVE"])
+    
+    return {
+        "id": c.id,
+        "name": c.name,
+        "level": c.level,
+        "unit_id": c.unit_id,
+        "academic_year_id": c.academic_year_id,
+        "homeroom_teacher_id": c.homeroom_teacher_id,
+        "unit": c.unit,
+        "academic_year": c.academic_year,
+        "homeroom_teacher": teacher_dict,
+        "student_count": student_count
+    }
+
 @app.get("/academic/classrooms", response_model=List[schemas.Classroom])
-async def get_classrooms(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    classrooms = db.query(models.Classroom).offset(skip).limit(limit).all()
-    return classrooms
+async def get_classrooms(
+    unit_id: Optional[int] = None,
+    academic_year_id: Optional[int] = None,
+    level: Optional[int] = None,
+    search: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.Classroom).options(
+        joinedload(models.Classroom.unit),
+        joinedload(models.Classroom.academic_year),
+        joinedload(models.Classroom.homeroom_teacher).joinedload(models.User.employee),
+        joinedload(models.Classroom.students)
+    )
+    
+    if unit_id:
+        query = query.filter(models.Classroom.unit_id == unit_id)
+        
+    if academic_year_id:
+        query = query.filter(models.Classroom.academic_year_id == academic_year_id)
+
+    if level:
+        query = query.filter(models.Classroom.level == level)
+        
+    if search:
+        s = f"%{search.strip()}%"
+        query = query.filter(models.Classroom.name.ilike(s))
+
+    classrooms = query.order_by(models.Classroom.level.asc(), models.Classroom.name.asc()).offset(skip).limit(limit).all()
+    return [_format_classroom_response(c) for c in classrooms]
+
+@app.get("/academic/classrooms/{classroom_id}")
+async def get_classroom_detail(classroom_id: int, db: Session = Depends(get_db)):
+    c = db.query(models.Classroom).options(
+        joinedload(models.Classroom.unit),
+        joinedload(models.Classroom.academic_year),
+        joinedload(models.Classroom.homeroom_teacher).joinedload(models.User.employee),
+        joinedload(models.Classroom.students)
+    ).filter(models.Classroom.id == classroom_id).first()
+    
+    if not c:
+        raise HTTPException(status_code=404, detail="Rombel (Kelas) tidak ditemukan")
+
+    resp = _format_classroom_response(c)
+    resp["students"] = [
+        {
+            "id": s.id,
+            "nis": s.nis,
+            "nisn": s.nisn,
+            "full_name": s.full_name,
+            "gender": s.gender,
+            "status": s.status
+        }
+        for s in (c.students or [])
+    ]
+    return resp
 
 @app.post("/academic/classrooms", response_model=schemas.Classroom)
 async def create_classroom(classroom: schemas.ClassroomCreate, db: Session = Depends(get_db)):
-    db_classroom = models.Classroom(**classroom.dict())
+    # Auto-assign active academic year if not provided
+    target_ay_id = classroom.academic_year_id
+    if not target_ay_id:
+        active_year = db.query(models.AcademicYear).filter(models.AcademicYear.is_active == True).first()
+        if not active_year:
+            active_year = db.query(models.AcademicYear).order_by(models.AcademicYear.id.desc()).first()
+        if active_year:
+            target_ay_id = active_year.id
+
+    # Check duplication of name within same unit & academic year
+    existing = db.query(models.Classroom).filter(
+        models.Classroom.name == classroom.name,
+        models.Classroom.unit_id == classroom.unit_id,
+        models.Classroom.academic_year_id == target_ay_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Rombel dengan nama '{classroom.name}' sudah terdaftar pada tahun ajaran ini.")
+
+    db_classroom = models.Classroom(
+        name=classroom.name,
+        level=classroom.level,
+        unit_id=classroom.unit_id,
+        academic_year_id=target_ay_id,
+        homeroom_teacher_id=classroom.homeroom_teacher_id
+    )
     db.add(db_classroom)
     db.commit()
     db.refresh(db_classroom)
-    return db_classroom
+    
+    c = db.query(models.Classroom).options(
+        joinedload(models.Classroom.unit),
+        joinedload(models.Classroom.academic_year),
+        joinedload(models.Classroom.homeroom_teacher).joinedload(models.User.employee),
+        joinedload(models.Classroom.students)
+    ).filter(models.Classroom.id == db_classroom.id).first()
+    return _format_classroom_response(c)
+
+@app.put("/academic/classrooms/{classroom_id}", response_model=schemas.Classroom)
+async def update_classroom(classroom_id: int, payload: schemas.ClassroomUpdate, db: Session = Depends(get_db)):
+    c = db.query(models.Classroom).filter(models.Classroom.id == classroom_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Rombel (Kelas) tidak ditemukan")
+
+    data = payload.dict(exclude_unset=True)
+    for field, val in data.items():
+        setattr(c, field, val)
+
+    db.commit()
+    db.refresh(c)
+    
+    reloaded = db.query(models.Classroom).options(
+        joinedload(models.Classroom.unit),
+        joinedload(models.Classroom.academic_year),
+        joinedload(models.Classroom.homeroom_teacher).joinedload(models.User.employee),
+        joinedload(models.Classroom.students)
+    ).filter(models.Classroom.id == c.id).first()
+    return _format_classroom_response(reloaded)
+
+@app.delete("/academic/classrooms/{classroom_id}")
+async def delete_classroom(classroom_id: int, db: Session = Depends(get_db)):
+    c = db.query(models.Classroom).options(
+        joinedload(models.Classroom.students)
+    ).filter(models.Classroom.id == classroom_id).first()
+    
+    if not c:
+        raise HTTPException(status_code=404, detail="Rombel (Kelas) tidak ditemukan")
+
+    active_students = [s for s in (c.students or []) if s.status == "ACTIVE"]
+    if active_students:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tidak dapat menghapus: Masih ada {len(active_students)} siswa aktif di kelas '{c.name}'. Pindahkan penempatan siswa terlebih dahulu."
+        )
+
+    schedule_count = db.query(models.Schedule).filter(models.Schedule.classroom_id == classroom_id).count()
+    if schedule_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tidak dapat menghapus: Masih terdapat {schedule_count} jadwal pelajaran yang menggunakan kelas '{c.name}'."
+        )
+
+    db.delete(c)
+    db.commit()
+    return {"message": f"Rombel '{c.name}' berhasil dihapus."}
 
 def _get_expected_academic_period(dt: datetime = None):
     from datetime import timedelta
