@@ -209,28 +209,65 @@
 
           <!-- Quick Template & Table Action Buttons -->
           <div class="flex items-center gap-1.5 flex-wrap">
-            <Button 
-              type="button" 
-              label="Tabel 2 Kolom" 
-              icon="pi pi-table" 
-              size="small" 
-              outlined 
-              severity="secondary" 
-              class="!text-xs !py-1"
-              @click="insertTable(2)" 
-              title="Sisipkan tabel 2 kolom (No, Pembahasan)"
-            />
-            <Button 
-              type="button" 
-              label="Tabel 3 Kolom" 
-              icon="pi pi-table" 
-              size="small" 
-              outlined 
-              severity="secondary" 
-              class="!text-xs !py-1"
-              @click="insertTable(3)" 
-              title="Sisipkan tabel 3 kolom (No, Masukan, Kesepakatan)"
-            />
+            <div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-slate-200 dark:border-slate-700">
+              <Button 
+                type="button" 
+                label="+ Tabel 2 Kolom" 
+                icon="pi pi-table" 
+                size="small" 
+                text 
+                class="!text-xs !py-1 !px-2.5 font-semibold text-slate-700 dark:text-slate-200 hover:!bg-white dark:hover:!bg-slate-700"
+                @click="insertTable(2)" 
+                title="Sisipkan tabel 2 kolom (No, Pembahasan)"
+              />
+              <Button 
+                type="button" 
+                label="+ Tabel 3 Kolom" 
+                icon="pi pi-table" 
+                size="small" 
+                text 
+                class="!text-xs !py-1 !px-2.5 font-semibold text-slate-700 dark:text-slate-200 hover:!bg-white dark:hover:!bg-slate-700"
+                @click="insertTable(3)" 
+                title="Sisipkan tabel 3 kolom (No, Masukan, Kesepakatan)"
+              />
+            </div>
+
+            <div class="flex items-center bg-emerald-50 dark:bg-emerald-950/40 rounded-lg p-0.5 border border-emerald-200 dark:border-emerald-800">
+              <Button 
+                type="button" 
+                label="+ Tambah Baris" 
+                icon="pi pi-plus" 
+                size="small" 
+                severity="success" 
+                text 
+                class="!text-xs !py-1 !px-2.5 font-bold"
+                @click="addTableRow" 
+                title="Tambahkan baris baru ke tabel (atau tekan tombol Tab pada kolom terakhir)"
+              />
+              <Button 
+                type="button" 
+                label="- Hapus Baris" 
+                icon="pi pi-minus" 
+                size="small" 
+                severity="danger" 
+                text 
+                class="!text-xs !py-1 !px-2.5"
+                @click="deleteTableRow" 
+                title="Hapus baris terakhir tabel"
+              />
+              <Button 
+                type="button" 
+                label="Gabung Tabel" 
+                icon="pi pi-link" 
+                size="small" 
+                severity="help" 
+                text 
+                class="!text-xs !py-1 !px-2.5 font-medium"
+                @click="mergeTables" 
+                title="Gabungkan 2 tabel terpisah menjadi 1 tabel bersambung"
+              />
+            </div>
+
             <Button 
               type="button" 
               label="Template Notulen" 
@@ -238,16 +275,27 @@
               size="small" 
               outlined 
               severity="info" 
-              class="!text-xs !py-1"
+              class="!text-xs !py-1 font-semibold"
               @click="insertNotulenTemplate" 
               title="Gunakan template format notulensi terstruktur"
             />
           </div>
         </div>
 
+        <p class="text-[11px] text-slate-500 flex items-center gap-1.5 px-0.5">
+          <i class="pi pi-info-circle text-primary text-xs"></i>
+          <span><b>Panduan Tabel:</b> Klik langsung kolom untuk mengetik. Gunakan tombol <b>Tab</b> di keyboard untuk berpindah ke kolom sebelah atau otomatis menambah baris baru di ujung tabel. Klik <b>Gabung Tabel</b> jika sebelumnya ada 2 tabel terpisah.</span>
+        </p>
+
         <!-- PrimeVue Rich Text Editor with Custom Toolbar -->
         <div class="rich-editor-wrapper">
-          <Editor v-model="form.content" editorStyle="min-height: 280px" placeholder="Tuliskan catatan pembahasan rapat, aspirasi, dan tanggapan peserta di sini...">
+          <Editor 
+            ref="editorRef"
+            v-model="form.content" 
+            :modules="editorModules"
+            @load="onEditorLoad"
+            editorStyle="min-height: 280px" 
+            placeholder="Tuliskan catatan pembahasan rapat, aspirasi, dan tanggapan peserta di sini...">
             <template #toolbar>
               <span class="ql-formats">
                 <select class="ql-header" title="Format Judul / Paragraf">
@@ -469,58 +517,257 @@ function removeActionItem(idx: number) {
 }
 
 // Helper: Insert formatted table into content
+// Editor table management & keyboard navigation
+const editorRef = ref<any>(null)
+const quillInstance = ref<any>(null)
+const editorModules = {
+  table: true
+}
+
+function onEditorLoad(event: any) {
+  const instance = event?.instance || event
+  quillInstance.value = instance
+
+  const editorEl = (instance?.root || document.querySelector('.rich-editor-wrapper .ql-editor')) as HTMLElement | null
+  if (editorEl) {
+    editorEl.removeEventListener('keydown', handleEditorKeyDown)
+    editorEl.addEventListener('keydown', handleEditorKeyDown)
+  }
+}
+
+function focusCell(cell: HTMLElement) {
+  if (!cell) return
+  const range = document.createRange()
+  const sel = window.getSelection()
+  range.selectNodeContents(cell)
+  range.collapse(false)
+  sel?.removeAllRanges()
+  sel?.addRange(range)
+}
+
+function handleEditorKeyDown(e: KeyboardEvent) {
+  if (e.key === 'Tab') {
+    const sel = window.getSelection()
+    const node = sel?.anchorNode
+    const currentCell = (node instanceof HTMLElement ? node : node?.parentElement)?.closest('td') as HTMLElement | null
+    if (currentCell) {
+      e.preventDefault()
+      const table = currentCell.closest('table')
+      if (table) {
+        const allCells = Array.from(table.querySelectorAll('td')) as HTMLElement[]
+        const currentIndex = allCells.indexOf(currentCell)
+        if (currentIndex !== -1) {
+          if (!e.shiftKey) {
+            // Move to next cell
+            if (currentIndex < allCells.length - 1) {
+              focusCell(allCells[currentIndex + 1])
+            } else {
+              // At the end of table: automatically append a new row!
+              addTableRow()
+            }
+          } else {
+            // Move to previous cell
+            if (currentIndex > 0) {
+              focusCell(allCells[currentIndex - 1])
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Auto-heal legacy or malformed table HTML
+function autoHealNotulenTableHtml(raw: string): string {
+  if (!raw) return ''
+  // 1. Convert any <th> to <td><b>...</b></td> so Quill's delta parser doesn't strip or eject headers
+  let cleaned = raw.replace(/<th\b([^>]*)>(.*?)<\/th>/gis, '<td$1><b>$2</b></td>')
+  // 2. Remove <thead> and </thead>
+  cleaned = cleaned.replace(/<\/?thead\b[^>]*>/gi, '')
+  // 3. Ensure border styling on table and cells if missing
+  cleaned = cleaned.replace(/<table\b([^>]*)>/gi, (m, attrs) => {
+    if (!attrs.includes('border-collapse')) {
+      return `<table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">`
+    }
+    return m
+  })
+  return cleaned
+}
+
+// Helper: Insert formatted table into content (using clean <tr><td> without <th>)
 function insertTable(cols: 2 | 3) {
   let tableHtml = ''
   if (cols === 2) {
     tableHtml = `
-      <table class="notulen-table" border="1" style="width: 100%; border-collapse: collapse; margin: 12px 0;">
-        <thead>
-          <tr style="background-color: #f8fafc;">
-            <th style="width: 50px; text-align: center; padding: 8px; border: 1px solid #cbd5e1;">No</th>
-            <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Poin Pembahasan / Catatan Rapat</th>
-          </tr>
-        </thead>
+      <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
         <tbody>
-          <tr>
-            <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1;">1</td>
-            <td style="padding: 8px; border: 1px solid #cbd5e1;">Tuliskan poin pembahasan pertama di sini...</td>
+          <tr style="background-color: #f1f5f9; font-weight: bold;">
+            <td style="width: 50px; text-align: center; padding: 8px; border: 1px solid #94a3b8;"><b>No</b></td>
+            <td style="padding: 8px; border: 1px solid #94a3b8; text-align: left;"><b>Poin Pembahasan / Catatan Rapat</b></td>
           </tr>
           <tr>
-            <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1;">2</td>
-            <td style="padding: 8px; border: 1px solid #cbd5e1;">Tuliskan poin pembahasan kedua di sini...</td>
+            <td style="text-align: center; padding: 8px; border: 1px solid #94a3b8;">1</td>
+            <td style="padding: 8px; border: 1px solid #94a3b8;">Tuliskan poin pembahasan pertama di sini...</td>
+          </tr>
+          <tr>
+            <td style="text-align: center; padding: 8px; border: 1px solid #94a3b8;">2</td>
+            <td style="padding: 8px; border: 1px solid #94a3b8;">Tuliskan poin pembahasan kedua di sini...</td>
           </tr>
         </tbody>
       </table>
-      <p></p>
+      <p><br></p>
     `
   } else {
     tableHtml = `
-      <table class="notulen-table" border="1" style="width: 100%; border-collapse: collapse; margin: 12px 0;">
-        <thead>
-          <tr style="background-color: #f1f5f9;">
-            <th style="width: 50px; text-align: center; padding: 8px; border: 1px solid #cbd5e1;">No</th>
-            <th style="width: 38%; padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Topik / Masukan Peserta</th>
-            <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Tanggapan & Kesepakatan Bersama</th>
-          </tr>
-        </thead>
+      <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
         <tbody>
-          <tr>
-            <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1;">1</td>
-            <td style="padding: 8px; border: 1px solid #cbd5e1;">Aspirasi / kendala yang disampaikan...</td>
-            <td style="padding: 8px; border: 1px solid #cbd5e1;">Tanggapan pimpinan / kesepakatan...</td>
+          <tr style="background-color: #f1f5f9; font-weight: bold;">
+            <td style="width: 50px; text-align: center; padding: 8px; border: 1px solid #94a3b8;"><b>No</b></td>
+            <td style="width: 38%; padding: 8px; border: 1px solid #94a3b8; text-align: left;"><b>Topik / Masukan Peserta</b></td>
+            <td style="padding: 8px; border: 1px solid #94a3b8; text-align: left;"><b>Tanggapan & Kesepakatan Bersama</b></td>
           </tr>
           <tr>
-            <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1;">2</td>
-            <td style="padding: 8px; border: 1px solid #cbd5e1;"></td>
-            <td style="padding: 8px; border: 1px solid #cbd5e1;"></td>
+            <td style="text-align: center; padding: 8px; border: 1px solid #94a3b8;">1</td>
+            <td style="padding: 8px; border: 1px solid #94a3b8;">Aspirasi / kendala yang disampaikan...</td>
+            <td style="padding: 8px; border: 1px solid #94a3b8;">Tanggapan pimpinan / solusi yang disepakati...</td>
+          </tr>
+          <tr>
+            <td style="text-align: center; padding: 8px; border: 1px solid #94a3b8;">2</td>
+            <td style="padding: 8px; border: 1px solid #94a3b8;"></td>
+            <td style="padding: 8px; border: 1px solid #94a3b8;"></td>
           </tr>
         </tbody>
       </table>
-      <p></p>
+      <p><br></p>
     `
   }
   form.content = (form.content ? form.content + '<br/>' : '') + tableHtml
   toast.add({ severity: 'info', summary: 'Tabel Disisipkan', detail: `Tabel ${cols} kolom berhasil ditambahkan ke catatan notulensi`, life: 2500 })
+}
+
+// Helper: Add a new row to active or last table
+function addTableRow() {
+  const editorRoot = (quillInstance.value?.root || document.querySelector('.rich-editor-wrapper .ql-editor')) as HTMLElement | null
+  if (editorRoot) {
+    const tables = editorRoot.querySelectorAll('table')
+    if (tables.length > 0) {
+      const sel = window.getSelection()
+      const currentCell = (sel?.anchorNode instanceof HTMLElement ? sel.anchorNode : sel?.anchorNode?.parentElement)?.closest('td')
+      const targetTable = currentCell?.closest('table') || tables[tables.length - 1]
+      const rows = Array.from(targetTable.querySelectorAll('tr'))
+      const lastRow = rows[rows.length - 1]
+      const colCount = lastRow ? lastRow.querySelectorAll('td').length : 2
+      const nextNum = rows.length // row 0 is header
+
+      const newTr = document.createElement('tr')
+      let cellsHtml = `<td style="text-align: center; padding: 8px; border: 1px solid #94a3b8;">${nextNum}</td>`
+      for (let c = 1; c < colCount; c++) {
+        cellsHtml += `<td style="padding: 8px; border: 1px solid #94a3b8;"></td>`
+      }
+      newTr.innerHTML = cellsHtml
+      const tbody = targetTable.querySelector('tbody') || targetTable
+      tbody.appendChild(newTr)
+
+      // Sync form.content
+      form.content = editorRoot.innerHTML
+
+      // Focus second cell of the newly added row
+      nextTick(() => {
+        const targetTd = newTr.querySelectorAll('td')[1] || newTr.querySelector('td')
+        if (targetTd) focusCell(targetTd as HTMLElement)
+      })
+
+      toast.add({ severity: 'success', summary: 'Baris Ditambahkan', detail: `Baris ke-${nextNum} berhasil ditambahkan`, life: 2000 })
+      return
+    }
+  }
+
+  // Fallback if no table exists yet
+  insertTable(2)
+}
+
+// Helper: Delete row from active or last table
+function deleteTableRow() {
+  const editorRoot = (quillInstance.value?.root || document.querySelector('.rich-editor-wrapper .ql-editor')) as HTMLElement | null
+  if (editorRoot) {
+    const tables = editorRoot.querySelectorAll('table')
+    if (tables.length > 0) {
+      const sel = window.getSelection()
+      const currentCell = (sel?.anchorNode instanceof HTMLElement ? sel.anchorNode : sel?.anchorNode?.parentElement)?.closest('td')
+      const targetTable = currentCell?.closest('table') || tables[tables.length - 1]
+      const rows = Array.from(targetTable.querySelectorAll('tr'))
+
+      if (rows.length > 2) {
+        const currentRow = currentCell?.closest('tr')
+        const rowToDelete = (currentRow && rows.indexOf(currentRow) > 0) ? currentRow : rows[rows.length - 1]
+        rowToDelete.remove()
+
+        // Re-number rows
+        const remainingRows = Array.from(targetTable.querySelectorAll('tr'))
+        let counter = 1
+        remainingRows.forEach((r, idx) => {
+          if (idx === 0) return
+          const firstTd = r.querySelector('td')
+          if (firstTd) firstTd.textContent = String(counter++)
+        })
+
+        form.content = editorRoot.innerHTML
+        toast.add({ severity: 'info', summary: 'Baris Dihapus', detail: 'Baris berhasil dihapus', life: 2000 })
+      } else {
+        toast.add({ severity: 'warn', summary: 'Peringatan', detail: 'Tabel minimal harus memiliki 1 baris data', life: 2500 })
+      }
+    } else {
+      toast.add({ severity: 'warn', summary: 'Tidak Ada Tabel', detail: 'Belum ada tabel yang dibuat', life: 2500 })
+    }
+  }
+}
+
+// Helper: Merge disjointed tables into one unified table
+function mergeTables() {
+  const editorRoot = (quillInstance.value?.root || document.querySelector('.rich-editor-wrapper .ql-editor')) as HTMLElement | null
+  if (editorRoot) {
+    const tables = Array.from(editorRoot.querySelectorAll('table'))
+    if (tables.length > 1) {
+      const firstTable = tables[0]
+      const tbody1 = firstTable.querySelector('tbody') || firstTable
+
+      for (let i = 1; i < tables.length; i++) {
+        const nextTable = tables[i]
+        const rows = Array.from(nextTable.querySelectorAll('tr'))
+        rows.forEach((r, idx) => {
+          const text = r.textContent?.trim().toLowerCase() || ''
+          // If first row is a repeated header, skip it
+          if (idx === 0 && (text.includes('poin pembahasan') || text.includes('topik / masukan') || text === 'no' || text.includes('tanggapan'))) {
+            return
+          }
+          tbody1.appendChild(r)
+        })
+
+        // Remove whitespace/paragraphs between the two tables
+        let prev = nextTable.previousElementSibling
+        while (prev && prev !== firstTable && (prev.tagName === 'P' || prev.tagName === 'BR') && !prev.textContent?.trim()) {
+          const toRemove = prev
+          prev = prev.previousElementSibling
+          toRemove.remove()
+        }
+        nextTable.remove()
+      }
+
+      // Re-number sequentially
+      const allRows = Array.from(firstTable.querySelectorAll('tr'))
+      let counter = 1
+      allRows.forEach((r, idx) => {
+        if (idx === 0) return // skip header
+        const firstTd = r.querySelector('td')
+        if (firstTd) firstTd.textContent = String(counter++)
+      })
+
+      form.content = editorRoot.innerHTML
+      toast.add({ severity: 'success', summary: 'Tabel Digabung', detail: 'Berhasil menggabungkan seluruh tabel menjadi 1 tabel rapi', life: 3000 })
+    } else {
+      toast.add({ severity: 'info', summary: 'Info', detail: 'Hanya ada 1 tabel di dalam dokumen notulensi', life: 2500 })
+    }
+  }
 }
 
 // Helper: Insert structured notulen template
@@ -531,19 +778,17 @@ function insertNotulenTemplate() {
     
     <h3>2. Pembahasan Pokok & Jalannya Diskusi</h3>
     <p>Berikut rangkuman tanggapan dan aspirasi yang disampaikan oleh seluruh peserta rapat:</p>
-    <table class="notulen-table" border="1" style="width: 100%; border-collapse: collapse; margin: 12px 0;">
-      <thead>
-        <tr style="background-color: #f1f5f9;">
-          <th style="width: 50px; text-align: center; padding: 8px; border: 1px solid #cbd5e1;">No</th>
-          <th style="width: 38%; padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Topik / Masukan Peserta</th>
-          <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Tanggapan & Solusi yang Disepakati</th>
-        </tr>
-      </thead>
+    <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
       <tbody>
+        <tr style="background-color: #f1f5f9; font-weight: bold;">
+          <td style="width: 50px; text-align: center; padding: 8px; border: 1px solid #94a3b8;"><b>No</b></td>
+          <td style="width: 38%; padding: 8px; border: 1px solid #94a3b8; text-align: left;"><b>Topik / Masukan Peserta</b></td>
+          <td style="padding: 8px; border: 1px solid #94a3b8; text-align: left;"><b>Tanggapan & Solusi yang Disepakati</b></td>
+        </tr>
         <tr>
-          <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1;">1</td>
-          <td style="padding: 8px; border: 1px solid #cbd5e1;">Evaluasi pelaksanaan kegiatan dan kendala di lapangan...</td>
-          <td style="padding: 8px; border: 1px solid #cbd5e1;">Disepakati penyesuaian jadwal dan koordinasi tim teknis...</td>
+          <td style="text-align: center; padding: 8px; border: 1px solid #94a3b8;">1</td>
+          <td style="padding: 8px; border: 1px solid #94a3b8;">Evaluasi pelaksanaan kegiatan dan kendala di lapangan...</td>
+          <td style="padding: 8px; border: 1px solid #94a3b8;">Disepakati penyesuaian jadwal dan koordinasi tim teknis...</td>
         </tr>
       </tbody>
     </table>
@@ -583,7 +828,7 @@ async function loadExistingMinute(id: number) {
     form.end_time = data.end_time || '11:00'
     form.location = data.location || 'Ruang Rapat Utama'
     form.notulis_id = data.notulis_id || authStore.user?.id || null
-    form.content = data.content || ''
+    form.content = autoHealNotulenTableHtml(data.content || '')
 
     if (Array.isArray(data.attendees)) {
       form.attendees = data.attendees.map((a: any) => typeof a === 'object' ? a.id : a)
@@ -683,5 +928,80 @@ onMounted(async () => {
 :deep(.dark) .rich-editor-wrapper :deep(.p-editor-toolbar) {
   background-color: #1e293b;
   border-color: #334155;
+}
+
+/* Rich Editor Table Styling - Crisp visible borders and clear column layout */
+.rich-editor-wrapper :deep(.ql-editor) {
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.rich-editor-wrapper :deep(.ql-editor table) {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 1rem 0 !important;
+  table-layout: auto !important;
+  border: 1px solid #94a3b8 !important;
+}
+
+.rich-editor-wrapper :deep(.ql-editor table td),
+.rich-editor-wrapper :deep(.ql-editor table th) {
+  border: 1px solid #94a3b8 !important; /* Clearly visible, distinct line between cells */
+  padding: 8px 12px !important;
+  min-height: 40px !important;
+  vertical-align: top !important;
+  box-sizing: border-box !important;
+  color: #1e293b !important;
+}
+
+/* Column 1 (No) narrow and centered */
+.rich-editor-wrapper :deep(.ql-editor table td:first-child),
+.rich-editor-wrapper :deep(.ql-editor table th:first-child) {
+  width: 50px !important;
+  text-align: center !important;
+  font-weight: 600 !important;
+}
+
+/* Header row with light slate background & bold text */
+.rich-editor-wrapper :deep(.ql-editor table tr:first-child td),
+.rich-editor-wrapper :deep(.ql-editor table tr:first-child th) {
+  background-color: #f1f5f9 !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  border-bottom: 2px solid #64748b !important;
+}
+
+/* Focus and hover cues so users clearly see the active cell and column boundaries */
+.rich-editor-wrapper :deep(.ql-editor table td:hover) {
+  background-color: #f8fafc !important;
+}
+
+.rich-editor-wrapper :deep(.ql-editor table td:focus),
+.rich-editor-wrapper :deep(.ql-editor table td:focus-within) {
+  outline: 2px solid #3b82f6 !important;
+  outline-offset: -2px !important;
+}
+
+/* Dark mode styling */
+:deep(.dark) .rich-editor-wrapper :deep(.ql-editor table) {
+  border-color: #475569 !important;
+}
+
+:deep(.dark) .rich-editor-wrapper :deep(.ql-editor table td),
+:deep(.dark) .rich-editor-wrapper :deep(.ql-editor table th) {
+  border-color: #475569 !important;
+  color: #f1f5f9 !important;
+}
+
+:deep(.dark) .rich-editor-wrapper :deep(.ql-editor table tr:first-child td),
+:deep(.dark) .rich-editor-wrapper :deep(.ql-editor table tr:first-child th) {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border-bottom-color: #94a3b8 !important;
+}
+
+:deep(.dark) .rich-editor-wrapper :deep(.ql-editor table td:hover) {
+  background-color: rgba(30, 41, 59, 0.7) !important;
 }
 </style>
