@@ -298,7 +298,27 @@ const minute = ref<any>(null)
 const loading = ref(true)
 
 const renderedContent = computed(() => {
-  return minute.value?.content || '<p class="italic text-slate-400">Tidak ada catatan jalannya rapat.</p>'
+  let raw = minute.value?.content
+  if (!raw || !raw.trim()) {
+    return '<p class="italic text-slate-400">Tidak ada catatan jalannya rapat.</p>'
+  }
+
+  // Auto-heal incomplete table headers if present from previous versions
+  if (raw.includes('<table')) {
+    try {
+      // Fix 2-header table where body has 3 columns
+      raw = raw.replace(/<tr[^>]*>\s*<th[^>]*>No<\/th>\s*<th[^>]*>([^<]*)<\/th>\s*<\/tr>/gi, (match, p1) => {
+        return `<tr style="background-color: #f1f5f9;">
+          <th style="width: 50px; text-align: center;">No</th>
+          <th style="width: 38%; text-align: left;">${p1 || 'Topik / Masukan Peserta'}</th>
+          <th style="text-align: left;">Tanggapan & Kesepakatan Bersama</th>
+        </tr>`
+      })
+    } catch (e) {
+      // ignore
+    }
+  }
+  return raw
 })
 
 const submitting = ref(false)
@@ -497,23 +517,40 @@ onMounted(() => {
 :deep(.notulen-content table) {
   width: 100% !important;
   border-collapse: collapse !important;
-  margin: 1rem 0 !important;
+  margin: 1.25rem 0 !important;
   font-size: 0.8125rem !important;
+  border: 1px solid #cbd5e1 !important;
 }
 
 :deep(.notulen-content th),
 :deep(.notulen-content td) {
   border: 1px solid #cbd5e1 !important;
-  padding: 6px 12px !important;
+  padding: 8px 12px !important;
   text-align: left !important;
+  vertical-align: top !important;
 }
 
 :deep(.notulen-content th) {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+:deep(.notulen-content th:first-child),
+:deep(.notulen-content td:first-child) {
+  text-align: center !important;
+  width: 45px !important;
+}
+
+:deep(.notulen-content tbody tr:nth-child(even)) {
   background-color: #f8fafc !important;
-  font-weight: 600 !important;
 }
 
 /* Dark mode table border adjustments */
+:deep(.dark .notulen-content table) {
+  border-color: #334155 !important;
+}
+
 :deep(.dark .notulen-content th),
 :deep(.dark .notulen-content td) {
   border-color: #334155 !important;
@@ -521,6 +558,11 @@ onMounted(() => {
 
 :deep(.dark .notulen-content th) {
   background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+:deep(.dark .notulen-content tbody tr:nth-child(even)) {
+  background-color: rgba(30, 41, 59, 0.4) !important;
 }
 </style>
 

@@ -99,7 +99,7 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="flex flex-col gap-1.5">
             <label class="font-medium text-xs">Tanggal Pelaksanaan *</label>
             <InputText v-model="form.meeting_date" type="date" class="w-full" />
@@ -115,6 +115,21 @@
           <div class="flex flex-col gap-1.5">
             <label class="font-medium text-xs">Lokasi / Tempat</label>
             <InputText v-model="form.location" placeholder="Ruang Rapat Utama / Zoom" class="w-full" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="font-medium text-xs flex items-center justify-between">
+              <span>Notulis Rapat *</span>
+              <span class="text-[10px] text-slate-400 font-normal">Default: Akun Login</span>
+            </label>
+            <Select 
+              v-model="form.notulis_id" 
+              :options="userOptions" 
+              optionLabel="label" 
+              optionValue="id" 
+              placeholder="Pilih notulis rapat..." 
+              filter 
+              class="w-full"
+            />
           </div>
         </div>
       </div>
@@ -360,6 +375,7 @@
 
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
+import { useAuthStore } from '~/stores/auth'
 
 definePageMeta({ layout: 'dashboard' })
 
@@ -367,6 +383,7 @@ const router = useRouter()
 const route = useRoute()
 const toast = useToast()
 const api = useApi()
+const authStore = useAuthStore()
 
 const editId = computed(() => {
   const q = route.query.id
@@ -387,6 +404,7 @@ const form = reactive({
   start_time: '08:30',
   end_time: '11:00',
   location: 'Ruang Rapat Utama',
+  notulis_id: authStore.user?.id || (null as number | null),
   attendees: [] as number[],
   absent_members: [] as number[],
   agenda: ['Pembahasan Utama'] as string[],
@@ -412,12 +430,16 @@ const meetingTypeOptions = [
 
 const users = ref<any[]>([])
 const userOptions = computed(() => {
-  return users.value.map(u => ({
-    id: u.id,
-    label: `${u.full_name} (${u.nik || '-'})`,
-    full_name: u.full_name,
-    nik: u.nik
-  }))
+  return users.value.map(u => {
+    const roleName = u.role?.name || u.role_name || (u.is_teacher ? 'Guru' : 'Pegawai / Staff')
+    return {
+      id: u.id,
+      label: `${u.full_name} (${roleName}${u.nik ? ' • ' + u.nik : ''})`,
+      full_name: u.full_name,
+      role_name: roleName,
+      nik: u.nik
+    }
+  })
 })
 
 function addAgendaItem() {
@@ -475,9 +497,9 @@ function insertTable(cols: 2 | 3) {
     tableHtml = `
       <table class="notulen-table" border="1" style="width: 100%; border-collapse: collapse; margin: 12px 0;">
         <thead>
-          <tr style="background-color: #f8fafc;">
+          <tr style="background-color: #f1f5f9;">
             <th style="width: 50px; text-align: center; padding: 8px; border: 1px solid #cbd5e1;">No</th>
-            <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Poin Masukan / Aspirasi Peserta</th>
+            <th style="width: 38%; padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Topik / Masukan Peserta</th>
             <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Tanggapan & Kesepakatan Bersama</th>
           </tr>
         </thead>
@@ -511,9 +533,9 @@ function insertNotulenTemplate() {
     <p>Berikut rangkuman tanggapan dan aspirasi yang disampaikan oleh seluruh peserta rapat:</p>
     <table class="notulen-table" border="1" style="width: 100%; border-collapse: collapse; margin: 12px 0;">
       <thead>
-        <tr style="background-color: #f8fafc;">
+        <tr style="background-color: #f1f5f9;">
           <th style="width: 50px; text-align: center; padding: 8px; border: 1px solid #cbd5e1;">No</th>
-          <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Topik / Masukan Peserta</th>
+          <th style="width: 38%; padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Topik / Masukan Peserta</th>
           <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Tanggapan & Solusi yang Disepakati</th>
         </tr>
       </thead>
@@ -560,6 +582,7 @@ async function loadExistingMinute(id: number) {
     form.start_time = data.start_time || '08:30'
     form.end_time = data.end_time || '11:00'
     form.location = data.location || 'Ruang Rapat Utama'
+    form.notulis_id = data.notulis_id || authStore.user?.id || null
     form.content = data.content || ''
 
     if (Array.isArray(data.attendees)) {

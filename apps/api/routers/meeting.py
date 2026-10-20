@@ -259,7 +259,7 @@ async def create_meeting_minute(
         attendees=json.dumps(attendees) if isinstance(attendees, list) else attendees,
         absent_members=json.dumps(absent_members) if isinstance(absent_members, list) else absent_members,
         attachment_urls=json.dumps(attachment_urls) if isinstance(attachment_urls, list) else attachment_urls,
-        notulis_id=current_user.id,
+        notulis_id=data.get("notulis_id") or current_user.id,
         status="draft",
         is_active=True,
     )
@@ -432,8 +432,8 @@ async def update_meeting_minute(
     if not (is_owner or is_admin):
         raise HTTPException(status_code=403, detail="Hanya notulis atau pimpinan yang dapat mengedit draf notulen.")
         
-    for field in ["title", "nomor_notulen", "start_time", "end_time", "location", "scope", "unit_id", "meeting_type", "content"]:
-        if field in data:
+    for field in ["title", "nomor_notulen", "start_time", "end_time", "location", "scope", "unit_id", "meeting_type", "content", "notulis_id"]:
+        if field in data and data[field] is not None:
             setattr(m, field, data[field])
             
     if "meeting_date" in data:
@@ -801,7 +801,11 @@ class _NotulenDocParser(HTMLParser):
         elif tag == 'li':
             self.current_p = []
         elif tag in ('p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div'):
-            self.current_p = []
+            if self.in_table:
+                if self.current_cell and not self.current_cell[-1].endswith('<br/>'):
+                    self.current_cell.append('<br/>')
+            else:
+                self.current_p = []
         elif tag in ('b', 'strong'):
             self._append_tag('<b>')
         elif tag in ('i', 'em'):
@@ -837,9 +841,10 @@ class _NotulenDocParser(HTMLParser):
         elif tag in ('ul', 'ol'):
             self.in_list = False
         elif tag in ('p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div'):
-            txt = ''.join(self.current_p).strip()
-            if txt:
-                self.elements.append(('h' if tag.startswith('h') else 'p', txt))
+            if not self.in_table:
+                txt = ''.join(self.current_p).strip()
+                if txt:
+                    self.elements.append(('h' if tag.startswith('h') else 'p', txt))
 
     def handle_data(self, data):
         self._append_tag(pyhtml.escape(data))
@@ -874,37 +879,49 @@ def _render_notulen_content_to_flowables(raw_html, body_style, header_style, met
                 flowables.append(Paragraph(val, use_p_style))
                 flowables.append(Spacer(1, 6))
             elif kind == 'table':
+                if not val:
+                    continue
+                max_cols = max(len(r) for r in val) if val else 0
+                if max_cols == 0:
+                    continue
+
                 table_rows = []
-                for row in val:
+                for row_idx, row in enumerate(val):
                     cells = []
-                    for cell_txt, is_head in row:
-                        style = meta_key if is_head else body_style
-                        cells.append(Paragraph(cell_txt or "-", style))
+                    # Check if whole row is header
+                    is_header_row = (row_idx == 0) or all(c[1] for c in row)
+                    for col_idx, (cell_txt, is_head) in enumerate(row):
+                        style = meta_key if (is_head or is_header_row) else body_style
+                        cells.append(Paragraph(cell_txt if cell_txt else "-", style))
+                    # Pad missing columns if any
+                    while len(cells) < max_cols:
+                        style = meta_key if is_header_row else body_style
+                        cells.append(Paragraph("-", style))
                     table_rows.append(cells)
 
                 if table_rows:
-                    max_cols = max(len(r) for r in table_rows)
-                    for r in table_rows:
-                        while len(r) < max_cols:
-                            r.append(Paragraph("-", body_style))
-
                     tot_w = 515
-                    if max_cols == 2:
-                        widths = [50, 465]
+                    if max_cols == 1:
+                        widths = [tot_w]
+                    elif max_cols == 2:
+                        widths = [45, 470]
                     elif max_cols == 3:
-                        widths = [40, 240, 235]
+                        widths = [35, 175, 305]
                     elif max_cols == 4:
-                        widths = [35, 160, 160, 160]
+                        widths = [30, 150, 205, 130]
+                    elif max_cols == 5:
+                        widths = [30, 120, 175, 100, 90]
                     else:
                         widths = [tot_w / max_cols] * max_cols
 
                     t = Table(table_rows, colWidths=widths)
                     t.setStyle(TableStyle([
-                        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
-                        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F8FAFC')),
+                        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#94A3B8')),
+                        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F1F5F9')),
                         ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                        ('TOPPADDING', (0,0), (-1,-1), 4),
-                        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+                        ('ALIGN', (0,0), (0,-1), 'CENTER'),  # Column 0 (No) centered
+                        ('TOPPADDING', (0,0), (-1,-1), 4.5),
+                        ('BOTTOMPADDING', (0,0), (-1,-1), 4.5),
                         ('LEFTPADDING', (0,0), (-1,-1), 5),
                         ('RIGHTPADDING', (0,0), (-1,-1), 5),
                     ]))

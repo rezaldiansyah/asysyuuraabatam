@@ -221,6 +221,138 @@ def run_employee_photos_migration(db: Session) -> dict:
     }
 
 
+def run_documents_migration(db: Session) -> dict:
+    """
+    Safely migrate document files from 'uploads/' to 'documents/' in Cloudflare R2 and update DB.
+    Covers:
+    - Document.file_url
+    - Document.attachments (JSON array)
+    - MeetingMinutes.attachment_urls (JSON array)
+    """
+    from storage import copy_r2_object, check_r2_object_exists, delete_r2_object, is_r2_configured
+    import os
+    import shutil
+    import json
+
+    r2_ready = is_r2_configured()
+    public_r2_url = os.getenv("R2_PUBLIC_URL", "").rstrip("/")
+    migrated_docs = []
+    migrated_attachments = []
+    migrated_meeting_attachments = []
+    errors = []
+
+    def _migrate_url(url: str) -> Optional[str]:
+        if not url or "documents/" in url:
+            return None
+        if public_r2_url and public_r2_url in url:
+            old_k = url.replace(public_r2_url, "").lstrip("/")
+        elif "/uploads/" in url:
+            old_k = "uploads/" + url.split("/uploads/")[-1]
+        else:
+            return None
+
+        filename = old_k.split("/")[-1]
+        new_k = f"documents/{filename}"
+        new_url = f"{public_r2_url}/{new_k}" if public_r2_url else url.replace("/uploads/", "/uploads/documents/")
+
+        if r2_ready:
+            try:
+                copy_r2_object(old_k, new_k)
+                if not check_r2_object_exists(new_k):
+                    return None
+                try:
+                    delete_r2_object(old_k)
+                except Exception:
+                    pass
+                return new_url
+            except Exception as e:
+                print(f"[R2 Doc Migration] Error copying {old_k}: {e}")
+                return None
+        else:
+            old_local = os.path.join(UPLOAD_DIR, filename)
+            new_dir = os.path.join(UPLOAD_DIR, "documents")
+            os.makedirs(new_dir, exist_ok=True)
+            new_local = os.path.join(new_dir, filename)
+            if os.path.exists(old_local):
+                shutil.copy2(old_local, new_local)
+                try:
+                    os.remove(old_local)
+                except Exception:
+                    pass
+                return new_url
+            return None
+
+    # 1. Migrate Document.file_url and attachments
+    docs = db.query(models.Document).filter(models.Document.is_active == True).all()
+    for doc in docs:
+        doc_changed = False
+        if doc.file_url and "documents/" not in doc.file_url:
+            new_u = _migrate_url(doc.file_url)
+            if new_u:
+                doc.file_url = new_u
+                doc_changed = True
+                migrated_docs.append({"id": doc.id, "title": doc.title, "new_url": new_u})
+
+        # Process doc.attachments (JSON array)
+        if doc.attachments:
+            try:
+                att_list = json.loads(doc.attachments) if isinstance(doc.attachments, str) else doc.attachments
+                if isinstance(att_list, list):
+                    att_changed = False
+                    for att in att_list:
+                        if isinstance(att, dict) and att.get("file_url") and "documents/" not in att["file_url"]:
+                            new_att_url = _migrate_url(att["file_url"])
+                            if new_att_url:
+                                att["file_url"] = new_att_url
+                                att_changed = True
+                                migrated_attachments.append({"doc_id": doc.id, "new_url": new_att_url})
+                    if att_changed:
+                        doc.attachments = json.dumps(att_list)
+                        doc_changed = True
+            except Exception as e:
+                errors.append(f"Doc #{doc.id} attachments parse error: {e}")
+
+        if doc_changed:
+            db.commit()
+
+    # 2. Migrate MeetingMinutes.attachment_urls
+    meetings = db.query(models.MeetingMinutes).filter(
+        models.MeetingMinutes.attachment_urls.isnot(None),
+        models.MeetingMinutes.is_active == True
+    ).all()
+    for m in meetings:
+        if m.attachment_urls:
+            try:
+                m_atts = json.loads(m.attachment_urls) if isinstance(m.attachment_urls, str) else m.attachment_urls
+                if isinstance(m_atts, list):
+                    m_changed = False
+                    new_m_atts = []
+                    for u in m_atts:
+                        if isinstance(u, str) and u and "documents/" not in u:
+                            new_u = _migrate_url(u)
+                            if new_u:
+                                new_m_atts.append(new_u)
+                                m_changed = True
+                                migrated_meeting_attachments.append({"meeting_id": m.id, "new_url": new_u})
+                            else:
+                                new_m_atts.append(u)
+                        else:
+                            new_m_atts.append(u)
+                    if m_changed:
+                        m.attachment_urls = json.dumps(new_m_atts)
+                        db.commit()
+            except Exception as e:
+                errors.append(f"Meeting #{m.id} attachments parse error: {e}")
+
+    return {
+        "status": "success",
+        "migrated_docs_count": len(migrated_docs),
+        "migrated_doc_attachments_count": len(migrated_attachments),
+        "migrated_meeting_attachments_count": len(migrated_meeting_attachments),
+        "errors": errors
+    }
+
+
 @app.on_event("startup")
 def run_migrations_on_startup():
     # 1. Run direct DDL self-healing for new columns on existing tables
@@ -375,6 +507,22 @@ def run_migrations_on_startup():
                 m_db.close()
     except Exception as e:
         print(f"[Startup R2 Migration] Employee photos note: {e}")
+
+    # 7. Auto-migrate documents and archives to 'documents/' in Cloudflare R2
+    try:
+        from storage import is_r2_configured
+        if is_r2_configured():
+            from database import SessionLocal
+            m_db = SessionLocal()
+            try:
+                res = run_documents_migration(m_db)
+                d_count = res.get("migrated_docs_count", 0) + res.get("migrated_doc_attachments_count", 0) + res.get("migrated_meeting_attachments_count", 0)
+                if d_count > 0:
+                    print(f"[Startup R2 Migration] Successfully migrated {d_count} files to 'documents/'.")
+            finally:
+                m_db.close()
+    except Exception as e:
+        print(f"[Startup R2 Migration] Documents migration note: {e}")
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
@@ -2199,6 +2347,17 @@ async def migrate_employee_photos_endpoint(
     Safely migrate employee and teacher photos from 'uploads/' to 'employees/photos/' in Cloudflare R2 and update DB.
     """
     return run_employee_photos_migration(db)
+
+
+@app.post("/cms/migrate-documents")
+async def migrate_documents_endpoint(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Safely migrate documents, attachments, and meeting archives from 'uploads/' to 'documents/' in Cloudflare R2 and update DB.
+    """
+    return run_documents_migration(db)
 
 
 @app.post("/cms/upload/batch")

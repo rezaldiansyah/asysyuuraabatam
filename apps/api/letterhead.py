@@ -10,15 +10,18 @@ logger = logging.getLogger(__name__)
 DEFAULT_LETTERHEAD = {
     "nama_yayasan": "YAYASAN ASY-SYUURAA BATAM",
     "nama_unit": "SEKOLAH ISLAM TERPADU ASY-SYUURAA",
-    "keterangan_legal": "NPSN: - • Akreditasi A • Berdiri Sejak 2005",
-    "alamat": "Komplek Asy-Syuuraa, Sungai Langkai, Kec. Sagulung, Kota Batam, Kepulauan Riau 29437",
-    "telepon": "(0778) 391234",
-    "whatsapp": "0812-7000-0000",
-    "email": "sekretariat@asy-syuuraabatam.or.id",
+    "keterangan_legal": "SK Men Kum No: AHU-0001606.AH.01.05 Tahun 2023",
+    "alamat": "Kavling Lama RT 03, RW 10 Kel. Sagulung Kota, Kec. Sagulung, Kota Batam, Kepulauan Riau 29439",
+    "telepon": "(0778) 4091272",
+    "whatsapp": "",
+    "email": "kabid.asysyuuraa@gmail.com",
     "website": "https://asy-syuuraabatam.or.id",
     "logo_url": "",
+    "logo_size": 75,
+    "font_family": "times",  # 'times' or 'arial'/'helvetica'
     "line_color": "#059669",
     "layout_style": "left_logo",  # 'left_logo' or 'centered'
+    "custom_lines": []
 }
 
 
@@ -70,6 +73,11 @@ def get_letterhead_flowables(
     """
     Generate unified ReportLab Flowables for standard institutional Kop Surat.
     Accepts printable width (default 515pt for A4 with 40pt margins).
+    Supports:
+    - Custom lines (dynamic line-by-line configuration)
+    - Font Family (Times New Roman or Arial/Helvetica)
+    - Scalable Logo Size (default 75pt)
+    - Clean contact strings without dummy numbers
     """
     from reportlab.lib import colors
     from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, HRFlowable, Image as RLImage
@@ -84,89 +92,148 @@ def get_letterhead_flowables(
     except Exception:
         primary_color = colors.HexColor("#059669")
 
-    # Typography Styles
-    title_style = ParagraphStyle(
-        'KopTitle',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=12.5,
-        leading=15,
-        alignment=1,  # Center
-        textColor=colors.HexColor('#0F172A')
-    )
-    sub_title_style = ParagraphStyle(
-        'KopSubTitle',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=11,
-        leading=14,
-        alignment=1,  # Center
-        textColor=primary_color
-    )
-    legal_style = ParagraphStyle(
-        'KopLegal',
-        parent=styles['Normal'],
-        fontName='Helvetica-Oblique',
-        fontSize=7.5,
-        leading=10,
-        alignment=1,
-        textColor=colors.HexColor('#475569')
-    )
-    contact_style = ParagraphStyle(
-        'KopContact',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=7.5,
-        leading=10,
-        alignment=1,
-        textColor=colors.HexColor('#475569')
-    )
+    # Font Family selection
+    font_choice = (config.get("font_family") or "times").lower()
+    if "time" in font_choice:
+        font_bold = "Times-Bold"
+        font_regular = "Times-Roman"
+        font_italic = "Times-Italic"
+    else:
+        font_bold = "Helvetica-Bold"
+        font_regular = "Helvetica"
+        font_italic = "Helvetica-Oblique"
 
     flowables = []
+    kop_paragraphs = []
 
-    # Texts
-    nama_yayasan = (config.get("nama_yayasan") or DEFAULT_LETTERHEAD["nama_yayasan"]).strip().upper()
-    
-    # Sub title: custom or unit or configured
-    if custom_sub_title:
-        nama_unit = custom_sub_title.strip().upper()
+    # Check if custom_lines are configured
+    custom_lines = config.get("custom_lines") or []
+    if isinstance(custom_lines, list) and len(custom_lines) > 0:
+        for idx, line in enumerate(custom_lines):
+            txt = (line.get("text") or "").strip()
+            if not txt:
+                continue
+
+            # Override sub title if specific unit requested and this is line 2
+            if idx == 1 and custom_sub_title:
+                txt = custom_sub_title.strip().upper()
+
+            f_size = float(line.get("font_size", 10))
+            is_bold = bool(line.get("bold", False))
+            is_italic = bool(line.get("italic", False))
+            
+            c_hex = line.get("color")
+            if not c_hex:
+                c_hex = color_hex if idx == 1 else "#0F172A"
+            try:
+                line_color = colors.HexColor(c_hex)
+            except Exception:
+                line_color = colors.HexColor("#0F172A")
+
+            if is_bold and is_italic:
+                chosen_font = font_bold  # fallback
+            elif is_bold:
+                chosen_font = font_bold
+            elif is_italic:
+                chosen_font = font_italic
+            else:
+                chosen_font = font_regular
+
+            align_val = 1 if line.get("align", "center") == "center" else (0 if line.get("align") == "left" else 2)
+
+            p_style = ParagraphStyle(
+                f'KopCustomLine_{idx}',
+                parent=styles['Normal'],
+                fontName=chosen_font,
+                fontSize=f_size,
+                leading=f_size * 1.25,
+                alignment=align_val,
+                textColor=line_color,
+                spaceAfter=2
+            )
+            kop_paragraphs.append(Paragraph(txt, p_style))
     else:
-        nama_unit = (config.get("nama_unit") or DEFAULT_LETTERHEAD["nama_unit"]).strip().upper()
+        # Standard format
+        title_style = ParagraphStyle(
+            'KopTitle',
+            parent=styles['Normal'],
+            fontName=font_bold,
+            fontSize=13,
+            leading=16,
+            alignment=1,
+            textColor=colors.HexColor('#0F172A')
+        )
+        sub_title_style = ParagraphStyle(
+            'KopSubTitle',
+            parent=styles['Normal'],
+            fontName=font_bold,
+            fontSize=11.5,
+            leading=15,
+            alignment=1,
+            textColor=primary_color
+        )
+        legal_style = ParagraphStyle(
+            'KopLegal',
+            parent=styles['Normal'],
+            fontName=font_italic,
+            fontSize=8,
+            leading=11,
+            alignment=1,
+            textColor=colors.HexColor('#475569')
+        )
+        contact_style = ParagraphStyle(
+            'KopContact',
+            parent=styles['Normal'],
+            fontName=font_regular,
+            fontSize=8,
+            leading=11,
+            alignment=1,
+            textColor=colors.HexColor('#475569')
+        )
 
-    keterangan_legal = (config.get("keterangan_legal") or "").strip()
-    alamat = (config.get("alamat") or DEFAULT_LETTERHEAD["alamat"]).strip()
+        nama_yayasan = (config.get("nama_yayasan") or DEFAULT_LETTERHEAD["nama_yayasan"]).strip().upper()
+        if custom_sub_title:
+            nama_unit = custom_sub_title.strip().upper()
+        else:
+            nama_unit = (config.get("nama_unit") or DEFAULT_LETTERHEAD["nama_unit"]).strip().upper()
 
-    # Build contact string
-    contacts = []
-    if config.get("telepon"):
-        contacts.append(f"Telp: {config['telepon']}")
-    if config.get("whatsapp"):
-        contacts.append(f"WA: {config['whatsapp']}")
-    if config.get("email"):
-        contacts.append(f"Email: {config['email']}")
-    if config.get("website"):
-        contacts.append(f"Web: {config['website']}")
+        keterangan_legal = (config.get("keterangan_legal") or "").strip()
+        alamat = (config.get("alamat") or DEFAULT_LETTERHEAD["alamat"]).strip()
 
-    contact_str = " • ".join(contacts)
+        # Build contact string without fake/dummy numbers
+        contacts = []
+        if config.get("telepon") and config["telepon"].strip():
+            contacts.append(f"Telp: {config['telepon'].strip()}")
+        if config.get("whatsapp") and config["whatsapp"].strip() and config["whatsapp"].strip() != "0812-7000-0000":
+            contacts.append(f"WA: {config['whatsapp'].strip()}")
+        if config.get("email") and config["email"].strip():
+            contacts.append(f"Email: {config['email'].strip()}")
+        if config.get("website") and config["website"].strip():
+            contacts.append(f"Web: {config['website'].strip()}")
 
-    # Paragraph elements for text column
-    kop_paragraphs = [
-        Paragraph(nama_yayasan, title_style),
-        Paragraph(nama_unit, sub_title_style),
-    ]
-    if keterangan_legal:
-        kop_paragraphs.append(Paragraph(keterangan_legal, legal_style))
-    kop_paragraphs.append(Paragraph(alamat, contact_style))
-    if contact_str:
-        kop_paragraphs.append(Paragraph(contact_str, contact_style))
+        contact_str = " • ".join(contacts)
 
-    # Try resolving logo image
+        kop_paragraphs.append(Paragraph(nama_yayasan, title_style))
+        kop_paragraphs.append(Paragraph(nama_unit, sub_title_style))
+        if keterangan_legal:
+            kop_paragraphs.append(Paragraph(keterangan_legal, legal_style))
+        if alamat:
+            kop_paragraphs.append(Paragraph(alamat, contact_style))
+        if contact_str:
+            kop_paragraphs.append(Paragraph(contact_str, contact_style))
+
+    # Resolve logo image & size
     logo_flowable = None
     logo_url = config.get("logo_url") or ""
+    try:
+        logo_size = float(config.get("logo_size", 75))
+        if logo_size < 40 or logo_size > 140:
+            logo_size = 75
+    except Exception:
+        logo_size = 75
 
     if logo_url:
         try:
-            # Case 1: Local file path in uploads
             from main import UPLOAD_DIR
             local_candidate = None
 
@@ -179,22 +246,21 @@ def get_letterhead_flowables(
                 local_candidate = logo_url
 
             if local_candidate and os.path.exists(local_candidate):
-                logo_flowable = RLImage(local_candidate, width=54, height=54)
+                logo_flowable = RLImage(local_candidate, width=logo_size, height=logo_size)
             elif logo_url.startswith("http://") or logo_url.startswith("https://"):
-                # Attempt fast load with timeout
                 import urllib.request
                 import io
                 req = urllib.request.Request(logo_url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=2.5) as resp:
+                with urllib.request.urlopen(req, timeout=3.0) as resp:
                     img_data = io.BytesIO(resp.read())
-                    logo_flowable = RLImage(img_data, width=54, height=54)
+                    logo_flowable = RLImage(img_data, width=logo_size, height=logo_size)
         except Exception as e:
             logger.warning(f"Could not load letterhead logo from {logo_url}: {e}")
             logo_flowable = None
 
     # Render layout: With Logo or Text Only
     if logo_flowable:
-        logo_col_w = 60
+        logo_col_w = logo_size + 14
         text_col_w = printable_width - logo_col_w
         kop_table = Table([[logo_flowable, kop_paragraphs]], colWidths=[logo_col_w, text_col_w])
         kop_table.setStyle(TableStyle([
@@ -208,13 +274,13 @@ def get_letterhead_flowables(
         ]))
         flowables.append(kop_table)
     else:
-        # Text only centered
         for p in kop_paragraphs:
             flowables.append(p)
 
     flowables.append(Spacer(1, 4))
     # Double line typical of formal Indonesian institutional letterheads
-    flowables.append(HRFlowable(width="100%", thickness=2.0, color=primary_color, spaceBefore=2, spaceAfter=1.5))
-    flowables.append(HRFlowable(width="100%", thickness=0.6, color=primary_color, spaceBefore=0, spaceAfter=10))
+    flowables.append(HRFlowable(width="100%", thickness=2.2, color=primary_color, spaceBefore=2, spaceAfter=1.5))
+    flowables.append(HRFlowable(width="100%", thickness=0.7, color=primary_color, spaceBefore=0, spaceAfter=10))
 
     return flowables
+
