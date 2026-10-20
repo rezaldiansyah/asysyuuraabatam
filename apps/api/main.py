@@ -353,6 +353,155 @@ def run_documents_migration(db: Session) -> dict:
     }
 
 
+def run_ppdb_migration(db: Session) -> dict:
+    """
+    Safely migrate PPDB/SPMB files from 'uploads/' to dedicated folders in Cloudflare R2 and update DB:
+    - PPDBRegistration.file_kk_url -> 'ppdb/registrations/'
+    - PPDBRegistration.file_akta_url -> 'ppdb/registrations/'
+    - PPDBRegistration.file_foto_url -> 'ppdb/registrations/'
+    - settings_ppdb posters & LP images -> 'ppdb/posters/'
+    """
+    from storage import copy_r2_object, check_r2_object_exists, delete_r2_object, is_r2_configured
+    import os
+    import shutil
+    import json
+
+    r2_ready = is_r2_configured()
+    public_r2_url = os.getenv("R2_PUBLIC_URL", "").rstrip("/")
+    migrated_kk = []
+    migrated_akta = []
+    migrated_foto = []
+    migrated_posters = []
+    errors = []
+
+    def _migrate_url(url: str, target_folder: str) -> Optional[str]:
+        if not url or target_folder in url:
+            return None
+        if public_r2_url and public_r2_url in url:
+            old_k = url.replace(public_r2_url, "").lstrip("/")
+        elif "/uploads/" in url:
+            old_k = "uploads/" + url.split("/uploads/")[-1]
+        else:
+            return None
+
+        filename = old_k.split("/")[-1]
+        new_k = f"{target_folder}/{filename}"
+        new_url = f"{public_r2_url}/{new_k}" if public_r2_url else url.replace("/uploads/", f"/uploads/{target_folder}/")
+
+        if r2_ready:
+            try:
+                copy_r2_object(old_k, new_k)
+                if not check_r2_object_exists(new_k):
+                    return None
+                try:
+                    delete_r2_object(old_k)
+                except Exception:
+                    pass
+                return new_url
+            except Exception as e:
+                print(f"[R2 PPDB Migration] Error copying {old_k}: {e}")
+                return None
+        else:
+            old_local = os.path.join(UPLOAD_DIR, filename)
+            new_dir = os.path.join(UPLOAD_DIR, target_folder)
+            os.makedirs(new_dir, exist_ok=True)
+            new_local = os.path.join(new_dir, filename)
+            if os.path.exists(old_local):
+                shutil.copy2(old_local, new_local)
+                try:
+                    os.remove(old_local)
+                except Exception:
+                    pass
+                return new_url
+            return None
+
+    # 1. Migrate PPDB Registration files
+    registrations = db.query(models.PPDBRegistration).all()
+    for reg in registrations:
+        reg_changed = False
+        if reg.file_kk_url and "ppdb/" not in reg.file_kk_url:
+            new_kk = _migrate_url(reg.file_kk_url, "ppdb/registrations")
+            if new_kk:
+                reg.file_kk_url = new_kk
+                reg_changed = True
+                migrated_kk.append({"reg_id": reg.id, "reg_number": reg.registration_number, "url": new_kk})
+
+        if reg.file_akta_url and "ppdb/" not in reg.file_akta_url:
+            new_akta = _migrate_url(reg.file_akta_url, "ppdb/registrations")
+            if new_akta:
+                reg.file_akta_url = new_akta
+                reg_changed = True
+                migrated_akta.append({"reg_id": reg.id, "reg_number": reg.registration_number, "url": new_akta})
+
+        if reg.file_foto_url and "ppdb/" not in reg.file_foto_url:
+            new_foto = _migrate_url(reg.file_foto_url, "ppdb/registrations")
+            if new_foto:
+                reg.file_foto_url = new_foto
+                reg_changed = True
+                migrated_foto.append({"reg_id": reg.id, "reg_number": reg.registration_number, "url": new_foto})
+
+        if reg_changed:
+            db.commit()
+
+    # 2. Migrate settings_ppdb in PageContent
+    ppdb_content = db.query(models.PageContent).filter(models.PageContent.section_key == "settings_ppdb").first()
+    if ppdb_content and ppdb_content.content_json:
+        try:
+            p_data = json.loads(ppdb_content.content_json)
+            p_changed = False
+
+            # Migrate posters array
+            if "posters" in p_data and isinstance(p_data["posters"], list):
+                new_posters = []
+                for p_url in p_data["posters"]:
+                    if isinstance(p_url, str) and p_url and "ppdb/" not in p_url:
+                        new_p = _migrate_url(p_url, "ppdb/posters")
+                        if new_p:
+                            new_posters.append(new_p)
+                            p_changed = True
+                            migrated_posters.append({"type": "poster", "url": new_p})
+                        else:
+                            new_posters.append(p_url)
+                    else:
+                        new_posters.append(p_url)
+                if p_changed:
+                    p_data["posters"] = new_posters
+
+            # Migrate sections images if any (hero_carousel, stacked_image)
+            if "sections" in p_data and isinstance(p_data["sections"], list):
+                for sec in p_data["sections"]:
+                    if isinstance(sec, dict) and "images" in sec and isinstance(sec["images"], list):
+                        new_imgs = []
+                        for img_url in sec["images"]:
+                            if isinstance(img_url, str) and img_url and "ppdb/" not in img_url:
+                                new_img = _migrate_url(img_url, "ppdb/posters")
+                                if new_img:
+                                    new_imgs.append(new_img)
+                                    p_changed = True
+                                    migrated_posters.append({"type": "section_image", "url": new_img})
+                                else:
+                                    new_imgs.append(img_url)
+                            else:
+                                new_imgs.append(img_url)
+                        sec["images"] = new_imgs
+
+            if p_changed:
+                ppdb_content.content_json = json.dumps(p_data)
+                db.commit()
+        except Exception as e:
+            errors.append(f"settings_ppdb parse error: {e}")
+
+    return {
+        "status": "success",
+        "migrated_kk_count": len(migrated_kk),
+        "migrated_akta_count": len(migrated_akta),
+        "migrated_foto_count": len(migrated_foto),
+        "migrated_posters_count": len(migrated_posters),
+        "total_migrated": len(migrated_kk) + len(migrated_akta) + len(migrated_foto) + len(migrated_posters),
+        "errors": errors
+    }
+
+
 @app.on_event("startup")
 def run_migrations_on_startup():
     # 1. Run direct DDL self-healing for new columns on existing tables
@@ -523,6 +672,22 @@ def run_migrations_on_startup():
                 m_db.close()
     except Exception as e:
         print(f"[Startup R2 Migration] Documents migration note: {e}")
+
+    # 8. Auto-migrate PPDB files (registrations & posters) to 'ppdb/' in Cloudflare R2
+    try:
+        from storage import is_r2_configured
+        if is_r2_configured():
+            from database import SessionLocal
+            p_db = SessionLocal()
+            try:
+                res = run_ppdb_migration(p_db)
+                p_count = res.get("total_migrated", 0)
+                if p_count > 0:
+                    print(f"[Startup R2 Migration] Successfully migrated {p_count} PPDB files to 'ppdb/'.")
+            finally:
+                p_db.close()
+    except Exception as e:
+        print(f"[Startup R2 Migration] PPDB migration note: {e}")
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
@@ -2358,6 +2523,17 @@ async def migrate_documents_endpoint(
     Safely migrate documents, attachments, and meeting archives from 'uploads/' to 'documents/' in Cloudflare R2 and update DB.
     """
     return run_documents_migration(db)
+
+
+@app.post("/cms/migrate-ppdb")
+async def migrate_ppdb_endpoint(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Safely migrate PPDB registration documents and posters from 'uploads/' to 'ppdb/' in Cloudflare R2 and update DB.
+    """
+    return run_ppdb_migration(db)
 
 
 @app.post("/cms/upload/batch")

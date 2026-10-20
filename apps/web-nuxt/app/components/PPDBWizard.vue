@@ -559,9 +559,9 @@
           </div>
 
           <div class="grid md:grid-cols-2 gap-6">
-            <CmsImageUploader v-model="form.file_kk_url" label="Kartu Keluarga (KK) *" placeholder="Klik untuk upload KK" accept="image/*,application/pdf" />
-            <CmsImageUploader v-model="form.file_akta_url" label="Akta Kelahiran *" placeholder="Klik untuk upload Akta" accept="image/*,application/pdf" />
-            <CmsImageUploader v-model="form.file_foto_url" label="Foto 3x4 (Opsional)" placeholder="Bisa dilengkapi nanti" accept="image/*" />
+            <CmsImageUploader v-model="form.file_kk_url" folder="ppdb/registrations" label="Kartu Keluarga (KK) *" placeholder="Klik untuk upload KK" accept="image/*,application/pdf" />
+            <CmsImageUploader v-model="form.file_akta_url" folder="ppdb/registrations" label="Akta Kelahiran *" placeholder="Klik untuk upload Akta" accept="image/*,application/pdf" />
+            <CmsImageUploader v-model="form.file_foto_url" folder="ppdb/registrations" label="Foto 3x4 (Opsional)" placeholder="Bisa dilengkapi nanti" accept="image/*" />
           </div>
 
           <!-- Review Summary -->

@@ -119,7 +119,7 @@
                   <span class="text-sm font-medium">Gambar #{{ i + 1 }}</span>
                   <Button v-if="selectedSection.images.length > 1" icon="pi pi-trash" severity="danger" text rounded size="small" @click="selectedSection.images.splice(i, 1)" />
                 </div>
-                <CmsImageUploader v-model="selectedSection.images[i]" label="" placeholder="Upload poster/banner" />
+                <CmsImageUploader v-model="selectedSection.images[i]" folder="ppdb/posters" label="" placeholder="Upload poster/banner" />
               </div>
               <Button label="Tambah Gambar" icon="pi pi-plus" outlined severity="secondary" class="w-full" @click="selectedSection.images.push('')" />
             </div>

@@ -23,6 +23,7 @@
             
             <CmsImageUploader 
               v-model="ppdbSettings.posters[index]" 
+              folder="ppdb/posters"
               :label="index === 0 ? 'Poster Utama (Muncul di paling atas)' : `Poster Tambahan #${index}`" 
               placeholder="Upload Poster/Brosur PPDB" 
             />
