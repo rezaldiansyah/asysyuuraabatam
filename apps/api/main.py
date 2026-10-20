@@ -502,6 +502,216 @@ def run_ppdb_migration(db: Session) -> dict:
     }
 
 
+def run_cms_migration(db: Session) -> dict:
+    """
+    Safely migrate CMS, news, gallery, and public website assets from 'uploads/' to dedicated folders in Cloudflare R2 and update DB:
+    - Post.image_url -> 'cms/articles/'
+    - GalleryAlbum.cover_url -> 'cms/gallery/'
+    - GalleryPhoto.image_url -> 'cms/gallery/'
+    - VideoGallery.thumbnail_url -> 'cms/gallery/'
+    - Testimonial.photo_url -> 'cms/testimonials/'
+    - TeacherOfMonth.photo_url -> 'employees/photos/'
+    - PageContent.image_url & content_json -> 'cms/banners/' or 'cms/general/'
+    """
+    from storage import copy_r2_object, check_r2_object_exists, delete_r2_object, is_r2_configured
+    import os
+    import shutil
+    import json
+
+    r2_ready = is_r2_configured()
+    public_r2_url = os.getenv("R2_PUBLIC_URL", "").rstrip("/")
+    migrated_posts = []
+    migrated_albums = []
+    migrated_photos = []
+    migrated_videos = []
+    migrated_testimonials = []
+    migrated_teachers = []
+    migrated_pages = []
+    errors = []
+
+    def _migrate_url(url: str, target_folder: str) -> Optional[str]:
+        if not url or target_folder in url:
+            return None
+        # Don't touch if already organized in any known subfolder
+        if any(prefix in url for prefix in ["branding/", "employees/", "documents/", "ppdb/", "cms/"]):
+            return None
+
+        if public_r2_url and public_r2_url in url:
+            old_k = url.replace(public_r2_url, "").lstrip("/")
+        elif "/uploads/" in url:
+            old_k = "uploads/" + url.split("/uploads/")[-1]
+        else:
+            return None
+
+        filename = old_k.split("/")[-1]
+        new_k = f"{target_folder}/{filename}"
+        new_url = f"{public_r2_url}/{new_k}" if public_r2_url else url.replace("/uploads/", f"/uploads/{target_folder}/")
+
+        if r2_ready:
+            try:
+                copy_r2_object(old_k, new_k)
+                if not check_r2_object_exists(new_k):
+                    return None
+                try:
+                    delete_r2_object(old_k)
+                except Exception:
+                    pass
+                return new_url
+            except Exception as e:
+                print(f"[R2 CMS Migration] Error copying {old_k}: {e}")
+                return None
+        else:
+            old_local = os.path.join(UPLOAD_DIR, filename)
+            new_dir = os.path.join(UPLOAD_DIR, target_folder)
+            os.makedirs(new_dir, exist_ok=True)
+            new_local = os.path.join(new_dir, filename)
+            if os.path.exists(old_local):
+                shutil.copy2(old_local, new_local)
+                try:
+                    os.remove(old_local)
+                except Exception:
+                    pass
+                return new_url
+            return None
+
+    # 1. Posts (Articles/News)
+    posts = db.query(models.Post).all()
+    for post in posts:
+        if post.image_url and "cms/" not in post.image_url:
+            new_u = _migrate_url(post.image_url, "cms/articles")
+            if new_u:
+                post.image_url = new_u
+                migrated_posts.append({"id": post.id, "title": post.title, "url": new_u})
+                db.commit()
+
+    # 2. Gallery Albums
+    albums = db.query(models.GalleryAlbum).all()
+    for album in albums:
+        if album.cover_url and "cms/" not in album.cover_url:
+            new_u = _migrate_url(album.cover_url, "cms/gallery")
+            if new_u:
+                album.cover_url = new_u
+                migrated_albums.append({"id": album.id, "title": album.title, "url": new_u})
+                db.commit()
+
+    # 3. Gallery Photos
+    photos = db.query(models.GalleryPhoto).all()
+    for photo in photos:
+        if photo.image_url and "cms/" not in photo.image_url:
+            new_u = _migrate_url(photo.image_url, "cms/gallery")
+            if new_u:
+                photo.image_url = new_u
+                migrated_photos.append({"id": photo.id, "album_id": photo.album_id, "url": new_u})
+                db.commit()
+
+    # 4. Video Gallery
+    videos = db.query(models.VideoGallery).all()
+    for vid in videos:
+        if vid.thumbnail_url and "cms/" not in vid.thumbnail_url:
+            new_u = _migrate_url(vid.thumbnail_url, "cms/gallery")
+            if new_u:
+                vid.thumbnail_url = new_u
+                migrated_videos.append({"id": vid.id, "title": vid.title, "url": new_u})
+                db.commit()
+
+    # 5. Testimonials
+    testimonials = db.query(models.Testimonial).all()
+    for t in testimonials:
+        if t.photo_url and "cms/" not in t.photo_url:
+            new_u = _migrate_url(t.photo_url, "cms/testimonials")
+            if new_u:
+                t.photo_url = new_u
+                migrated_testimonials.append({"id": t.id, "name": t.name, "url": new_u})
+                db.commit()
+
+    # 6. Teacher of Month
+    teachers = db.query(models.TeacherOfMonth).all()
+    for tm in teachers:
+        if tm.photo_url and "employees/" not in tm.photo_url and "cms/" not in tm.photo_url:
+            new_u = _migrate_url(tm.photo_url, "employees/photos")
+            if new_u:
+                tm.photo_url = new_u
+                migrated_teachers.append({"id": tm.id, "name": tm.name, "url": new_u})
+                db.commit()
+
+    # 7. PageContent
+    pages = db.query(models.PageContent).all()
+    for p in pages:
+        if p.section_key in ["settings_letterhead", "settings_ppdb"]:
+            continue
+        
+        p_changed = False
+        target_f = "cms/banners" if any(w in p.section_key.lower() for w in ["hero", "banner"]) else "cms/general"
+        
+        if p.image_url and "cms/" not in p.image_url and "branding/" not in p.image_url and "employees/" not in p.image_url:
+            new_u = _migrate_url(p.image_url, target_f)
+            if new_u:
+                p.image_url = new_u
+                p_changed = True
+                migrated_pages.append({"section": p.section_key, "field": "image_url", "url": new_u})
+
+        if p.content_json:
+            try:
+                c_data = json.loads(p.content_json)
+                c_modified = False
+
+                def _scan_and_replace(obj):
+                    nonlocal c_modified
+                    if isinstance(obj, dict):
+                        for k, v in obj.items():
+                            if isinstance(v, str) and ("/uploads/" in v) and not any(pfx in v for pfx in ["branding/", "employees/", "documents/", "ppdb/", "cms/"]):
+                                n_u = _migrate_url(v, target_f)
+                                if n_u:
+                                    obj[k] = n_u
+                                    c_modified = True
+                                    migrated_pages.append({"section": p.section_key, "field": k, "url": n_u})
+                            elif isinstance(v, (dict, list)):
+                                _scan_and_replace(v)
+                    elif isinstance(obj, list):
+                        for idx, item in enumerate(obj):
+                            if isinstance(item, str) and ("/uploads/" in item) and not any(pfx in item for pfx in ["branding/", "employees/", "documents/", "ppdb/", "cms/"]):
+                                n_u = _migrate_url(item, target_f)
+                                if n_u:
+                                    obj[idx] = n_u
+                                    c_modified = True
+                                    migrated_pages.append({"section": p.section_key, "field": f"list[{idx}]", "url": n_u})
+                            elif isinstance(item, (dict, list)):
+                                _scan_and_replace(item)
+
+                _scan_and_replace(c_data)
+                if c_modified:
+                    p.content_json = json.dumps(c_data)
+                    p_changed = True
+            except Exception as e:
+                errors.append(f"PageContent {p.section_key} parse error: {e}")
+
+        if p_changed:
+            db.commit()
+
+    total_migrated = (
+        len(migrated_posts) +
+        len(migrated_albums) +
+        len(migrated_photos) +
+        len(migrated_videos) +
+        len(migrated_testimonials) +
+        len(migrated_teachers) +
+        len(migrated_pages)
+    )
+
+    return {
+        "status": "success",
+        "migrated_posts_count": len(migrated_posts),
+        "migrated_albums_count": len(migrated_albums),
+        "migrated_photos_count": len(migrated_photos),
+        "migrated_videos_count": len(migrated_videos),
+        "migrated_testimonials_count": len(migrated_testimonials),
+        "migrated_teachers_count": len(migrated_teachers),
+        "migrated_pages_count": len(migrated_pages),
+        "total_migrated": total_migrated,
+        "errors": errors
+    }
+
+
 @app.on_event("startup")
 def run_migrations_on_startup():
     # 1. Run direct DDL self-healing for new columns on existing tables
@@ -688,6 +898,22 @@ def run_migrations_on_startup():
                 p_db.close()
     except Exception as e:
         print(f"[Startup R2 Migration] PPDB migration note: {e}")
+
+    # 9. Auto-migrate CMS and public web assets to 'cms/' in Cloudflare R2
+    try:
+        from storage import is_r2_configured
+        if is_r2_configured():
+            from database import SessionLocal
+            c_db = SessionLocal()
+            try:
+                res = run_cms_migration(c_db)
+                c_count = res.get("total_migrated", 0)
+                if c_count > 0:
+                    print(f"[Startup R2 Migration] Successfully migrated {c_count} CMS files to 'cms/' and 'employees/photos/'.")
+            finally:
+                c_db.close()
+    except Exception as e:
+        print(f"[Startup R2 Migration] CMS migration note: {e}")
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
@@ -2534,6 +2760,17 @@ async def migrate_ppdb_endpoint(
     Safely migrate PPDB registration documents and posters from 'uploads/' to 'ppdb/' in Cloudflare R2 and update DB.
     """
     return run_ppdb_migration(db)
+
+
+@app.post("/cms/migrate-cms-assets")
+async def migrate_cms_assets_endpoint(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Safely migrate CMS assets (articles, gallery, videos, testimonials, page content) from 'uploads/' to dedicated folders in Cloudflare R2 and update DB.
+    """
+    return run_cms_migration(db)
 
 
 @app.post("/cms/upload/batch")

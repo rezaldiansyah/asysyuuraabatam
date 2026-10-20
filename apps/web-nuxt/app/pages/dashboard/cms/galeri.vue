@@ -70,7 +70,7 @@
             </div>
           </div>
         </div>
-        <CmsImageUploader v-model="albumForm.cover_url" label="Cover Album" />
+        <CmsImageUploader v-model="albumForm.cover_url" label="Cover Album" folder="cms/gallery" />
         <div class="flex items-center gap-3">
           <Checkbox v-model="albumForm.is_published" :binary="true" inputId="pub2" />
           <label for="pub2" class="text-sm">Tampilkan di halaman publik</label>
@@ -85,7 +85,7 @@
     <!-- Photo Manager Dialog -->
     <Dialog v-model:visible="photoDialogVisible" :header="'Foto: ' + (selectedAlbum?.title || '')" modal class="w-full max-w-3xl">
       <div class="space-y-4">
-        <CmsImageUploader v-model="newPhotoUrl" label="Upload Foto Baru" />
+        <CmsImageUploader v-model="newPhotoUrl" label="Upload Foto Baru" folder="cms/gallery" />
         <div class="flex gap-2">
           <InputText v-model="newPhotoCaption" placeholder="Caption (opsional)" class="flex-1" />
           <Button label="Tambah" icon="pi pi-plus" :disabled="!newPhotoUrl" @click="addPhoto" :loading="saving" />

@@ -60,6 +60,7 @@
               :modelValue="item.image_url" 
               @update:modelValue="(val: string) => { item.image_url = val; emitUpdate() }"
               :label="imageLabel"
+              :folder="folder"
               placeholder="https://..." 
             />
           </div>
@@ -98,7 +99,8 @@ const props = defineProps({
   imageLabel: { type: String, default: 'Image URL' },
   withIcon: { type: Boolean, default: true },
   withLink: { type: Boolean, default: false },
-  linkLabel: { type: String, default: 'Link' }
+  linkLabel: { type: String, default: 'Link' },
+  folder: { type: String, default: 'cms/general' }
 })
 
 const emit = defineEmits(['update:modelValue'])

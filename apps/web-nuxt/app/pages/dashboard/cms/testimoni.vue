@@ -66,7 +66,7 @@
             </button>
           </div>
         </div>
-        <CmsImageUploader v-model="form.photo_url" label="Foto (Opsional)" />
+        <CmsImageUploader v-model="form.photo_url" label="Foto (Opsional)" folder="cms/testimonials" />
         <div class="flex items-center gap-3">
           <Checkbox v-model="form.is_published" :binary="true" inputId="pub" />
           <label for="pub" class="text-sm">Tampilkan di halaman publik</label>

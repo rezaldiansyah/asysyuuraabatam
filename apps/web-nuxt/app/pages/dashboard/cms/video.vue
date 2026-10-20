@@ -53,7 +53,7 @@
           <label class="font-medium text-sm">Deskripsi (Opsional)</label>
           <Textarea v-model="form.description" rows="2" placeholder="Deskripsi singkat video..." />
         </div>
-        <CmsImageUploader v-model="form.thumbnail_url" label="Custom Thumbnail (Opsional)" />
+        <CmsImageUploader v-model="form.thumbnail_url" label="Custom Thumbnail (Opsional)" folder="cms/gallery" />
         <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-sm text-blue-700 dark:text-blue-400">
           <i class="pi pi-info-circle mr-1"></i>
           Jika thumbnail tidak diupload, sistem akan otomatis menggunakan thumbnail dari YouTube.

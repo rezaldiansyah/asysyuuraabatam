@@ -46,6 +46,7 @@
                         <CmsImageUploader 
                             v-model="heroData.image_url" 
                             label="Gambar Latar Hero" 
+                            folder="cms/banners"
                             placeholder="https://..." 
                         />
                     </div>
@@ -101,6 +102,7 @@
                         <CmsImageUploader 
                             v-model="sambutanData.image_url" 
                             label="Foto Pimpinan" 
+                            folder="employees/photos"
                             placeholder="https://..." 
                         />
                     </div>
@@ -125,6 +127,7 @@
                         descLabel="Deskripsi Unit"
                         :withLink="true"
                         linkLabel="Link (e.g. /unit/ra)"
+                        folder="cms/general"
                     />
                     <Button label="Simpan Unit Pendidikan" icon="pi pi-save" :loading="loading" @click="saveSection('units')" />
                 </div>
@@ -137,6 +140,7 @@
                         v-model="featuresData" 
                         titleLabel="Judul Keunggulan" 
                         descLabel="Deskripsi Singkat"
+                        folder="cms/general"
                     />
                     <Button label="Simpan Keunggulan" icon="pi pi-save" :loading="loading" @click="saveSection('features')" />
                  </div>
@@ -176,6 +180,7 @@
                         descLabel="Isi Testimoni"
                         imageLabel="Foto Profil URL"
                         :withIcon="false"
+                        folder="cms/testimonials"
                     />
                     <Button label="Simpan Testimoni" icon="pi pi-save" :loading="loading" @click="saveSection('testimonials')" />
                  </div>
