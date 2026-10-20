@@ -85,6 +85,142 @@ app.include_router(schedule_import.router)
 app.include_router(meeting.router)
 app.include_router(tasks.router)
 
+def run_employee_photos_migration(db: Session) -> dict:
+    """
+    Safely migrate employee and teacher photos from 'uploads/' to 'employees/photos/' in Cloudflare R2 and update DB.
+    Guarantees:
+    - 4-step safeguard: Copy -> Verify -> Update DB -> Delete Old
+    - Preserves originals if verification or commit fails
+    - Safe and idempotent if already in employees/photos/
+    """
+    from storage import copy_r2_object, check_r2_object_exists, delete_r2_object, is_r2_configured
+    import os
+    import shutil
+
+    r2_ready = is_r2_configured()
+    public_r2_url = os.getenv("R2_PUBLIC_URL", "").rstrip("/")
+    migrated_employees = []
+    migrated_teachers = []
+    errors = []
+
+    # 1. Process Employee photos
+    employees = db.query(models.Employee).filter(
+        models.Employee.photo_url.isnot(None),
+        models.Employee.photo_url != ""
+    ).all()
+
+    for emp in employees:
+        c_url = emp.photo_url
+        if not c_url or "employees/photos/" in c_url:
+            continue
+
+        if public_r2_url and public_r2_url in c_url:
+            old_k = c_url.replace(public_r2_url, "").lstrip("/")
+        elif "/uploads/" in c_url:
+            old_k = "uploads/" + c_url.split("/uploads/")[-1]
+        else:
+            continue
+
+        filename = old_k.split("/")[-1]
+        new_k = f"employees/photos/{filename}"
+        new_url = f"{public_r2_url}/{new_k}" if public_r2_url else c_url.replace("/uploads/", "/uploads/employees/photos/")
+
+        if r2_ready:
+            try:
+                copy_r2_object(old_k, new_k)
+                if not check_r2_object_exists(new_k):
+                    errors.append(f"Pegawai #{emp.id} ({emp.nama_lengkap}): Verifikasi file tujuan gagal di R2 ({new_k})")
+                    continue
+                emp.photo_url = new_url
+                db.commit()
+                try:
+                    delete_r2_object(old_k)
+                except Exception as del_err:
+                    print(f"[R2 Migration] Note deleting old key {old_k}: {del_err}")
+                migrated_employees.append({"id": emp.id, "name": emp.nama_lengkap, "new_url": new_url})
+                print(f"[R2 Migration] Migrated employee #{emp.id} photo: {old_k} -> {new_k}")
+            except Exception as e:
+                db.rollback()
+                errors.append(f"Pegawai #{emp.id} ({emp.nama_lengkap}): {str(e)}")
+        else:
+            old_local = os.path.join(UPLOAD_DIR, filename)
+            new_dir = os.path.join(UPLOAD_DIR, "employees", "photos")
+            os.makedirs(new_dir, exist_ok=True)
+            new_local = os.path.join(new_dir, filename)
+            if os.path.exists(old_local):
+                shutil.copy2(old_local, new_local)
+                emp.photo_url = new_url
+                db.commit()
+                try:
+                    os.remove(old_local)
+                except Exception:
+                    pass
+                migrated_employees.append({"id": emp.id, "name": emp.nama_lengkap, "new_url": new_url})
+
+    # 2. Process TeacherOfMonth photos
+    teachers = db.query(models.TeacherOfMonth).filter(
+        models.TeacherOfMonth.photo_url.isnot(None),
+        models.TeacherOfMonth.photo_url != ""
+    ).all()
+
+    for tch in teachers:
+        c_url = tch.photo_url
+        if not c_url or "employees/photos/" in c_url:
+            continue
+
+        if public_r2_url and public_r2_url in c_url:
+            old_k = c_url.replace(public_r2_url, "").lstrip("/")
+        elif "/uploads/" in c_url:
+            old_k = "uploads/" + c_url.split("/uploads/")[-1]
+        else:
+            continue
+
+        filename = old_k.split("/")[-1]
+        new_k = f"employees/photos/{filename}"
+        new_url = f"{public_r2_url}/{new_k}" if public_r2_url else c_url.replace("/uploads/", "/uploads/employees/photos/")
+
+        if r2_ready:
+            try:
+                copy_r2_object(old_k, new_k)
+                if not check_r2_object_exists(new_k):
+                    errors.append(f"Guru Teladan #{tch.id} ({tch.name}): Verifikasi file tujuan gagal di R2 ({new_k})")
+                    continue
+                tch.photo_url = new_url
+                db.commit()
+                try:
+                    delete_r2_object(old_k)
+                except Exception as del_err:
+                    print(f"[R2 Migration] Note deleting old key {old_k}: {del_err}")
+                migrated_teachers.append({"id": tch.id, "name": tch.name, "new_url": new_url})
+                print(f"[R2 Migration] Migrated teacher #{tch.id} photo: {old_k} -> {new_k}")
+            except Exception as e:
+                db.rollback()
+                errors.append(f"Guru Teladan #{tch.id} ({tch.name}): {str(e)}")
+        else:
+            old_local = os.path.join(UPLOAD_DIR, filename)
+            new_dir = os.path.join(UPLOAD_DIR, "employees", "photos")
+            os.makedirs(new_dir, exist_ok=True)
+            new_local = os.path.join(new_dir, filename)
+            if os.path.exists(old_local):
+                shutil.copy2(old_local, new_local)
+                tch.photo_url = new_url
+                db.commit()
+                try:
+                    os.remove(old_local)
+                except Exception:
+                    pass
+                migrated_teachers.append({"id": tch.id, "name": tch.name, "new_url": new_url})
+
+    return {
+        "status": "success",
+        "migrated_employees_count": len(migrated_employees),
+        "migrated_teachers_count": len(migrated_teachers),
+        "migrated_employees": migrated_employees,
+        "migrated_teachers": migrated_teachers,
+        "errors": errors
+    }
+
+
 @app.on_event("startup")
 def run_migrations_on_startup():
     # 1. Run direct DDL self-healing for new columns on existing tables
@@ -223,6 +359,22 @@ def run_migrations_on_startup():
             m_db.close()
     except Exception as e:
         print(f"[Startup R2 Migration] Note: {e}")
+
+    # 6. Auto-migrate employee and teacher photos from 'uploads/' to 'employees/photos/' in Cloudflare R2
+    try:
+        from storage import is_r2_configured
+        if is_r2_configured():
+            from database import SessionLocal
+            m_db = SessionLocal()
+            try:
+                res = run_employee_photos_migration(m_db)
+                m_count = res.get("migrated_employees_count", 0) + res.get("migrated_teachers_count", 0)
+                if m_count > 0:
+                    print(f"[Startup R2 Migration] Successfully migrated {m_count} photos to 'employees/photos/'.")
+            finally:
+                m_db.close()
+    except Exception as e:
+        print(f"[Startup R2 Migration] Employee photos note: {e}")
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
@@ -2038,8 +2190,24 @@ async def migrate_letterhead_logo(
             raise HTTPException(status_code=404, detail="File logo lama tidak ditemukan di storage lokal.")
 
 
+@app.post("/cms/migrate-employee-photos")
+async def migrate_employee_photos_endpoint(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Safely migrate employee and teacher photos from 'uploads/' to 'employees/photos/' in Cloudflare R2 and update DB.
+    """
+    return run_employee_photos_migration(db)
+
+
 @app.post("/cms/upload/batch")
-async def upload_files_batch(files: List[UploadFile] = File(...), current_user: models.User = Depends(get_current_user)):
+async def upload_files_batch(
+    files: List[UploadFile] = File(...),
+    folder: Optional[str] = Form(None),
+    folder_param: Optional[str] = Query(None, alias="folder"),
+    current_user: models.User = Depends(get_current_user)
+):
     try:
         from storage import upload_to_r2, is_r2_configured
         import logging
@@ -2047,6 +2215,11 @@ async def upload_files_batch(files: List[UploadFile] = File(...), current_user: 
         
         if len(files) > 10:
             raise HTTPException(status_code=400, detail="Maksimal 10 file dalam satu request.")
+
+        # Determine target folder (sanitize against directory traversal)
+        raw_folder = folder or folder_param or "uploads"
+        clean_parts = [p.strip() for p in raw_folder.replace("\\", "/").split("/") if p.strip() and p.strip() != ".."]
+        target_folder = "/".join(clean_parts) if clean_parts else "uploads"
 
         urls = []
         r2_configured = is_r2_configured()
@@ -2061,11 +2234,11 @@ async def upload_files_batch(files: List[UploadFile] = File(...), current_user: 
             if not file.filename:
                 raise HTTPException(status_code=400, detail="Nama file tidak valid")
             
-            logger.info(f"Batch upload request: filename={file.filename}, size={len(file_bytes)}, r2_configured={r2_configured}")
+            logger.info(f"Batch upload request: filename={file.filename}, size={len(file_bytes)}, r2_configured={r2_configured}, folder={target_folder}")
             
             if r2_configured:
-                # Upload to Cloudflare R2
-                url = upload_to_r2(file_bytes, file.filename, folder="uploads")
+                # Upload to Cloudflare R2 with target folder
+                url = upload_to_r2(file_bytes, file.filename, folder=target_folder)
                 logger.info(f"Batch upload to R2 successful: {url}")
                 urls.append(url)
             else:
@@ -2073,12 +2246,15 @@ async def upload_files_batch(files: List[UploadFile] = File(...), current_user: 
                 logger.warning("R2 not configured, falling back to local storage.")
                 file_extension = os.path.splitext(file.filename)[1]
                 unique_filename = f"{uuid.uuid4()}{file_extension}"
-                file_path = os.path.join(UPLOAD_DIR, unique_filename)
+                target_local_dir = os.path.join(UPLOAD_DIR, *clean_parts) if clean_parts and clean_parts != ["uploads"] else UPLOAD_DIR
+                os.makedirs(target_local_dir, exist_ok=True)
+                file_path = os.path.join(target_local_dir, unique_filename)
                 
                 with open(file_path, "wb") as buffer:
                     buffer.write(file_bytes)
                     
-                urls.append(f"{base_url.rstrip('/')}/uploads/{unique_filename}")
+                rel_path = f"{target_folder}/{unique_filename}" if target_folder != "uploads" else unique_filename
+                urls.append(f"{base_url.rstrip('/')}/uploads/{rel_path}")
                 
         return {"urls": urls}
     except HTTPException:

@@ -81,7 +81,7 @@
           <InputText v-model="form.month" placeholder="2026-05" />
           <small class="text-slate-400">Format: YYYY-MM (misal: 2026-05 untuk Mei 2026)</small>
         </div>
-        <CmsImageUploader v-model="form.photo_url" label="Foto Guru" />
+        <CmsImageUploader v-model="form.photo_url" label="Foto Guru" folder="employees/photos" />
         <div class="flex items-center gap-3">
           <Checkbox v-model="form.is_active" :binary="true" inputId="tactive" />
           <label for="tactive" class="text-sm">Jadikan guru bulan ini (aktif di landing page)</label>
