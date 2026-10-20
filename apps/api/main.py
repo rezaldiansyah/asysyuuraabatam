@@ -92,16 +92,30 @@ def run_migrations_on_startup():
         from sqlalchemy import text
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS recipient_type VARCHAR DEFAULT 'individual'"))
-            # Self-healing for PostgreSQL enum types if native enum was created
-            try:
-                conn.execute(text("ALTER TYPE calendareventtype ADD VALUE IF NOT EXISTS 'PHBI'"))
-                conn.execute(text("ALTER TYPE calendareventtype ADD VALUE IF NOT EXISTS 'PHBN'"))
-            except Exception:
-                pass
             conn.commit()
-            print("[Startup] Verified column documents.recipient_type and calendar enums exist.")
+            print("[Startup] Verified column documents.recipient_type exists.")
     except Exception as e:
         print(f"[Startup] DDL recipient_type note: {e}")
+
+    # Self-healing for AcademicCalendarEvent.type (convert to VARCHAR(50) and add enum values)
+    try:
+        from sqlalchemy import text
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as aconn:
+            # Add enum values if native PostgreSQL enums exist
+            for enum_name in ['calendar_event_type_enum', 'calendareventtype']:
+                for val in ['PHBI', 'PHBN']:
+                    try:
+                        aconn.execute(text(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{val}'"))
+                    except Exception:
+                        pass
+            # Convert academic_calendar_events.type to VARCHAR(50) so new event types never fail
+            try:
+                aconn.execute(text("ALTER TABLE academic_calendar_events ALTER COLUMN type TYPE VARCHAR(50) USING type::text"))
+                print("[Startup] Successfully verified/migrated academic_calendar_events.type to VARCHAR(50).")
+            except Exception as e:
+                print(f"[Startup] Note altering column to VARCHAR: {e}")
+    except Exception as e:
+        print(f"[Startup] Calendar enum migration note: {e}")
 
     # 2. Run Alembic auto-migration
     try:
