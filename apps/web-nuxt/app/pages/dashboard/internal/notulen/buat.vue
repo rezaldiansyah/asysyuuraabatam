@@ -195,7 +195,7 @@
         </div>
       </div>
 
-      <!-- 4. Jalannya Rapat & Notulensi -->
+      <!-- 4. Jalannya Rapat & Notulensi (Google Docs Style Editor) -->
       <div class="card p-5 space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
           <div>
@@ -203,456 +203,194 @@
               <i class="pi pi-file-edit text-primary"></i> 4. Catatan Pembahasan / Isi Notulensi *
             </h2>
             <p class="text-xs text-slate-500 mt-0.5">
-              Catat jalannya rapat secara terstruktur. Gunakan <b>Mode Spreadsheet</b> agar nyaman seperti Excel/Google Sheets, atau <b>Mode Bebas</b> layaknya Word/Docs.
+              Tulis catatan rapat secara fleksibel layaknya <b>Google Docs</b>. Gunakan tombol tabel untuk format resmi yayasan, serta daftar butir (bullet) atau nomor dengan mudah.
             </p>
           </div>
 
-          <!-- Mode Switcher (Spreadsheet vs Word/Docs) -->
-          <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold">
-            <button 
-              type="button"
-              @click="switchEditorMode('table')"
-              :class="editorMode === 'table' ? 'bg-white dark:bg-slate-700 shadow text-primary font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'"
-              class="px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all"
-            >
-              <i class="pi pi-table"></i>
-              <span>Mode Tabel Spreadsheet</span>
-              <span class="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">Rekomendasi</span>
-            </button>
-            <button 
-              type="button"
-              @click="switchEditorMode('doc')"
-              :class="editorMode === 'doc' ? 'bg-white dark:bg-slate-700 shadow text-primary font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'"
-              class="px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all"
-            >
-              <i class="pi pi-file-word"></i>
-              <span>Mode Dokumen Bebas (Word)</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- ======================================================== -->
-        <!-- MODE 1: SPREADSHEET / TABLE GRID (EXCEL / SHEETS STYLE)  -->
-        <!-- ======================================================== -->
-        <div v-show="editorMode === 'table'" class="space-y-4">
-          <!-- Top Controls: Format Selector & Quick Actions -->
-          <div class="flex flex-wrap items-center justify-between gap-2.5 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Format Kolom Tabel:</span>
-              <div class="inline-flex rounded-lg border border-slate-300 dark:border-slate-600 p-0.5 bg-white dark:bg-slate-800 text-xs shadow-sm">
-                <button
-                  type="button"
-                  @click="changeTableColumnsMode('4_col')"
-                  :class="tableColumnsMode === '4_col' ? 'bg-primary text-white font-bold shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
-                  class="px-3 py-1 rounded-md transition-colors"
-                >
-                  4 Kolom (Resmi Yayasan: No, Perihal, Pembahasan/Arahan, Tindak Lanjut)
-                </button>
-                <button
-                  type="button"
-                  @click="changeTableColumnsMode('3_col')"
-                  :class="tableColumnsMode === '3_col' ? 'bg-primary text-white font-bold shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
-                  class="px-3 py-1 rounded-md transition-colors"
-                >
-                  3 Kolom (No, Topik/Masukan, Tanggapan & Kesepakatan)
-                </button>
-                <button
-                  type="button"
-                  @click="changeTableColumnsMode('2_col')"
-                  :class="tableColumnsMode === '2_col' ? 'bg-primary text-white font-bold shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
-                  class="px-3 py-1 rounded-md transition-colors"
-                >
-                  2 Kolom (Sederhana)
-                </button>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <Button
-                type="button"
-                label="+ Tambah Baris"
-                icon="pi pi-plus"
-                size="small"
-                severity="success"
-                class="!text-xs font-bold !py-1.5"
-                @click="addStructuredRow"
-              />
-            </div>
-          </div>
-
-          <!-- Opening Remarks (Optional) -->
-          <div class="space-y-1">
-            <div class="flex items-center justify-between">
-              <label class="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                <i class="pi pi-align-left text-primary text-xs"></i> Paragraf Pengantar / Pembukaan Rapat (Opsional)
-              </label>
-              <button 
-                type="button"
-                @click="showOpeningText = !showOpeningText" 
-                class="text-[11px] text-primary hover:underline font-semibold"
-              >
-                {{ showOpeningText ? 'Sembunyikan' : '+ Tulis Pengantar Rapat' }}
-              </button>
-            </div>
-            <Textarea
-              v-if="showOpeningText"
-              v-model="tableOpeningText"
-              rows="2"
-              placeholder="Contoh: Rapat dibuka secara resmi pada pukul 08:30 WIB dengan membaca Basmalah dan arahan singkat pimpinan terkait fokus pertemuan hari ini..."
-              class="w-full text-xs font-sans rounded-lg"
-              @input="syncStructuredTableToHtml"
-            />
-          </div>
-
-          <!-- Spreadsheet Table Grid -->
-          <div class="border border-slate-300 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-900">
-            <div class="overflow-x-auto">
-              <table class="w-full border-collapse text-xs table-fixed">
-                <thead>
-                  <tr class="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-b-2 border-slate-300 dark:border-slate-700 font-bold">
-                    <th class="w-12 py-3 px-2 text-center border-r border-slate-300 dark:border-slate-700">No.</th>
-                    
-                    <!-- 4 Kolom Headers -->
-                    <th v-if="tableColumnsMode === '4_col'" class="w-[22%] py-3 px-3 text-left border-r border-slate-300 dark:border-slate-700">
-                      Perihal / Topik
-                    </th>
-                    <th v-if="tableColumnsMode === '4_col'" class="w-[45%] py-3 px-3 text-left border-r border-slate-300 dark:border-slate-700">
-                      Pembahasan / Arahan Pimpinan
-                    </th>
-                    <th v-if="tableColumnsMode === '4_col'" class="w-[28%] py-3 px-3 text-left border-r border-slate-300 dark:border-slate-700">
-                      Tindak Lanjut / Kesepakatan
-                    </th>
-
-                    <!-- 3 Kolom Headers -->
-                    <th v-if="tableColumnsMode === '3_col'" class="w-[28%] py-3 px-3 text-left border-r border-slate-300 dark:border-slate-700">
-                      Topik / Masukan Peserta
-                    </th>
-                    <th v-if="tableColumnsMode === '3_col'" class="py-3 px-3 text-left border-r border-slate-300 dark:border-slate-700">
-                      Tanggapan & Kesepakatan Bersama
-                    </th>
-
-                    <!-- 2 Kolom Headers -->
-                    <th v-if="tableColumnsMode === '2_col'" class="py-3 px-3 text-left border-r border-slate-300 dark:border-slate-700">
-                      Poin Pembahasan / Catatan Rapat
-                    </th>
-                    <th class="w-12 py-3 px-2 text-center">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
-                  <tr 
-                    v-for="(row, idx) in tableRows" 
-                    :key="row.id" 
-                    class="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
-                  >
-                    <!-- Col 0: Number -->
-                    <td class="text-center font-bold text-slate-600 dark:text-slate-400 py-3 px-2 border-r border-slate-200 dark:border-slate-800 align-top">
-                      <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 font-bold text-xs text-slate-700 dark:text-slate-300">
-                        {{ idx + 1 }}
-                      </span>
-                    </td>
-
-                    <!-- Col 1: Perihal / Topik -->
-                    <td class="p-2 border-r border-slate-200 dark:border-slate-800 align-top">
-                      <Textarea
-                        v-model="row.col1"
-                        :autoResize="true"
-                        rows="3"
-                        placeholder="Contoh: SPMB T.A 2027/2028..."
-                        class="w-full text-xs !border-slate-200 dark:!border-slate-700 focus:!border-primary rounded-lg font-sans leading-relaxed"
-                        @keydown="handleTextareaKeyDown($event, row, 'col1', idx)"
-                        @input="syncStructuredTableToHtml"
-                      />
-                    </td>
-
-                    <!-- Col 2: Pembahasan / Tanggapan (Mendukung a, b, c, Enter) -->
-                    <td v-if="['4_col', '3_col'].includes(tableColumnsMode)" class="p-2 border-r border-slate-200 dark:border-slate-800 align-top">
-                      <div class="space-y-1.5">
-                        <div class="flex items-center justify-between text-[11px] text-slate-400 bg-slate-50 dark:bg-slate-800/80 px-2 py-1 rounded border border-slate-200/60 dark:border-slate-700/60">
-                          <span class="font-semibold text-slate-500 dark:text-slate-400">Sisipkan Poin:</span>
-                          <div class="flex items-center gap-1">
-                            <button 
-                              type="button" 
-                              @click="insertListMarker(row, 'col2', 'alpha')"
-                              class="px-1.5 py-0.5 font-bold bg-white dark:bg-slate-700 hover:bg-primary hover:text-white dark:hover:bg-primary rounded text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 transition-colors shadow-2xs"
-                              title="Sisipkan poin huruf (a., b., c.)"
-                            >
-                              + a, b, c
-                            </button>
-                            <button 
-                              type="button" 
-                              @click="insertListMarker(row, 'col2', 'num')"
-                              class="px-1.5 py-0.5 font-bold bg-white dark:bg-slate-700 hover:bg-primary hover:text-white dark:hover:bg-primary rounded text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 transition-colors shadow-2xs"
-                              title="Sisipkan nomor (1., 2., 3.)"
-                            >
-                              + 1, 2, 3
-                            </button>
-                            <button 
-                              type="button" 
-                              @click="insertListMarker(row, 'col2', 'bullet')"
-                              class="px-1.5 py-0.5 font-bold bg-white dark:bg-slate-700 hover:bg-primary hover:text-white dark:hover:bg-primary rounded text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 transition-colors shadow-2xs"
-                              title="Sisipkan poin bullet (•)"
-                            >
-                              + Bullet (•)
-                            </button>
-                          </div>
-                        </div>
-                        <Textarea
-                          v-model="row.col2"
-                          :autoResize="true"
-                          rows="4"
-                          :placeholder="tableColumnsMode === '4_col' ? 'a. Jadwal pelaksanaan...\nb. Pembentukan Panitia...\n(Tekan Enter untuk baris baru otomatis poin huruf)' : 'a. Aspirasi yang disampaikan...\nb. Tanggapan yang disepakati...'"
-                          class="w-full text-xs !border-slate-200 dark:!border-slate-700 focus:!border-primary rounded-lg font-sans leading-relaxed"
-                          @keydown="handleTextareaKeyDown($event, row, 'col2', idx)"
-                          @input="syncStructuredTableToHtml"
-                        />
-                      </div>
-                    </td>
-
-                    <!-- Col 3: Tindak Lanjut (Khusus 4 Kolom) -->
-                    <td v-if="tableColumnsMode === '4_col'" class="p-2 border-r border-slate-200 dark:border-slate-800 align-top">
-                      <div class="space-y-1.5">
-                        <div class="flex items-center justify-between text-[11px] text-slate-400 bg-slate-50 dark:bg-slate-800/80 px-2 py-1 rounded border border-slate-200/60 dark:border-slate-700/60">
-                          <span class="font-semibold text-slate-500 dark:text-slate-400">Sisipkan Poin:</span>
-                          <div class="flex items-center gap-1">
-                            <button 
-                              type="button" 
-                              @click="insertListMarker(row, 'col3', 'alpha')"
-                              class="px-1.5 py-0.5 font-bold bg-white dark:bg-slate-700 hover:bg-primary hover:text-white dark:hover:bg-primary rounded text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 transition-colors shadow-2xs"
-                              title="Sisipkan poin huruf (a., b., c.)"
-                            >
-                              + a, b, c
-                            </button>
-                            <button 
-                              type="button" 
-                              @click="insertListMarker(row, 'col3', 'num')"
-                              class="px-1.5 py-0.5 font-bold bg-white dark:bg-slate-700 hover:bg-primary hover:text-white dark:hover:bg-primary rounded text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 transition-colors shadow-2xs"
-                              title="Sisipkan nomor (1., 2., 3.)"
-                            >
-                              + 1, 2, 3
-                            </button>
-                            <button 
-                              type="button" 
-                              @click="insertListMarker(row, 'col3', 'bullet')"
-                              class="px-1.5 py-0.5 font-bold bg-white dark:bg-slate-700 hover:bg-primary hover:text-white dark:hover:bg-primary rounded text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 transition-colors shadow-2xs"
-                              title="Sisipkan poin bullet (•)"
-                            >
-                              + Bullet (•)
-                            </button>
-                          </div>
-                        </div>
-                        <Textarea
-                          v-model="row.col3"
-                          :autoResize="true"
-                          rows="4"
-                          placeholder="a. Melakukan evaluasi teknis...\nb. Jadwal pelaksanaan...\n(Tekan Tab di ujung untuk tambah baris)"
-                          class="w-full text-xs !border-slate-200 dark:!border-slate-700 focus:!border-primary rounded-lg font-sans leading-relaxed"
-                          @keydown="handleTextareaKeyDown($event, row, 'col3', idx)"
-                          @input="syncStructuredTableToHtml"
-                        />
-                      </div>
-                    </td>
-
-                    <!-- Col Action: Delete -->
-                    <td class="text-center py-3 px-1 align-top">
-                      <Button
-                        icon="pi pi-trash"
-                        text
-                        rounded
-                        severity="danger"
-                        size="small"
-                        :disabled="tableRows.length <= 1"
-                        @click="removeStructuredRow(idx)"
-                        title="Hapus baris ini"
-                      />
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- Table Footer: Add Row button & tips -->
-            <div class="p-3 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <Button
-                type="button"
-                label="Tambah Baris Baru (+ Row)"
-                icon="pi pi-plus"
-                size="small"
-                outlined
-                severity="success"
-                class="!text-xs font-bold"
-                @click="addStructuredRow"
-              />
-              <span class="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <i class="pi pi-info-circle text-primary text-xs"></i>
-                <span>Tekan <b>Enter</b> di dalam kolom untuk baris baru (otomatis lanjut a, b, c). Tekan <b>Tab</b> di kolom terakhir untuk menambah baris otomatis.</span>
-              </span>
-            </div>
-          </div>
-
-          <!-- Closing Remarks (Optional) -->
-          <div class="space-y-1">
-            <div class="flex items-center justify-between">
-              <label class="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                <i class="pi pi-align-left text-primary text-xs"></i> Catatan Penutup / Rekomendasi Khusus (Opsional)
-              </label>
-              <button 
-                type="button" 
-                @click="showClosingText = !showClosingText" 
-                class="text-[11px] text-primary hover:underline font-semibold"
-              >
-                {{ showClosingText ? 'Sembunyikan' : '+ Tulis Catatan Penutup' }}
-              </button>
-            </div>
-            <Textarea
-              v-if="showClosingText"
-              v-model="tableClosingText"
-              rows="2"
-              placeholder="Contoh: Rapat ditutup pada pukul 11:00 WIB dengan membaca Hamdalah dan doa bersama. Seluruh pihak terkait diharapkan menyelesaikan tindak lanjut sebelum batas waktu..."
-              class="w-full text-xs font-sans rounded-lg"
-              @input="syncStructuredTableToHtml"
-            />
-          </div>
-        </div>
-
-        <!-- ======================================================== -->
-        <!-- MODE 2: FREE-FORM RICH TEXT (WORD / GOOGLE DOCS STYLE)   -->
-        <!-- ======================================================== -->
-        <div v-show="editorMode === 'doc'" class="space-y-3">
-          <!-- Quick Template & Table Action Buttons for Word Mode -->
+          <!-- Quick Template & Table Action Buttons -->
           <div class="flex items-center gap-1.5 flex-wrap">
-            <div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-slate-200 dark:border-slate-700">
-              <Button 
-                type="button" 
-                label="+ Tabel 4 Kolom" 
-                icon="pi pi-table" 
-                size="small" 
-                text 
-                class="!text-xs !py-1 !px-2.5 font-semibold text-slate-700 dark:text-slate-200 hover:!bg-white dark:hover:!bg-slate-700"
-                @click="insertTable(4)" 
-                title="Sisipkan tabel 4 kolom (No, Perihal, Pembahasan, Tindak Lanjut)"
-              />
-              <Button 
-                type="button" 
-                label="+ Tabel 3 Kolom" 
-                icon="pi pi-table" 
-                size="small" 
-                text 
-                class="!text-xs !py-1 !px-2.5 font-semibold text-slate-700 dark:text-slate-200 hover:!bg-white dark:hover:!bg-slate-700"
-                @click="insertTable(3)" 
-                title="Sisipkan tabel 3 kolom (No, Masukan, Kesepakatan)"
-              />
-              <Button 
-                type="button" 
-                label="+ Tabel 2 Kolom" 
-                icon="pi pi-table" 
-                size="small" 
-                text 
-                class="!text-xs !py-1 !px-2.5 font-semibold text-slate-700 dark:text-slate-200 hover:!bg-white dark:hover:!bg-slate-700"
-                @click="insertTable(2)" 
-                title="Sisipkan tabel 2 kolom (No, Pembahasan)"
-              />
-            </div>
-
-            <div class="flex items-center bg-emerald-50 dark:bg-emerald-950/40 rounded-lg p-0.5 border border-emerald-200 dark:border-emerald-800">
-              <Button 
-                type="button" 
-                label="+ Tambah Baris" 
-                icon="pi pi-plus" 
-                size="small" 
-                severity="success" 
-                text 
-                class="!text-xs !py-1 !px-2.5 font-bold"
-                @click="addTableRow" 
-                title="Tambahkan baris baru ke tabel (atau tekan tombol Tab pada kolom terakhir)"
-              />
-              <Button 
-                type="button" 
-                label="- Hapus Baris" 
-                icon="pi pi-minus" 
-                size="small" 
-                severity="danger" 
-                text 
-                class="!text-xs !py-1 !px-2.5"
-                @click="deleteTableRow" 
-                title="Hapus baris terakhir tabel"
-              />
-              <Button 
-                type="button" 
-                label="Gabung Tabel" 
-                icon="pi pi-link" 
-                size="small" 
-                severity="help" 
-                text 
-                class="!text-xs !py-1 !px-2.5 font-medium"
-                @click="mergeTables" 
-                title="Gabungkan 2 tabel terpisah menjadi 1 tabel bersambung"
-              />
-            </div>
-
+            <Button 
+              type="button" 
+              label="+ Tabel 4 Kolom (Yayasan)" 
+              icon="pi pi-table" 
+              size="small" 
+              class="!text-xs !py-1 !px-2.5 font-bold !bg-emerald-600 hover:!bg-emerald-700 !text-white !border-emerald-600"
+              @click="insertTable(4)" 
+              title="Sisipkan format tabel resmi yayasan: No, Perihal, Pembahasan/Arahan, Tindak Lanjut"
+            />
+            <Button 
+              type="button" 
+              label="+ Tabel 3 Kolom" 
+              icon="pi pi-table" 
+              size="small" 
+              outlined
+              severity="secondary"
+              class="!text-xs !py-1 !px-2.5 font-medium"
+              @click="insertTable(3)" 
+              title="Sisipkan tabel 3 kolom: No, Masukan, Kesepakatan"
+            />
+            <Button 
+              type="button" 
+              label="+ Tambah Baris" 
+              icon="pi pi-plus" 
+              size="small" 
+              severity="success" 
+              outlined
+              class="!text-xs !py-1 !px-2 font-semibold"
+              @click="addTableRow" 
+              title="Tambah baris baru ke tabel (atau tekan Tab di kolom terakhir)"
+            />
             <Button 
               type="button" 
               label="Template Notulen" 
               icon="pi pi-file" 
               size="small" 
-              outlined 
               severity="info" 
-              class="!text-xs !py-1 font-semibold"
+              outlined 
+              class="!text-xs !py-1 !px-2 font-semibold"
               @click="insertNotulenTemplate" 
-              title="Gunakan template format notulensi terstruktur"
+              title="Gunakan format template lengkap notulen resmi"
             />
           </div>
+        </div>
 
-          <p class="text-[11px] text-slate-500 flex items-center gap-1.5 px-0.5">
-            <i class="pi pi-info-circle text-primary text-xs"></i>
-            <span>Tekan <b>Enter</b> di dalam sel untuk membuat baris baru. Tekan <b>Tab</b> di keyboard untuk berpindah ke kolom sebelah atau otomatis menambah baris di ujung tabel.</span>
-          </p>
+        <!-- Google Docs Workspace Container -->
+        <div class="gdocs-workspace">
+          <!-- Google Docs Ruler Bar -->
+          <div class="gdocs-ruler select-none">
+            <div class="gdocs-ruler-track">
+              <div class="gdocs-ruler-marker-left"></div>
+              <div class="flex justify-between w-full px-8 text-[9px] font-mono text-slate-400">
+                <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span>
+              </div>
+              <div class="gdocs-ruler-marker-right"></div>
+            </div>
+          </div>
 
-          <!-- PrimeVue Rich Text Editor with Custom Toolbar -->
-          <div class="rich-editor-wrapper">
+          <!-- PrimeVue Editor with Google Docs Toolbar -->
+          <div class="gdocs-editor-sheet-wrapper">
             <Editor 
               ref="editorRef"
               v-model="form.content" 
               :modules="editorModules"
               @load="onEditorLoad"
-              editorStyle="min-height: 280px" 
-              placeholder="Tuliskan catatan pembahasan rapat, aspirasi, dan tanggapan peserta di sini...">
+              placeholder="Mulai ketik isi notulensi rapat di sini layaknya Google Docs...">
               <template #toolbar>
+                <!-- Undo / Redo / Print -->
+                <button type="button" class="gdocs-icon-btn" @click="undo" title="Urungkan (Ctrl+Z)">
+                  <i class="pi pi-undo text-xs"></i>
+                </button>
+                <button type="button" class="gdocs-icon-btn" @click="redo" title="Ulangi (Ctrl+Y)">
+                  <i class="pi pi-refresh text-xs"></i>
+                </button>
+                <button type="button" class="gdocs-icon-btn" @click="printDoc" title="Cetak Dokumen">
+                  <i class="pi pi-print text-xs"></i>
+                </button>
+
+                <div class="gdocs-divider"></div>
+
+                <!-- Text Style / Heading -->
                 <span class="ql-formats">
-                  <select class="ql-header" title="Format Judul / Paragraf">
+                  <select class="ql-header" title="Gaya Teks">
+                    <option selected>Teks Normal</option>
                     <option value="1">Judul Utama (H1)</option>
                     <option value="2">Sub Judul (H2)</option>
                     <option value="3">Poin Bahasan (H3)</option>
-                    <option selected>Teks Normal</option>
                   </select>
                 </span>
+
+                <!-- Font Family -->
                 <span class="ql-formats">
-                  <button class="ql-bold" type="button" title="Tebal (Bold)"></button>
-                  <button class="ql-italic" type="button" title="Miring (Italic)"></button>
-                  <button class="ql-underline" type="button" title="Garis Bawah (Underline)"></button>
-                  <button class="ql-strike" type="button" title="Coret (Strikethrough)"></button>
+                  <select class="ql-font" title="Jenis Font">
+                    <option selected>Arial</option>
+                    <option value="serif">Times New Roman</option>
+                    <option value="monospace">Courier New</option>
+                  </select>
                 </span>
+
+                <!-- Font Size -->
+                <span class="ql-formats">
+                  <select class="ql-size" title="Ukuran Font">
+                    <option value="small">Kecil (9pt)</option>
+                    <option selected>Normal (11pt)</option>
+                    <option value="large">Sedang (14pt)</option>
+                    <option value="huge">Besar (18pt)</option>
+                  </select>
+                </span>
+
+                <div class="gdocs-divider"></div>
+
+                <!-- Bold, Italic, Underline, Strike -->
+                <span class="ql-formats">
+                  <button class="ql-bold" type="button" title="Tebal (Ctrl+B)"></button>
+                  <button class="ql-italic" type="button" title="Miring (Ctrl+I)"></button>
+                  <button class="ql-underline" type="button" title="Garis Bawah (Ctrl+U)"></button>
+                  <button class="ql-strike" type="button" title="Coret"></button>
+                </span>
+
+                <!-- Colors -->
                 <span class="ql-formats">
                   <select class="ql-color" title="Warna Teks"></select>
-                  <select class="ql-background" title="Warna Latar / Sorotan"></select>
+                  <select class="ql-background" title="Warna Sorotan (Stabilo)"></select>
                 </span>
-                <span class="ql-formats">
-                  <button class="ql-list" value="ordered" type="button" title="Penomoran (1, 2, 3)"></button>
-                  <button class="ql-list" value="bullet" type="button" title="Daftar Poin (Bullets)"></button>
-                  <button class="ql-list" value="check" type="button" title="Daftar Centang (Checklist)"></button>
-                  <button class="ql-indent" value="-1" type="button" title="Geser Kiri (Outdent)"></button>
-                  <button class="ql-indent" value="+1" type="button" title="Geser Kanan (Indent)"></button>
-                </span>
+
+                <div class="gdocs-divider"></div>
+
+                <!-- Alignment -->
                 <span class="ql-formats">
                   <select class="ql-align" title="Perataan Paragraf"></select>
                 </span>
+
+                <!-- Lists & Indent -->
                 <span class="ql-formats">
-                  <button class="ql-blockquote" type="button" title="Kutipan"></button>
-                  <button class="ql-code-block" type="button" title="Blok Kode / Format Rapat"></button>
-                  <button class="ql-link" type="button" title="Sisipkan Link"></button>
+                  <button class="ql-list" value="bullet" type="button" title="Daftar Butir (Bullet •)"></button>
+                  <button class="ql-list" value="ordered" type="button" title="Daftar Bernomor (1, 2, 3)"></button>
+                  <button class="ql-list" value="check" type="button" title="Daftar Centang (Checklist)"></button>
+                  <button class="ql-indent" value="-1" type="button" title="Kurangi Indentasi"></button>
+                  <button class="ql-indent" value="+1" type="button" title="Tambah Indentasi"></button>
                 </span>
+
+                <div class="gdocs-divider"></div>
+
+                <!-- Links & Code & Clean -->
                 <span class="ql-formats">
+                  <button class="ql-link" type="button" title="Sisipkan Link"></button>
+                  <button class="ql-blockquote" type="button" title="Kutipan"></button>
                   <button class="ql-clean" type="button" title="Bersihkan Format"></button>
                 </span>
+
+                <div class="gdocs-divider"></div>
+
+                <!-- Inline Table Actions inside Toolbar -->
+                <div class="flex items-center gap-1">
+                  <button
+                    type="button"
+                    @click="addTableRow"
+                    class="gdocs-custom-pill text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                    title="Tambah baris baru ke tabel aktif"
+                  >
+                    <i class="pi pi-plus text-[10px]"></i>
+                    <span>+ Baris</span>
+                  </button>
+                  <button
+                    type="button"
+                    @click="deleteTableRow"
+                    class="gdocs-custom-pill text-rose-700 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
+                    title="Hapus baris terakhir dari tabel"
+                  >
+                    <i class="pi pi-minus text-[10px]"></i>
+                    <span>- Baris</span>
+                  </button>
+                  <button
+                    type="button"
+                    @click="mergeTables"
+                    class="gdocs-custom-pill text-purple-700 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
+                    title="Gabungkan tabel terpisah menjadi 1 tabel bersambung"
+                  >
+                    <i class="pi pi-link text-[10px]"></i>
+                    <span>Gabung</span>
+                  </button>
+                </div>
               </template>
             </Editor>
           </div>
@@ -838,403 +576,8 @@ function removeActionItem(idx: number) {
 }
 
 // =========================================================================
-// DUAL-MODE NOTULEN EDITOR STATE (SPREADSHEET MODE & WORD/DOCS MODE)
+// GOOGLE DOCS STYLE NOTULEN EDITOR
 // =========================================================================
-const editorMode = ref<'table' | 'doc'>('table')
-const tableColumnsMode = ref<'4_col' | '3_col' | '2_col'>('4_col')
-const showOpeningText = ref(false)
-const showClosingText = ref(false)
-const tableOpeningText = ref('')
-const tableClosingText = ref('')
-
-interface NotulenTableRow {
-  id: string
-  col1: string
-  col2?: string
-  col3?: string
-}
-
-const tableRows = ref<NotulenTableRow[]>([
-  { id: 'row_1', col1: '', col2: '', col3: '' },
-  { id: 'row_2', col1: '', col2: '', col3: '' }
-])
-
-function changeTableColumnsMode(mode: '4_col' | '3_col' | '2_col') {
-  tableColumnsMode.value = mode
-  syncStructuredTableToHtml()
-}
-
-function addStructuredRow() {
-  tableRows.value.push({
-    id: 'row_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-    col1: '',
-    col2: '',
-    col3: ''
-  })
-  syncStructuredTableToHtml()
-}
-
-function removeStructuredRow(idx: number) {
-  if (tableRows.value.length <= 1) return
-  tableRows.value.splice(idx, 1)
-  syncStructuredTableToHtml()
-}
-
-// Helper: Insert list markers (+ a,b,c | + 1,2,3 | + Bullet)
-function insertListMarker(row: NotulenTableRow, colKey: 'col1' | 'col2' | 'col3', type: 'alpha' | 'num' | 'bullet') {
-  const current = (row[colKey] || '').trimEnd()
-  let marker = ''
-
-  if (type === 'alpha') {
-    const matches = Array.from(current.matchAll(/([a-z])\.\s/gi))
-    if (matches.length > 0) {
-      const lastChar = matches[matches.length - 1][1].toLowerCase()
-      const nextChar = String.fromCharCode(lastChar.charCodeAt(0) + 1)
-      marker = `${nextChar}. `
-    } else {
-      marker = 'a. '
-    }
-  } else if (type === 'num') {
-    const matches = Array.from(current.matchAll(/(\d+)\.\s/g))
-    if (matches.length > 0) {
-      const lastNum = parseInt(matches[matches.length - 1][1], 10)
-      marker = `${lastNum + 1}. `
-    } else {
-      marker = '1. '
-    }
-  } else if (type === 'bullet') {
-    marker = '• '
-  }
-
-  if (!current) {
-    row[colKey] = marker
-  } else {
-    row[colKey] = current + '\n' + marker
-  }
-  syncStructuredTableToHtml()
-}
-
-// Helper: Spreadsheet Textarea Keyboard navigation (Enter auto-increments a,b,c or 1,2,3 or •)
-function handleTextareaKeyDown(e: KeyboardEvent, row: NotulenTableRow, colKey: 'col1' | 'col2' | 'col3', idx: number) {
-  const target = e.target as HTMLTextAreaElement | null
-  if (!target) return
-
-  // Handle Tab navigation on last cell of last row -> auto append new row
-  if (e.key === 'Tab' && !e.shiftKey) {
-    const isLastCol = (tableColumnsMode.value === '4_col' && colKey === 'col3') ||
-                      (tableColumnsMode.value === '3_col' && colKey === 'col2') ||
-                      (tableColumnsMode.value === '2_col' && colKey === 'col1')
-    if (isLastCol && idx === tableRows.value.length - 1) {
-      e.preventDefault()
-      addStructuredRow()
-      return
-    }
-  }
-
-  // Handle Enter key for auto bullet / numbering continuation
-  if (e.key === 'Enter' && !e.shiftKey) {
-    const val = target.value
-    const start = target.selectionStart
-    const beforeCursor = val.substring(0, start)
-    const afterCursor = val.substring(target.selectionEnd)
-
-    const lastNewlineIdx = beforeCursor.lastIndexOf('\n')
-    const currentLine = lastNewlineIdx === -1 ? beforeCursor : beforeCursor.substring(lastNewlineIdx + 1)
-
-    // 1. Check letter pattern: e.g. "a. ", "b. ", "a) "
-    const alphaMatch = currentLine.match(/^([a-z])([.)])\s(.*)$/i)
-    if (alphaMatch) {
-      e.preventDefault()
-      const char = alphaMatch[1]
-      const sep = alphaMatch[2]
-      const content = alphaMatch[3]
-
-      if (!content.trim()) {
-        // Empty bullet line -> clear list marker (exit list mode)
-        const newBefore = lastNewlineIdx === -1 ? '' : beforeCursor.substring(0, lastNewlineIdx + 1)
-        row[colKey] = newBefore + afterCursor
-        syncStructuredTableToHtml()
-        nextTick(() => {
-          target.selectionStart = target.selectionEnd = newBefore.length
-        })
-        return
-      }
-
-      const nextChar = String.fromCharCode(char.charCodeAt(0) + 1)
-      const insertion = `\n${nextChar}${sep} `
-      row[colKey] = beforeCursor + insertion + afterCursor
-      syncStructuredTableToHtml()
-      nextTick(() => {
-        target.selectionStart = target.selectionEnd = start + insertion.length
-      })
-      return
-    }
-
-    // 2. Check number pattern: e.g. "1. ", "2. ", "1) "
-    const numMatch = currentLine.match(/^(\d+)([.)])\s(.*)$/)
-    if (numMatch) {
-      e.preventDefault()
-      const num = parseInt(numMatch[1], 10)
-      const sep = numMatch[2]
-      const content = numMatch[3]
-
-      if (!content.trim()) {
-        const newBefore = lastNewlineIdx === -1 ? '' : beforeCursor.substring(0, lastNewlineIdx + 1)
-        row[colKey] = newBefore + afterCursor
-        syncStructuredTableToHtml()
-        nextTick(() => {
-          target.selectionStart = target.selectionEnd = newBefore.length
-        })
-        return
-      }
-
-      const nextNum = num + 1
-      const insertion = `\n${nextNum}${sep} `
-      row[colKey] = beforeCursor + insertion + afterCursor
-      syncStructuredTableToHtml()
-      nextTick(() => {
-        target.selectionStart = target.selectionEnd = start + insertion.length
-      })
-      return
-    }
-
-    // 3. Check bullet pattern: e.g. "• ", "- ", "* "
-    const bulletMatch = currentLine.match(/^([•\-\*])\s(.*)$/)
-    if (bulletMatch) {
-      e.preventDefault()
-      const bullet = bulletMatch[1]
-      const content = bulletMatch[2]
-
-      if (!content.trim()) {
-        const newBefore = lastNewlineIdx === -1 ? '' : beforeCursor.substring(0, lastNewlineIdx + 1)
-        row[colKey] = newBefore + afterCursor
-        syncStructuredTableToHtml()
-        nextTick(() => {
-          target.selectionStart = target.selectionEnd = newBefore.length
-        })
-        return
-      }
-
-      const insertion = `\n${bullet} `
-      row[colKey] = beforeCursor + insertion + afterCursor
-      syncStructuredTableToHtml()
-      nextTick(() => {
-        target.selectionStart = target.selectionEnd = start + insertion.length
-      })
-      return
-    }
-  }
-}
-
-function escapeHtml(text: string): string {
-  if (!text) return ''
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
-
-function formatCellTextToHtml(text: string): string {
-  if (!text) return ''
-  return text
-    .split('\n')
-    .map(line => escapeHtml(line))
-    .join('<br/>')
-}
-
-// Generate valid, clean HTML from structured spreadsheet table
-function generateHtmlFromTableRows(): string {
-  let html = ''
-
-  if (tableOpeningText.value && tableOpeningText.value.trim()) {
-    const pLines = tableOpeningText.value.trim().split('\n').map(l => `<p>${escapeHtml(l)}</p>`).join('')
-    html += pLines + '<p><br></p>'
-  }
-
-  if (tableColumnsMode.value === '4_col') {
-    html += `
-      <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
-        <tbody>
-          <tr style="background-color: #f1f5f9; font-weight: bold;">
-            <td style="width: 35px; text-align: center; padding: 8px; border: 1px solid #94a3b8;"><b>No</b></td>
-            <td style="width: 22%; padding: 8px; border: 1px solid #94a3b8; text-align: left;"><b>Perihal / Topik</b></td>
-            <td style="width: 48%; padding: 8px; border: 1px solid #94a3b8; text-align: left;"><b>Pembahasan / Arahan Pimpinan</b></td>
-            <td style="padding: 8px; border: 1px solid #94a3b8; text-align: left;"><b>Tindak Lanjut</b></td>
-          </tr>
-    `
-    tableRows.value.forEach((r, idx) => {
-      const col1Html = formatCellTextToHtml(r.col1 || '')
-      const col2Html = formatCellTextToHtml(r.col2 || '')
-      const col3Html = formatCellTextToHtml(r.col3 || '')
-      html += `
-          <tr>
-            <td style="text-align: center; padding: 8px; border: 1px solid #94a3b8;">${idx + 1}</td>
-            <td style="padding: 8px; border: 1px solid #94a3b8;">${col1Html}</td>
-            <td style="padding: 8px; border: 1px solid #94a3b8;">${col2Html}</td>
-            <td style="padding: 8px; border: 1px solid #94a3b8;">${col3Html}</td>
-          </tr>
-      `
-    })
-    html += `</tbody></table><p><br></p>`
-  } else if (tableColumnsMode.value === '3_col') {
-    html += `
-      <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
-        <tbody>
-          <tr style="background-color: #f1f5f9; font-weight: bold;">
-            <td style="width: 35px; text-align: center; padding: 8px; border: 1px solid #94a3b8;"><b>No</b></td>
-            <td style="width: 30%; padding: 8px; border: 1px solid #94a3b8; text-align: left;"><b>Topik / Masukan Peserta</b></td>
-            <td style="padding: 8px; border: 1px solid #94a3b8; text-align: left;"><b>Tanggapan & Kesepakatan Bersama</b></td>
-          </tr>
-    `
-    tableRows.value.forEach((r, idx) => {
-      const col1Html = formatCellTextToHtml(r.col1 || '')
-      const col2Html = formatCellTextToHtml(r.col2 || '')
-      html += `
-          <tr>
-            <td style="text-align: center; padding: 8px; border: 1px solid #94a3b8;">${idx + 1}</td>
-            <td style="padding: 8px; border: 1px solid #94a3b8;">${col1Html}</td>
-            <td style="padding: 8px; border: 1px solid #94a3b8;">${col2Html}</td>
-          </tr>
-      `
-    })
-    html += `</tbody></table><p><br></p>`
-  } else {
-    html += `
-      <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
-        <tbody>
-          <tr style="background-color: #f1f5f9; font-weight: bold;">
-            <td style="width: 40px; text-align: center; padding: 8px; border: 1px solid #94a3b8;"><b>No</b></td>
-            <td style="padding: 8px; border: 1px solid #94a3b8; text-align: left;"><b>Poin Pembahasan / Catatan Rapat</b></td>
-          </tr>
-    `
-    tableRows.value.forEach((r, idx) => {
-      const col1Html = formatCellTextToHtml(r.col1 || '')
-      html += `
-          <tr>
-            <td style="text-align: center; padding: 8px; border: 1px solid #94a3b8;">${idx + 1}</td>
-            <td style="padding: 8px; border: 1px solid #94a3b8;">${col1Html}</td>
-          </tr>
-      `
-    })
-    html += `</tbody></table><p><br></p>`
-  }
-
-  if (tableClosingText.value && tableClosingText.value.trim()) {
-    const pLines = tableClosingText.value.trim().split('\n').map(l => `<p>${escapeHtml(l)}</p>`).join('')
-    html += pLines + '<p><br></p>'
-  }
-
-  return html.trim()
-}
-
-function syncStructuredTableToHtml() {
-  if (editorMode.value === 'table') {
-    form.content = generateHtmlFromTableRows()
-  }
-}
-
-// Parse existing HTML back into structured table rows
-function parseHtmlToTableRows(html: string): boolean {
-  if (!html || !html.includes('<table')) return false
-  if (typeof window === 'undefined') return false
-
-  try {
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(html, 'text/html')
-    const table = doc.querySelector('table')
-    if (!table) return false
-
-    // Opening text
-    const openingParagraphs: string[] = []
-    let prev = table.previousElementSibling
-    while (prev) {
-      const txt = prev.textContent?.trim() || ''
-      if (txt) openingParagraphs.unshift(txt)
-      prev = prev.previousElementSibling
-    }
-    if (openingParagraphs.length > 0) {
-      tableOpeningText.value = openingParagraphs.join('\n\n')
-      showOpeningText.value = true
-    }
-
-    // Closing text
-    const closingParagraphs: string[] = []
-    let next = table.nextElementSibling
-    while (next) {
-      const txt = next.textContent?.trim() || ''
-      if (txt) closingParagraphs.push(txt)
-      next = next.nextElementSibling
-    }
-    if (closingParagraphs.length > 0) {
-      tableClosingText.value = closingParagraphs.join('\n\n')
-      showClosingText.value = true
-    }
-
-    const trs = Array.from(table.querySelectorAll('tr'))
-    if (trs.length === 0) return false
-
-    // Detect column count from header or first row
-    const headerCols = Array.from(trs[0].querySelectorAll('th, td'))
-    const colCount = headerCols.length
-
-    if (colCount >= 4) {
-      tableColumnsMode.value = '4_col'
-    } else if (colCount === 3) {
-      tableColumnsMode.value = '3_col'
-    } else {
-      tableColumnsMode.value = '2_col'
-    }
-
-    const extractText = (cell: Element | undefined) => {
-      if (!cell) return ''
-      const clone = cell.cloneNode(true) as HTMLElement
-      clone.querySelectorAll('br').forEach(br => br.replaceWith('\n'))
-      clone.querySelectorAll('p, li').forEach(p => p.append('\n'))
-      return clone.textContent?.trim() || ''
-    }
-
-    const parsedRows: NotulenTableRow[] = []
-    const startIdx = trs.length > 1 ? 1 : 0
-
-    for (let i = startIdx; i < trs.length; i++) {
-      const tr = trs[i]
-      const cells = Array.from(tr.querySelectorAll('td, th'))
-      if (cells.length < 2) continue
-
-      parsedRows.push({
-        id: 'row_' + (i + 1) + '_' + Math.random().toString(36).substring(2, 6),
-        col1: extractText(cells[1]),
-        col2: extractText(cells[2]),
-        col3: extractText(cells[3]),
-      })
-    }
-
-    if (parsedRows.length > 0) {
-      tableRows.value = parsedRows
-      return true
-    }
-  } catch (err) {
-    console.warn('Failed to parse html into table rows:', err)
-  }
-  return false
-}
-
-// Mode Switcher between Spreadsheet & Word/Docs
-function switchEditorMode(mode: 'table' | 'doc') {
-  if (mode === 'doc' && editorMode.value === 'table') {
-    form.content = generateHtmlFromTableRows()
-    editorMode.value = 'doc'
-  } else if (mode === 'table' && editorMode.value === 'doc') {
-    if (form.content && form.content.includes('<table')) {
-      parseHtmlToTableRows(form.content)
-    }
-    editorMode.value = 'table'
-  }
-}
-
-// Editor table management & keyboard navigation for Word/Docs Mode
 const editorRef = ref<any>(null)
 const quillInstance = ref<any>(null)
 const editorModules = {
@@ -1245,11 +588,27 @@ function onEditorLoad(event: any) {
   const instance = event?.instance || event
   quillInstance.value = instance
 
-  const editorEl = (instance?.root || document.querySelector('.rich-editor-wrapper .ql-editor')) as HTMLElement | null
+  const editorEl = (instance?.root || document.querySelector('.gdocs-workspace .ql-editor')) as HTMLElement | null
   if (editorEl) {
     editorEl.removeEventListener('keydown', handleEditorKeyDown)
     editorEl.addEventListener('keydown', handleEditorKeyDown)
   }
+}
+
+function undo() {
+  if (quillInstance.value?.history) {
+    quillInstance.value.history.undo()
+  }
+}
+
+function redo() {
+  if (quillInstance.value?.history) {
+    quillInstance.value.history.redo()
+  }
+}
+
+function printDoc() {
+  window.print()
 }
 
 function focusCell(cell: HTMLElement) {
@@ -1587,16 +946,6 @@ async function loadExistingMinute(id: number) {
     form.location = data.location || 'Ruang Rapat Utama'
     form.notulis_id = data.notulis_id || authStore.user?.id || null
     form.content = autoHealNotulenTableHtml(data.content || '')
-    if (form.content && form.content.includes('<table')) {
-      const parsed = parseHtmlToTableRows(form.content)
-      if (parsed) {
-        editorMode.value = 'table'
-      } else {
-        editorMode.value = 'doc'
-      }
-    } else {
-      editorMode.value = 'doc'
-    }
 
     if (Array.isArray(data.attendees)) {
       form.attendees = data.attendees.map((a: any) => typeof a === 'object' ? a.id : a)
@@ -1633,11 +982,6 @@ async function saveMinute(submitNow: boolean) {
   if (!form.title.trim()) {
     toast.add({ severity: 'error', summary: 'Validasi', detail: 'Judul rapat wajib diisi', life: 3000 })
     return
-  }
-
-  // Ensure content is synced from Spreadsheet mode if currently active
-  if (editorMode.value === 'table') {
-    form.content = generateHtmlFromTableRows()
   }
 
   saving.value = true
@@ -1689,28 +1033,205 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.rich-editor-wrapper :deep(.p-editor-content) {
-  border-bottom-left-radius: 0.75rem;
-  border-bottom-right-radius: 0.75rem;
+/* =========================================================================
+   GOOGLE DOCS STYLE WORKSPACE & CANVAS
+   ========================================================================= */
+.gdocs-workspace {
+  background-color: #f0f4f9;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  padding: 1.25rem 0.75rem 2rem 0.75rem;
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.03);
 }
-.rich-editor-wrapper :deep(.p-editor-toolbar) {
-  border-top-left-radius: 0.75rem;
-  border-top-right-radius: 0.75rem;
-  background-color: #f8fafc;
+:deep(.dark) .gdocs-workspace {
+  background-color: #0b1329;
+  border-color: #1e293b;
 }
-:deep(.dark) .rich-editor-wrapper :deep(.p-editor-toolbar) {
+
+/* Sticky Google Docs Toolbar */
+.gdocs-workspace :deep(.p-editor-toolbar) {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 25;
+  background-color: #ffffff;
+  border-radius: 9999px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+  padding: 0.35rem 0.85rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+:deep(.dark) .gdocs-workspace :deep(.p-editor-toolbar) {
+  background-color: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* Toolbar Divider */
+.gdocs-divider {
+  width: 1px;
+  height: 1.25rem;
+  background-color: #e2e8f0;
+  margin: 0 0.25rem;
+}
+:deep(.dark) .gdocs-divider {
+  background-color: #475569;
+}
+
+/* Toolbar icon buttons (Undo, Redo, Print) */
+.gdocs-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 0.375rem;
+  color: #475569;
+  transition: all 0.15s;
+}
+.gdocs-icon-btn:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+:deep(.dark) .gdocs-icon-btn {
+  color: #94a3b8;
+}
+:deep(.dark) .gdocs-icon-btn:hover {
+  background-color: #334155;
+  color: #f8fafc;
+}
+
+/* Toolbar Custom Pill Buttons */
+.gdocs-custom-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.25rem 0.55rem;
+  border-radius: 0.375rem;
+  transition: all 0.15s;
+}
+
+/* Google Docs Ruler Bar */
+.gdocs-ruler {
+  max-width: 820px;
+  margin: 0 auto 0.6rem auto;
+  height: 16px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 2px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+:deep(.dark) .gdocs-ruler {
   background-color: #1e293b;
   border-color: #334155;
 }
-
-/* Rich Editor Table Styling - Crisp visible borders and clear column layout */
-.rich-editor-wrapper :deep(.ql-editor) {
-  font-family: inherit;
-  font-size: 0.875rem;
-  line-height: 1.6;
+.gdocs-ruler-track {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.gdocs-ruler-marker-left {
+  position: absolute;
+  left: 20px;
+  top: 1px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid #2563eb;
+}
+.gdocs-ruler-marker-right {
+  position: absolute;
+  right: 20px;
+  top: 1px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid #2563eb;
 }
 
-.rich-editor-wrapper :deep(.ql-editor table) {
+/* The Document Page (Sheet of paper) */
+.gdocs-workspace :deep(.p-editor-content) {
+  border: none !important;
+  background: transparent !important;
+  display: flex;
+  justify-content: center;
+  padding: 0;
+}
+
+.gdocs-workspace :deep(.ql-editor) {
+  background-color: #ffffff;
+  width: 100%;
+  max-width: 820px;
+  min-height: 720px;
+  margin: 0 auto;
+  padding: 48px 56px !important;
+  border-radius: 2px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(60,64,67,.15), 0 2px 6px 2px rgba(60,64,67,.1);
+  font-family: Arial, 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 11pt;
+  line-height: 1.65;
+  color: #1e293b;
+}
+:deep(.dark) .gdocs-workspace :deep(.ql-editor) {
+  background-color: #0f172a;
+  border-color: #1e293b;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+  color: #f1f5f9;
+}
+
+/* Headings inside the document */
+.gdocs-workspace :deep(.ql-editor h1) {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: #0f172a;
+}
+.gdocs-workspace :deep(.ql-editor h2) {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: #0f172a;
+}
+.gdocs-workspace :deep(.ql-editor h3) {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 0.75rem;
+  margin-bottom: 0.35rem;
+  color: #1e293b;
+}
+:deep(.dark) .gdocs-workspace :deep(.ql-editor h1),
+:deep(.dark) .gdocs-workspace :deep(.ql-editor h2),
+:deep(.dark) .gdocs-workspace :deep(.ql-editor h3) {
+  color: #f8fafc;
+}
+
+/* Lists styling inside document */
+.gdocs-workspace :deep(.ql-editor ul),
+.gdocs-workspace :deep(.ql-editor ol) {
+  padding-left: 1.75rem !important;
+  margin: 0.5rem 0 !important;
+}
+.gdocs-workspace :deep(.ql-editor li) {
+  padding-left: 0.35rem !important;
+  margin-bottom: 0.25rem;
+}
+
+/* Table styling inside document */
+.gdocs-workspace :deep(.ql-editor table) {
   width: 100% !important;
   border-collapse: collapse !important;
   margin: 1rem 0 !important;
@@ -1718,63 +1239,58 @@ onMounted(async () => {
   border: 1px solid #94a3b8 !important;
 }
 
-.rich-editor-wrapper :deep(.ql-editor table td),
-.rich-editor-wrapper :deep(.ql-editor table th) {
-  border: 1px solid #94a3b8 !important; /* Clearly visible, distinct line between cells */
+.gdocs-workspace :deep(.ql-editor table td),
+.gdocs-workspace :deep(.ql-editor table th) {
+  border: 1px solid #94a3b8 !important;
   padding: 8px 12px !important;
   min-height: 40px !important;
   vertical-align: top !important;
   box-sizing: border-box !important;
+  line-height: 1.6 !important;
   color: #1e293b !important;
 }
 
-/* Column 1 (No) narrow and centered */
-.rich-editor-wrapper :deep(.ql-editor table td:first-child),
-.rich-editor-wrapper :deep(.ql-editor table th:first-child) {
-  width: 50px !important;
+.gdocs-workspace :deep(.ql-editor table td:first-child),
+.gdocs-workspace :deep(.ql-editor table th:first-child) {
+  width: 40px !important;
   text-align: center !important;
   font-weight: 600 !important;
 }
 
-/* Header row with light slate background & bold text */
-.rich-editor-wrapper :deep(.ql-editor table tr:first-child td),
-.rich-editor-wrapper :deep(.ql-editor table tr:first-child th) {
+.gdocs-workspace :deep(.ql-editor table tr:first-child td),
+.gdocs-workspace :deep(.ql-editor table tr:first-child th) {
   background-color: #f1f5f9 !important;
   font-weight: 700 !important;
   color: #0f172a !important;
   border-bottom: 2px solid #64748b !important;
 }
 
-/* Focus and hover cues so users clearly see the active cell and column boundaries */
-.rich-editor-wrapper :deep(.ql-editor table td:hover) {
+.gdocs-workspace :deep(.ql-editor table td:hover) {
   background-color: #f8fafc !important;
 }
 
-.rich-editor-wrapper :deep(.ql-editor table td:focus),
-.rich-editor-wrapper :deep(.ql-editor table td:focus-within) {
+.gdocs-workspace :deep(.ql-editor table td:focus),
+.gdocs-workspace :deep(.ql-editor table td:focus-within) {
   outline: 2px solid #3b82f6 !important;
   outline-offset: -2px !important;
 }
 
-/* Dark mode styling */
-:deep(.dark) .rich-editor-wrapper :deep(.ql-editor table) {
+/* Dark mode tables */
+:deep(.dark) .gdocs-workspace :deep(.ql-editor table) {
   border-color: #475569 !important;
 }
-
-:deep(.dark) .rich-editor-wrapper :deep(.ql-editor table td),
-:deep(.dark) .rich-editor-wrapper :deep(.ql-editor table th) {
+:deep(.dark) .gdocs-workspace :deep(.ql-editor table td),
+:deep(.dark) .gdocs-workspace :deep(.ql-editor table th) {
   border-color: #475569 !important;
   color: #f1f5f9 !important;
 }
-
-:deep(.dark) .rich-editor-wrapper :deep(.ql-editor table tr:first-child td),
-:deep(.dark) .rich-editor-wrapper :deep(.ql-editor table tr:first-child th) {
+:deep(.dark) .gdocs-workspace :deep(.ql-editor table tr:first-child td),
+:deep(.dark) .gdocs-workspace :deep(.ql-editor table tr:first-child th) {
   background-color: #1e293b !important;
   color: #f8fafc !important;
   border-bottom-color: #94a3b8 !important;
 }
-
-:deep(.dark) .rich-editor-wrapper :deep(.ql-editor table td:hover) {
+:deep(.dark) .gdocs-workspace :deep(.ql-editor table td:hover) {
   background-color: rgba(30, 41, 59, 0.7) !important;
 }
 </style>
