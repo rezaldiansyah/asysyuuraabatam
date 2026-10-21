@@ -337,10 +337,7 @@
 <script setup lang="ts">
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
-import Table from '@tiptap/extension-table'
-import TableRow from '@tiptap/extension-table-row'
-import TableCell from '@tiptap/extension-table-cell'
-import TableHeader from '@tiptap/extension-table-header'
+import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Link from '@tiptap/extension-link'
@@ -945,7 +942,7 @@ defineExpose({
   color: #f8fafc !important;
   border-bottom-color: #94a3b8 !important;
 }
-:deep(.dark) .tiptap-content .tiptap table .selectedCell) {
+:deep(.dark) .tiptap-content .tiptap table .selectedCell {
   background-color: rgba(49, 46, 129, 0.4) !important;
 }
 </style>
