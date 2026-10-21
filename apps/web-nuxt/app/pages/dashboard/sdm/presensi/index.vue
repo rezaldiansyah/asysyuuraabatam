@@ -583,6 +583,17 @@
                 <i class="pi pi-moon text-[9px]"></i>
                 Lembur (>18:00)
               </div>
+              <div 
+                v-else-if="getEarlyLeaveInfo(data)"
+                class="text-[10px] font-bold mt-1 flex items-center gap-1 px-1.5 py-0.5 rounded border"
+                :class="getEarlyLeaveInfo(data)?.isDuty 
+                  ? 'text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/60 border-sky-200 dark:border-sky-900' 
+                  : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-900'"
+                :title="`Jadwal pulang seharusnya pukul ${getEarlyLeaveInfo(data)?.expectedTime}. Pulang lebih awal ${getEarlyLeaveInfo(data)?.earlyMinutes} menit.${getEarlyLeaveInfo(data)?.isDuty ? ' (Tugas Luar / Dispensasi)' : ''}`"
+              >
+                <i :class="getEarlyLeaveInfo(data)?.isDuty ? 'pi pi-briefcase text-[9px]' : 'pi pi-clock text-[9px]'"></i>
+                <span>Pulang Cepat (-{{ getEarlyLeaveInfo(data)?.earlyMinutes }}m)</span>
+              </div>
             </template>
           </Column>
 
@@ -1120,14 +1131,14 @@
             <i class="pi pi-sign-in text-emerald-600"></i>
             <span>Jam Masuk &amp; Toleransi</span>
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Jam Masuk Sekolah</label>
               <InputText v-model="geofenceConfig.work_start_time" placeholder="06:45" class="w-full text-xs font-mono" />
               <span class="text-[10px] text-slate-400">Default: 06:45</span>
             </div>
             <div>
-              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Toleransi Keterlambatan</label>
+              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Toleransi Terlambat</label>
               <InputNumber 
                 v-model="geofenceConfig.late_tolerance_minutes" 
                 :min="0" 
@@ -1137,6 +1148,18 @@
                 inputClass="w-full font-mono"
               />
               <span class="text-[10px] text-slate-400">Lewat batas dihitung Terlambat</span>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Toleransi Pulang Cepat</label>
+              <InputNumber 
+                v-model="geofenceConfig.early_tolerance_minutes" 
+                :min="0" 
+                :max="60" 
+                suffix=" menit" 
+                class="w-full text-xs" 
+                inputClass="w-full font-mono"
+              />
+              <span class="text-[10px] text-slate-400">Batas toleransi sebelum jadwal</span>
             </div>
           </div>
         </div>
@@ -1323,6 +1346,7 @@ const geofenceConfig = reactive({
   work_start_time: '06:45',
   work_end_time: '16:00',
   late_tolerance_minutes: 5,
+  early_tolerance_minutes: 0,
   schedule_ra_mon_thu: '14:00',
   schedule_sdit_mon_thu: '15:00',
   schedule_smpit_mon_thu: '15:30',
@@ -1346,6 +1370,53 @@ function formatTimeShort(dt: Date | null): string {
   const h = String(dt.getHours()).padStart(2, '0')
   const m = String(dt.getMinutes()).padStart(2, '0')
   return `${h}:${m}`
+}
+
+function getExpectedCheckoutTime(dateObj: Date | string, unitName?: string | null): string | null {
+  const d = typeof dateObj === 'string' ? new Date(dateObj) : dateObj
+  if (!d || isNaN(d.getTime())) return null
+  const day = d.getDay() // 0 = Sunday, 5 = Friday, 6 = Saturday
+  if (day === 0) return null // Sunday / Libur
+  if (day === 5) return geofenceConfig.schedule_friday || '11:30'
+  if (day === 6) return geofenceConfig.schedule_saturday || '12:00'
+
+  const u = (unitName || '').toUpperCase()
+  if (u.includes('RA')) return geofenceConfig.schedule_ra_mon_thu || '14:00'
+  if (u.includes('SD')) return geofenceConfig.schedule_sdit_mon_thu || '15:00'
+  if (u.includes('SMP')) return geofenceConfig.schedule_smpit_mon_thu || '15:30'
+
+  return geofenceConfig.schedule_default_mon_thu || '15:30'
+}
+
+function getEarlyLeaveInfo(row: any) {
+  if (!row.check_out || !isAttendancePhysical(row.status)) return null
+  const outDate = row.check_out instanceof Date ? row.check_out : new Date(row.check_out)
+  if (isNaN(outDate.getTime())) return null
+
+  // Overtime if hour >= 18
+  if (outDate.getHours() >= 18) return null
+
+  const targetDate = filterDate.value || new Date()
+  const expStr = getExpectedCheckoutTime(targetDate, row.employee?.unit?.name)
+  if (!expStr) return null
+
+  const [eh, em] = expStr.split(':').map(Number)
+  const expMinutes = eh * 60 + em
+  const actMinutes = outDate.getHours() * 60 + outDate.getMinutes()
+  const earlyTol = Number(geofenceConfig.early_tolerance_minutes || 0)
+
+  const diff = expMinutes - actMinutes
+  if (diff > earlyTol) {
+    const notesLower = (row.notes || '').toLowerCase()
+    const isDuty = notesLower.includes('tugas luar') || notesLower.includes('dinas') || notesLower.includes('dispensasi') || notesLower.includes('izin')
+    return {
+      isEarly: true,
+      earlyMinutes: diff,
+      expectedTime: expStr,
+      isDuty
+    }
+  }
+  return null
 }
 
 // Step-by-Step Progress & Sync Logs State

@@ -830,6 +830,7 @@ DEFAULT_GEOFENCE = {
     "work_start_time": "06:45",
     "work_end_time": "15:30",
     "late_tolerance_minutes": 5,
+    "early_tolerance_minutes": 0,
     "schedule_ra_mon_thu": "14:00",
     "schedule_sdit_mon_thu": "15:00",
     "schedule_smpit_mon_thu": "15:30",
@@ -838,8 +839,19 @@ DEFAULT_GEOFENCE = {
     "schedule_default_mon_thu": "15:30"
 }
 
-def get_expected_checkout_time(target_date: date, unit_name: Optional[str] = None, geofence: Optional[dict] = None) -> str:
+def get_expected_checkout_time(target_date: Any, unit_name: Optional[str] = None, geofence: Optional[dict] = None) -> str:
     cfg = geofence or DEFAULT_GEOFENCE
+    if isinstance(target_date, str):
+        try:
+            target_date = datetime.strptime(target_date[:10], "%Y-%m-%d").date()
+        except Exception:
+            return cfg.get("work_end_time", "15:30")
+    elif hasattr(target_date, "date") and callable(target_date.date):
+        target_date = target_date.date()
+
+    if not hasattr(target_date, "weekday"):
+        return cfg.get("work_end_time", "15:30")
+
     weekday = target_date.weekday()
     if weekday == 4: # Jumat
         return cfg.get("schedule_friday", "11:30")
@@ -1251,6 +1263,9 @@ async def get_employee_attendance_recap(
         _, last_day = calendar.monthrange(today.year, today.month)
         e_date = today.replace(day=last_day)
 
+    # Load geofence config for dynamic checkout schedules
+    geofence = get_geofence_config(db)
+
     # Get all employees
     emp_query = db.query(models.Employee).options(joinedload(models.Employee.unit)).filter(models.Employee.is_active == True)
     if unit_id:
@@ -1328,11 +1343,14 @@ async def get_employee_attendance_recap(
         a = sum(1 for a in emp_att if status_str(a) == 'ABSENT')
         total = h + s + i + cuti + a
 
-        # Monthly breakdown for trend analysis & Overtime/Sunday logs
+        # Monthly breakdown for trend analysis & Overtime/Sunday logs & Early Leave
         monthly_trend = {}
         overtime_records = []
+        early_leave_records = []
         total_lembur = 0
         total_ahad = 0
+        total_pulang_cepat = 0
+        total_menit_pulang_cepat = 0
 
         for att in emp_att:
             try:
@@ -1342,7 +1360,8 @@ async def get_employee_attendance_recap(
                 if m_key not in monthly_trend:
                     monthly_trend[m_key] = {
                         "hadir": 0, "terlambat": 0, "sakit": 0, "izin": 0, 
-                        "cuti": 0, "alpa": 0, "total": 0, "lembur": 0, "ahad": 0
+                        "cuti": 0, "alpa": 0, "total": 0, "lembur": 0, "ahad": 0,
+                        "pulang_cepat": 0, "menit_pulang_cepat": 0
                     }
                 st = status_str(att)
                 if st in ['PRESENT', 'LATE']:
@@ -1398,12 +1417,60 @@ async def get_employee_attendance_recap(
                         "is_duty_outside": is_duty,
                         "status": st
                     })
+
+                # Check Early Checkout (Pulang Lebih Awal)
+                # Requirements:
+                # 1. att.check_out exists
+                # 2. Not Sunday and not holiday duty
+                # 3. Status is physical presence (PRESENT, LATE)
+                # 4. Actual checkout < Expected checkout time - early_tolerance_minutes
+                is_early_checkout = False
+                early_mins = 0
+                exp_out_str = None
+                if att.check_out and hasattr(att.check_out, "time") and not is_sunday and not is_holiday_duty and st in ['PRESENT', 'LATE']:
+                    unit_label = emp.unit.name if emp.unit else None
+                    exp_out_str = get_expected_checkout_time(att.date, unit_label, geofence)
+                    if exp_out_str and exp_out_str != "Libur":
+                        try:
+                            exp_h, exp_m = map(int, exp_out_str.split(":"))
+                            exp_total_mins = (exp_h * 60) + exp_m
+                            act_total_mins = (att.check_out.hour * 60) + att.check_out.minute
+                            early_tol = int(geofence.get("early_tolerance_minutes", 0) or 0)
+                            if (exp_total_mins - act_total_mins) > early_tol:
+                                is_early_checkout = True
+                                early_mins = exp_total_mins - act_total_mins
+                        except Exception:
+                            pass
+
+                if is_early_checkout:
+                    total_pulang_cepat += 1
+                    total_menit_pulang_cepat += early_mins
+                    monthly_trend[m_key]["pulang_cepat"] += 1
+                    monthly_trend[m_key]["menit_pulang_cepat"] += early_mins
+
+                    is_duty_early = "[tugas luar" in notes_text.lower() or "dinas" in notes_text.lower() or "dispensasi" in notes_text.lower() or "izin" in notes_text.lower()
+                    date_str_early = att.date.strftime("%Y-%m-%d") if hasattr(att.date, "strftime") else str(att.date)[:10]
+                    day_idx_early = att.date.weekday() if hasattr(att.date, "weekday") else 0
+                    day_name_early = day_names_id[day_idx_early] if 0 <= day_idx_early < len(day_names_id) else "-"
+
+                    early_leave_records.append({
+                        "attendance_id": att.id,
+                        "date": date_str_early,
+                        "day_name": day_name_early,
+                        "expected_checkout": exp_out_str,
+                        "check_out": att.check_out.strftime("%H:%M") if hasattr(att.check_out, "strftime") else "-",
+                        "early_minutes": early_mins,
+                        "notes": notes_text,
+                        "is_duty_outside": is_duty_early,
+                        "status": st
+                    })
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).warning(f"Error processing attendance record {getattr(att, 'id', None)}: {e}")
 
-        # Sort overtime records descending by date
+        # Sort overtime and early leave records descending by date
         overtime_records.sort(key=lambda x: x["date"], reverse=True)
+        early_leave_records.sort(key=lambda x: x["date"], reverse=True)
 
         results.append({
             "employee_id": emp.id,
@@ -1425,7 +1492,10 @@ async def get_employee_attendance_recap(
             "monthly_trend": monthly_trend,
             "total_lembur": total_lembur,
             "total_ahad": total_ahad,
-            "overtime_records": overtime_records
+            "total_pulang_cepat": total_pulang_cepat,
+            "total_menit_pulang_cepat": total_menit_pulang_cepat,
+            "overtime_records": overtime_records,
+            "early_leave_records": early_leave_records
         })
 
     if has_cleanup:

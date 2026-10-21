@@ -183,20 +183,46 @@
             <div class="text-lg font-bold text-slate-800 dark:text-white mt-0.5 flex items-center gap-1.5">
               <span>{{ periodStats.totalHadir + periodStats.totalTerlambat }} Kali</span>
             </div>
-            <div v-if="periodStats.totalTerlambat > 0" class="text-[10px] text-amber-600 font-semibold">
-              {{ periodStats.totalTerlambat }}x Terlambat
+            <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+              <span 
+                v-if="periodStats.totalTerlambat > 0" 
+                class="text-[10px] text-amber-600 font-semibold cursor-pointer hover:underline"
+                title="Klik untuk melihat daftar terlambat"
+                @click="openRecapModal('terlambat')"
+              >
+                {{ periodStats.totalTerlambat }}x Terlambat
+              </span>
+              <span 
+                v-if="periodStats.totalPulangCepat > 0" 
+                class="text-[10px] text-orange-600 dark:text-orange-400 font-semibold cursor-pointer hover:underline"
+                title="Klik untuk melihat daftar pulang lebih awal"
+                @click="openRecapModal('pulang_cepat')"
+              >
+                &bull; {{ periodStats.totalPulangCepat }}x Pulang Cepat
+              </span>
             </div>
           </div>
         </div>
-        <button
-          v-if="periodStats.totalTerlambat > 0"
-          type="button"
-          class="w-7 h-7 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 flex items-center justify-center transition shrink-0"
-          title="Lihat pegawai yang pernah terlambat"
-          @click="openRecapModal('terlambat')"
-        >
-          <i class="pi pi-eye text-xs"></i>
-        </button>
+        <div class="flex flex-col gap-1 shrink-0">
+          <button
+            v-if="periodStats.totalTerlambat > 0"
+            type="button"
+            class="w-7 h-7 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 flex items-center justify-center transition"
+            title="Lihat pegawai yang pernah terlambat"
+            @click="openRecapModal('terlambat')"
+          >
+            <i class="pi pi-eye text-xs"></i>
+          </button>
+          <button
+            v-if="periodStats.totalPulangCepat > 0"
+            type="button"
+            class="w-7 h-7 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 flex items-center justify-center transition"
+            title="Lihat pegawai yang pulang lebih awal"
+            @click="openRecapModal('pulang_cepat')"
+          >
+            <i class="pi pi-clock text-xs"></i>
+          </button>
+        </div>
       </div>
 
       <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between gap-2">
@@ -323,6 +349,23 @@
             </template>
           </Column>
 
+          <Column field="total_pulang_cepat" header="Pulang Cepat" sortable style="min-width: 115px">
+            <template #body="{ data }">
+              <button
+                v-if="data.total_pulang_cepat > 0"
+                type="button"
+                class="px-2 py-0.5 rounded-md bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/60 dark:hover:bg-orange-900/60 text-orange-700 dark:text-orange-300 font-semibold text-xs inline-flex items-center gap-1 transition"
+                :title="`Klik untuk melihat riwayat ${data.total_pulang_cepat}x pulang lebih awal (Total ${data.total_menit_pulang_cepat || 0} menit)`"
+                @click="openEarlyLeaveStaffModal(data)"
+              >
+                <i class="pi pi-clock text-[10px]"></i>
+                <span>{{ data.total_pulang_cepat }}x</span>
+                <span class="text-[10px] opacity-75">({{ data.total_menit_pulang_cepat || 0 }}m)</span>
+              </button>
+              <span v-else class="text-slate-300 dark:text-slate-600 text-xs">-</span>
+            </template>
+          </Column>
+
           <Column field="sakit" header="Sakit" sortable style="width: 75px">
             <template #body="{ data }">
               <span class="font-semibold text-yellow-600">{{ data.sakit }}</span>
@@ -443,6 +486,9 @@
             <span v-if="recapModalType === 'terlambat'" class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700">
               {{ emp.terlambat }}x Terlambat
             </span>
+            <span v-else-if="recapModalType === 'pulang_cepat'" class="px-2.5 py-1 rounded-lg bg-orange-100 text-orange-700">
+              {{ emp.total_pulang_cepat }}x Pulang Cepat ({{ emp.total_menit_pulang_cepat || 0 }}m)
+            </span>
             <template v-else-if="recapModalType === 'izin_sakit_cuti'">
               <span v-if="emp.sakit > 0" class="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700">{{ emp.sakit }} Sakit</span>
               <span v-if="emp.izin > 0" class="px-2 py-0.5 rounded bg-blue-100 text-blue-700">{{ emp.izin }} Izin</span>
@@ -456,6 +502,84 @@
       </div>
       <template #footer>
         <Button label="Tutup" icon="pi pi-times" severity="secondary" text size="small" @click="showRecapModal = false" />
+      </template>
+    </Dialog>
+
+    <!-- Dialog Detail Pulang Lebih Awal Per Pegawai -->
+    <Dialog
+      v-model:visible="showEarlyLeaveStaffDialog"
+      :modal="true"
+      :style="{ width: '44rem', maxWidth: '95vw' }"
+    >
+      <template #header>
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:text-orange-400 flex items-center justify-center shrink-0">
+            <i class="pi pi-clock text-lg"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800 dark:text-white">
+              Riwayat Pulang Lebih Awal: {{ selectedEarlyLeaveStaff?.nama_lengkap }}
+            </h3>
+            <p class="text-xs text-slate-400">
+              {{ selectedEarlyLeaveStaff?.unit_name }} &bull; Periode: {{ activePeriodLabel }}
+            </p>
+          </div>
+        </div>
+      </template>
+
+      <div class="space-y-4 pt-1 max-h-[65vh] overflow-y-auto pr-1">
+        <div class="flex items-center justify-between p-3 rounded-xl bg-orange-50/70 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900 text-xs">
+          <div class="text-slate-600 dark:text-slate-300">
+            Total Kejadian: <strong class="text-orange-700 dark:text-orange-300">{{ selectedEarlyLeaveStaff?.total_pulang_cepat || 0 }}x Hari</strong>
+          </div>
+          <div class="text-slate-600 dark:text-slate-300">
+            Akumulasi Selisih Waktu: <strong class="text-orange-700 dark:text-orange-300">{{ selectedEarlyLeaveStaff?.total_menit_pulang_cepat || 0 }} Menit</strong>
+          </div>
+        </div>
+
+        <DataTable
+          :value="selectedEarlyLeaveStaff?.early_leave_records || []"
+          responsiveLayout="scroll"
+          class="text-xs"
+          stripedRows
+        >
+          <Column header="Tanggal" style="min-width: 120px">
+            <template #body="{ data }">
+              <div class="font-bold text-slate-800 dark:text-white">{{ data.day_name }}, {{ data.date }}</div>
+            </template>
+          </Column>
+          <Column header="Jadwal Pulang" style="width: 100px">
+            <template #body="{ data }">
+              <span class="font-mono text-slate-500">{{ data.expected_checkout }}</span>
+            </template>
+          </Column>
+          <Column header="Jam Keluar" style="width: 100px">
+            <template #body="{ data }">
+              <span class="font-mono font-bold text-slate-800 dark:text-slate-200">{{ data.check_out }}</span>
+            </template>
+          </Column>
+          <Column header="Selisih" style="width: 110px">
+            <template #body="{ data }">
+              <span class="px-2 py-0.5 rounded bg-orange-100 text-orange-800 text-[11px] font-bold">
+                -{{ data.early_minutes }} menit
+              </span>
+            </template>
+          </Column>
+          <Column header="Catatan / Status" style="min-width: 150px">
+            <template #body="{ data }">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span v-if="data.is_duty_outside" class="px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 text-[10px] font-bold">
+                  Tugas Luar / Dinas
+                </span>
+                <span class="text-slate-500 text-[11px] italic">{{ data.notes || '-' }}</span>
+              </div>
+            </template>
+          </Column>
+        </DataTable>
+      </div>
+
+      <template #footer>
+        <Button label="Tutup" icon="pi pi-times" severity="secondary" text size="small" @click="showEarlyLeaveStaffDialog = false" />
       </template>
     </Dialog>
 
@@ -738,6 +862,9 @@
                     </span>
                     <span v-if="emp.terlambat > 0" class="px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px]">
                       {{ emp.terlambat }}x Telat
+                    </span>
+                    <span v-if="emp.total_pulang_cepat > 0" class="px-2 py-0.5 rounded bg-orange-100 text-orange-700 text-[10px]">
+                      {{ emp.total_pulang_cepat }}x Pulang Cepat
                     </span>
                   </div>
                 </div>
@@ -1213,8 +1340,18 @@ const loading = ref(false)
 const hasFetched = ref(false)
 
 // Quick View Modal
+type RecapModalType = 'terlambat' | 'pulang_cepat' | 'izin_sakit_cuti' | 'alpa'
 const showRecapModal = ref(false)
-const recapModalType = ref<'terlambat' | 'izin_sakit_cuti' | 'alpa'>('alpa')
+const recapModalType = ref<RecapModalType>('alpa')
+
+// Staff Early Leave Detail Dialog
+const showEarlyLeaveStaffDialog = ref(false)
+const selectedEarlyLeaveStaff = ref<any | null>(null)
+
+function openEarlyLeaveStaffModal(emp: any) {
+  selectedEarlyLeaveStaff.value = emp
+  showEarlyLeaveStaffDialog.value = true
+}
 
 // Analytics Modal State
 const showAnalyticsModal = ref(false)
@@ -1266,6 +1403,8 @@ const periodStats = computed(() => {
   const totalEmployees = list.length
   let totalHadir = 0
   let totalTerlambat = 0
+  let totalPulangCepat = 0
+  let totalMenitPulangCepat = 0
   let totalIzinSakitCuti = 0
   let totalAlpa = 0
   let totalTercatat = 0
@@ -1274,6 +1413,8 @@ const periodStats = computed(() => {
   for (const item of list) {
     totalHadir += (item.hadir || 0)
     totalTerlambat += (item.terlambat || 0)
+    totalPulangCepat += (item.total_pulang_cepat || 0)
+    totalMenitPulangCepat += (item.total_menit_pulang_cepat || 0)
     totalIzinSakitCuti += (item.sakit || 0) + (item.izin || 0) + (item.cuti || 0)
     totalAlpa += (item.alpa || 0)
     totalTercatat += (item.total || 0)
@@ -1285,12 +1426,13 @@ const periodStats = computed(() => {
     ? (sumPercentage / totalEmployees).toFixed(1)
     : '0.0'
 
-  return { totalEmployees, totalHadir, totalTerlambat, totalIzinSakitCuti, totalAlpa, totalTercatat, avgPresence }
+  return { totalEmployees, totalHadir, totalTerlambat, totalPulangCepat, totalMenitPulangCepat, totalIzinSakitCuti, totalAlpa, totalTercatat, avgPresence }
 })
 
 // Quick View Modal helpers
 const recapModalTitle = computed(() => {
   if (recapModalType.value === 'terlambat') return `Daftar Pegawai Terlambat — ${activePeriodLabel.value}`
+  if (recapModalType.value === 'pulang_cepat') return `Daftar Pegawai Pulang Lebih Awal — ${activePeriodLabel.value}`
   if (recapModalType.value === 'izin_sakit_cuti') return `Daftar Pegawai Izin / Sakit / Cuti — ${activePeriodLabel.value}`
   return `Daftar Pegawai Alpa (Tanpa Keterangan) — ${activePeriodLabel.value}`
 })
@@ -1300,13 +1442,16 @@ const recapModalList = computed(() => {
   if (recapModalType.value === 'terlambat') {
     return list.filter(i => (i.terlambat || 0) > 0).sort((a, b) => (b.terlambat || 0) - (a.terlambat || 0))
   }
+  if (recapModalType.value === 'pulang_cepat') {
+    return list.filter(i => (i.total_pulang_cepat || 0) > 0).sort((a, b) => (b.total_pulang_cepat || 0) - (a.total_pulang_cepat || 0))
+  }
   if (recapModalType.value === 'izin_sakit_cuti') {
     return list.filter(i => ((i.sakit || 0) + (i.izin || 0) + (i.cuti || 0)) > 0)
   }
   return list.filter(i => (i.alpa || 0) > 0).sort((a, b) => (b.alpa || 0) - (a.alpa || 0))
 })
 
-function openRecapModal(type: 'terlambat' | 'izin_sakit_cuti' | 'alpa') {
+function openRecapModal(type: RecapModalType) {
   recapModalType.value = type
   showRecapModal.value = true
 }
@@ -1540,8 +1685,8 @@ const topDisciplineList = computed(() => {
 // Needs Attention List
 const needsAttentionList = computed(() => {
   return [...filteredAnalyticsEmployees.value]
-    .filter(e => (e.alpa || 0) > 0 || (e.terlambat || 0) >= 3)
-    .sort((a, b) => ((b.alpa || 0) * 3 + (b.terlambat || 0)) - ((a.alpa || 0) * 3 + (a.terlambat || 0)))
+    .filter(e => (e.alpa || 0) > 0 || (e.terlambat || 0) >= 3 || (e.total_pulang_cepat || 0) >= 3)
+    .sort((a, b) => ((b.alpa || 0) * 3 + (b.terlambat || 0) + (b.total_pulang_cepat || 0)) - ((a.alpa || 0) * 3 + (a.terlambat || 0) + (a.total_pulang_cepat || 0)))
     .slice(0, 5)
 })
 
@@ -1727,7 +1872,7 @@ function formatDateDisplay(dateStr: string) {
 
 // Export to Excel/CSV
 const exportExcel = () => {
-  const headers = ['Nama Pegawai', 'NIP', 'Unit', 'Jabatan', 'Hadir Tepat', 'Terlambat', 'Sakit', 'Izin', 'Cuti', 'Alpa', 'Lembur >18:00', 'Hadir Ahad', 'Total Hari', 'Persentase Hadir']
+  const headers = ['Nama Pegawai', 'NIP', 'Unit', 'Jabatan', 'Hadir Tepat', 'Terlambat', 'Pulang Cepat (x)', 'Menit Pulang Cepat', 'Sakit', 'Izin', 'Cuti', 'Alpa', 'Lembur >18:00', 'Hadir Ahad', 'Total Hari', 'Persentase Hadir']
   const rows = recapData.value.map((r: any) => [
     `"${r.nama_lengkap}"`, 
     `"${r.nip || '-'}"`, 
@@ -1735,6 +1880,8 @@ const exportExcel = () => {
     `"${r.position || '-'}"`,
     r.hadir, 
     r.terlambat || 0,
+    r.total_pulang_cepat || 0,
+    r.total_menit_pulang_cepat || 0,
     r.sakit, 
     r.izin, 
     r.cuti || 0,

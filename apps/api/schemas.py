@@ -626,6 +626,7 @@ class GeofenceSettingsSchema(BaseModel):
     work_start_time: str = "06:45"
     work_end_time: str = "16:00"
     late_tolerance_minutes: int = 5
+    early_tolerance_minutes: Optional[int] = 0
     schedule_ra_mon_thu: Optional[str] = "14:00"
     schedule_sdit_mon_thu: Optional[str] = "15:00"
     schedule_smpit_mon_thu: Optional[str] = "15:30"
