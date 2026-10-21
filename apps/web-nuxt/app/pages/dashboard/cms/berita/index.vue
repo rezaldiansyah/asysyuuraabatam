@@ -139,7 +139,18 @@
           <!-- Content (Rich Text) -->
           <div class="flex flex-col gap-2">
             <label class="font-medium">Konten *</label>
-            <Editor v-model="form.content" editorStyle="height: 250px" />
+            <ClientOnly>
+              <CmsRichTextEditor 
+                v-model="form.content" 
+                placeholder="Tuliskan isi berita atau artikel lengkap di sini..." 
+                minHeight="250px" 
+              />
+              <template #fallback>
+                <div class="p-8 text-center text-xs text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed">
+                  <i class="pi pi-spin pi-spinner text-primary text-base mr-2"></i> Memuat Editor...
+                </div>
+              </template>
+            </ClientOnly>
           </div>
 
           <!-- Published -->
