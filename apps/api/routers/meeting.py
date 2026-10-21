@@ -836,8 +836,14 @@ class _NotulenDocParser(HTMLParser):
             prefix = f'{self.list_idx}. ' if self.list_type == 'ol' else '&bull; '
             self.list_idx += 1
             txt = ''.join(self.current_p).strip()
-            if txt:
-                self.elements.append(('p', prefix + txt))
+            if self.in_table:
+                if self.current_cell and self.current_cell[-1] and not self.current_cell[-1].endswith('<br/>'):
+                    self.current_cell.append('<br/>')
+                self.current_cell.append(prefix + txt)
+                self.current_p = []
+            else:
+                if txt:
+                    self.elements.append(('p', prefix + txt))
         elif tag in ('ul', 'ol'):
             self.in_list = False
         elif tag in ('p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div'):
@@ -851,7 +857,10 @@ class _NotulenDocParser(HTMLParser):
 
     def _append_tag(self, text):
         if self.in_table:
-            self.current_cell.append(text)
+            if self.in_list:
+                self.current_p.append(text)
+            else:
+                self.current_cell.append(text)
         else:
             self.current_p.append(text)
 
@@ -904,13 +913,15 @@ def _render_notulen_content_to_flowables(raw_html, body_style, header_style, met
                     if max_cols == 1:
                         widths = [tot_w]
                     elif max_cols == 2:
-                        widths = [45, 470]
+                        widths = [40, 475]
                     elif max_cols == 3:
-                        widths = [35, 175, 305]
+                        # No: 35, Topik/Masukan: 135 (singkat), Tanggapan & Kesepakatan: 345 (luas, poin banyak)
+                        widths = [35, 135, 345]
                     elif max_cols == 4:
-                        widths = [30, 150, 205, 130]
+                        # No: 30, Perihal: 115 (ringkas), Pembahasan/Arahan: 225 (luas, poin a,b,c), Tindak Lanjut: 145
+                        widths = [30, 115, 225, 145]
                     elif max_cols == 5:
-                        widths = [30, 120, 175, 100, 90]
+                        widths = [30, 100, 185, 110, 90]
                     else:
                         widths = [tot_w / max_cols] * max_cols
 

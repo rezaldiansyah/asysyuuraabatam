@@ -521,6 +521,8 @@ onMounted(() => {
   margin: 1.25rem 0 !important;
   font-size: 0.8125rem !important;
   border: 1px solid #cbd5e1 !important;
+  table-layout: auto !important;
+  word-break: break-word;
 }
 
 :deep(.notulen-content th),
@@ -529,6 +531,7 @@ onMounted(() => {
   padding: 8px 12px !important;
   text-align: left !important;
   vertical-align: top !important;
+  line-height: 1.6 !important;
 }
 
 :deep(.notulen-content th),
@@ -536,6 +539,7 @@ onMounted(() => {
   background-color: #f1f5f9 !important;
   color: #0f172a !important;
   font-weight: 700 !important;
+  border-bottom: 2px solid #94a3b8 !important;
 }
 
 :deep(.notulen-content th:first-child),
