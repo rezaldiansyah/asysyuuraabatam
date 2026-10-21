@@ -531,7 +531,7 @@ onMounted(() => {
   margin: 1.25rem 0 !important;
   font-size: 0.8125rem !important;
   border: 1px solid #cbd5e1 !important;
-  table-layout: auto !important;
+  table-layout: fixed !important;
   word-break: break-word;
 }
 

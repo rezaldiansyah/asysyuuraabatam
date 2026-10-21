@@ -393,6 +393,9 @@ const editor = useEditor({
     TaskItem.configure({ nested: true }),
     Table.configure({
       resizable: true,
+      handleWidth: 6,
+      cellMinWidth: 35,
+      lastColumnResizable: false,
       HTMLAttributes: {
         class: 'notulen-table',
       },
@@ -455,10 +458,10 @@ function insertYayasanTable() {
     <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
       <thead>
         <tr style="background-color: #f1f5f9; font-weight: bold;">
-          <th style="width: 40px; text-align: center; padding: 8px; border: 1px solid #94a3b8;">No</th>
-          <th style="width: 22%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Perihal / Topik</th>
-          <th style="width: 48%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Pembahasan / Arahan Pimpinan</th>
-          <th style="padding: 8px; border: 1px solid #94a3b8; text-align: left;">Tindak Lanjut</th>
+          <th style="width: 45px; text-align: center; padding: 8px; border: 1px solid #94a3b8;">No</th>
+          <th style="width: 25%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Perihal / Topik</th>
+          <th style="width: 45%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Pembahasan / Arahan Pimpinan</th>
+          <th style="width: 24%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Tindak Lanjut</th>
         </tr>
       </thead>
       <tbody>
@@ -483,9 +486,9 @@ function insertCustomTable(cols: 2 | 3) {
       <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
         <thead>
           <tr style="background-color: #f1f5f9; font-weight: bold;">
-            <th style="width: 40px; text-align: center; padding: 8px; border: 1px solid #94a3b8;">No</th>
-            <th style="width: 32%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Topik / Masukan Peserta</th>
-            <th style="padding: 8px; border: 1px solid #94a3b8; text-align: left;">Tanggapan & Kesepakatan Bersama</th>
+            <th style="width: 50px; text-align: center; padding: 8px; border: 1px solid #94a3b8;">No</th>
+            <th style="width: 35%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Topik / Masukan Peserta</th>
+            <th style="width: 58%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Tanggapan & Kesepakatan Bersama</th>
           </tr>
         </thead>
         <tbody>
@@ -504,7 +507,7 @@ function insertCustomTable(cols: 2 | 3) {
       <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
         <thead>
           <tr style="background-color: #f1f5f9; font-weight: bold;">
-            <th style="width: 40px; text-align: center; padding: 8px; border: 1px solid #94a3b8;">No</th>
+            <th style="width: 50px; text-align: center; padding: 8px; border: 1px solid #94a3b8;">No</th>
             <th style="padding: 8px; border: 1px solid #94a3b8; text-align: left;">Poin Pembahasan / Catatan Rapat</th>
           </tr>
         </thead>
@@ -543,10 +546,10 @@ function applyFullTemplate() {
     <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
       <thead>
         <tr style="background-color: #f1f5f9; font-weight: bold;">
-          <th style="width: 40px; text-align: center; padding: 8px; border: 1px solid #94a3b8;">No</th>
-          <th style="width: 22%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Perihal / Topik</th>
-          <th style="width: 48%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Pembahasan / Arahan Pimpinan</th>
-          <th style="padding: 8px; border: 1px solid #94a3b8; text-align: left;">Tindak Lanjut</th>
+          <th style="width: 45px; text-align: center; padding: 8px; border: 1px solid #94a3b8;">No</th>
+          <th style="width: 25%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Perihal / Topik</th>
+          <th style="width: 45%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Pembahasan / Arahan Pimpinan</th>
+          <th style="width: 24%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Tindak Lanjut</th>
         </tr>
       </thead>
       <tbody>
@@ -883,8 +886,9 @@ defineExpose({
   width: 100% !important;
   border-collapse: collapse !important;
   margin: 1.25rem 0 !important;
-  table-layout: auto !important;
+  table-layout: fixed !important;
   border: 1px solid #94a3b8 !important;
+  overflow: hidden;
 }
 
 :deep(.tiptap-content .tiptap table th),
@@ -894,8 +898,9 @@ defineExpose({
   vertical-align: top !important;
   box-sizing: border-box !important;
   line-height: 1.6 !important;
-  min-width: 45px;
+  min-width: 35px;
   position: relative;
+  word-break: break-word;
 }
 
 :deep(.tiptap-content .tiptap table th) {
@@ -927,6 +932,11 @@ defineExpose({
   pointer-events: none;
   top: 0;
   width: 4px;
+}
+
+:deep(.tiptap-content .tiptap.resize-cursor),
+:deep(.tiptap-content .tiptap.resize-cursor *) {
+  cursor: col-resize !important;
 }
 
 /* Dark mode tables */

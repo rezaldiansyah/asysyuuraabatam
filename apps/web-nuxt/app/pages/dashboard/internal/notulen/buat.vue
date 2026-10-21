@@ -400,10 +400,9 @@ function removeActionItem(idx: number) {
 // Auto-heal legacy or malformed table HTML
 function autoHealNotulenTableHtml(raw: string): string {
   if (!raw) return ''
-  let cleaned = raw.replace(/<th\b([^>]*)>(.*?)<\/th>/gis, '<td$1><b>$2</b></td>')
-  cleaned = cleaned.replace(/<\/?thead\b[^>]*>/gi, '')
+  let cleaned = raw.replace(/\u00a0/g, ' ').replace(/&nbsp;/g, ' ')
   cleaned = cleaned.replace(/<table\b([^>]*)>/gi, (m, attrs) => {
-    if (!attrs.includes('border-collapse')) {
+    if (!attrs.includes('notulen-table')) {
       return `<table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">`
     }
     return m

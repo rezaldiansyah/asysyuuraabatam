@@ -776,13 +776,13 @@ class _NotulenDocParser(HTMLParser):
         self.elements = []
         self.in_table = False
         self.current_row = []
-        self.current_cell = []
+        self.current_cell_items = []
+        self.current_item_text = []
         self.table_data = []
         self.is_header_cell = False
         self.in_list = False
         self.list_type = None
         self.list_idx = 1
-        self.current_p = []
 
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
@@ -792,39 +792,51 @@ class _NotulenDocParser(HTMLParser):
         elif tag == 'tr':
             self.current_row = []
         elif tag in ('th', 'td'):
-            self.current_cell = []
+            self.current_cell_items = []
+            self.current_item_text = []
             self.is_header_cell = (tag == 'th')
         elif tag in ('ul', 'ol'):
+            self._flush_item_text('p')
             self.in_list = True
             self.list_type = tag
             self.list_idx = 1
         elif tag == 'li':
-            self.current_p = []
+            self._flush_item_text('p')
+            self.current_item_text = []
         elif tag in ('p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div'):
-            if self.in_table:
-                if self.current_cell and not self.current_cell[-1].endswith('<br/>'):
-                    self.current_cell.append('<br/>')
-            else:
-                self.current_p = []
+            if not self.in_list:
+                self._flush_item_text('p')
         elif tag in ('b', 'strong'):
-            self._append_tag('<b>')
+            self.current_item_text.append('<b>')
         elif tag in ('i', 'em'):
-            self._append_tag('<i>')
+            self.current_item_text.append('<i>')
         elif tag == 'u':
-            self._append_tag('<u>')
+            self.current_item_text.append('<u>')
         elif tag == 'br':
-            self._append_tag('<br/>')
+            self.current_item_text.append('<br/>')
 
     def handle_endtag(self, tag):
         tag = tag.lower()
         if tag in ('b', 'strong'):
-            self._append_tag('</b>')
+            self.current_item_text.append('</b>')
         elif tag in ('i', 'em'):
-            self._append_tag('</i>')
+            self.current_item_text.append('</i>')
         elif tag == 'u':
-            self._append_tag('</u>')
+            self.current_item_text.append('</u>')
+        elif tag == 'li':
+            if self.list_type == 'ol':
+                self._flush_item_text('number', f'{self.list_idx}.')
+                self.list_idx += 1
+            else:
+                self._flush_item_text('bullet')
+        elif tag in ('ul', 'ol'):
+            self.in_list = False
+        elif tag in ('p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div'):
+            if not self.in_list:
+                self._flush_item_text('h' if tag.startswith('h') else 'p')
         elif tag in ('th', 'td'):
-            self.current_row.append((''.join(self.current_cell).strip(), self.is_header_cell))
+            self._flush_item_text('p')
+            self.current_row.append((self.current_cell_items, self.is_header_cell))
         elif tag == 'tr':
             if self.current_row:
                 self.table_data.append(self.current_row)
@@ -832,42 +844,49 @@ class _NotulenDocParser(HTMLParser):
             self.in_table = False
             if self.table_data:
                 self.elements.append(('table', self.table_data))
-        elif tag == 'li':
-            prefix = f'{self.list_idx}. ' if self.list_type == 'ol' else '&bull; '
-            self.list_idx += 1
-            txt = ''.join(self.current_p).strip()
-            if self.in_table:
-                if self.current_cell and self.current_cell[-1] and not self.current_cell[-1].endswith('<br/>'):
-                    self.current_cell.append('<br/>')
-                self.current_cell.append(prefix + txt)
-                self.current_p = []
-            else:
-                if txt:
-                    self.elements.append(('p', prefix + txt))
-        elif tag in ('ul', 'ol'):
-            self.in_list = False
-        elif tag in ('p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div'):
-            if not self.in_table:
-                txt = ''.join(self.current_p).strip()
-                if txt:
-                    self.elements.append(('h' if tag.startswith('h') else 'p', txt))
 
     def handle_data(self, data):
-        self._append_tag(pyhtml.escape(data))
+        # Normalize non-breaking space (\u00a0) to standard ASCII space to prevent ReportLab splitting words
+        data = data.replace('\u00a0', ' ')
+        self.current_item_text.append(pyhtml.escape(data))
 
-    def _append_tag(self, text):
+    def _flush_item_text(self, kind, prefix=''):
+        txt = ''.join(self.current_item_text).strip()
+        self.current_item_text = []
+        if not txt:
+            return
         if self.in_table:
-            if self.in_list:
-                self.current_p.append(text)
-            else:
-                self.current_cell.append(text)
+            self.current_cell_items.append((kind, txt, prefix))
         else:
-            self.current_p.append(text)
+            self.elements.append((kind, txt, prefix))
+
 
 def _render_notulen_content_to_flowables(raw_html, body_style, header_style, meta_key, colors, Table, TableStyle, Paragraph, Spacer, notulen_body_style=None):
+    from reportlab.lib.styles import ParagraphStyle
+
     use_p_style = notulen_body_style or body_style
+    bullet_style = ParagraphStyle(
+        'CellBullet',
+        parent=body_style,
+        leftIndent=11,
+        firstLineIndent=-11,
+        spaceAfter=2.5,
+        leading=13.5
+    )
+    number_style = ParagraphStyle(
+        'CellNumber',
+        parent=body_style,
+        leftIndent=13,
+        firstLineIndent=-13,
+        spaceAfter=2.5,
+        leading=13.5
+    )
+
     if not raw_html or not raw_html.strip():
         return [Paragraph("Tidak ada catatan pembahasan.", use_p_style)]
+
+    # Clean NBSP from raw html
+    raw_html = raw_html.replace('\u00a0', ' ').replace('&nbsp;', ' ')
 
     # If it has no HTML tags, return plain text
     if '<' not in raw_html:
@@ -879,14 +898,69 @@ def _render_notulen_content_to_flowables(raw_html, body_style, header_style, met
         parser = _NotulenDocParser()
         parser.feed(raw_html)
 
-        for kind, val in parser.elements:
+        def _cell_to_flowable(cell_val, is_head):
+            if not cell_val:
+                return Paragraph("-", body_style)
+            # If already a string (fallback / legacy format)
+            if isinstance(cell_val, str):
+                clean = cell_val.replace('\u00a0', ' ').replace('&nbsp;', ' ').strip()
+                if not clean:
+                    return Paragraph("-", body_style)
+                if '&bull;' in clean or '•' in clean:
+                    parts = re.split(r'(?:<br\s*/?>\s*)?(?:&bull;|•)\s*', clean)
+                    fls = []
+                    for p_idx, part in enumerate(parts):
+                        part = part.strip()
+                        if not part:
+                            continue
+                        if p_idx == 0 and not clean.startswith(('&bull;', '•')):
+                            fls.append(Paragraph(part, body_style))
+                        else:
+                            fls.append(Paragraph(f"&bull;&nbsp; {part}", bullet_style))
+                    return fls if len(fls) > 1 else (fls[0] if fls else Paragraph("-", body_style))
+                return Paragraph(clean, meta_key if is_head else body_style)
+
+            # Structured list of items from parser: [(kind, txt, prefix), ...]
+            fls = []
+            for item in cell_val:
+                if isinstance(item, tuple) and len(item) >= 2:
+                    kind = item[0]
+                    txt = item[1].replace('\u00a0', ' ').replace('&nbsp;', ' ').strip()
+                    prefix = item[2] if len(item) > 2 else ''
+                    if not txt:
+                        continue
+                    if is_head or kind == 'h':
+                        fls.append(Paragraph(txt, meta_key))
+                    elif kind == 'bullet':
+                        fls.append(Paragraph(f"&bull;&nbsp; {txt}", bullet_style))
+                    elif kind == 'number':
+                        pfx = prefix if prefix else "1."
+                        fls.append(Paragraph(f"{pfx}&nbsp; {txt}", number_style))
+                    else:
+                        fls.append(Paragraph(txt, body_style))
+            if not fls:
+                return Paragraph("-", body_style)
+            return fls if len(fls) > 1 else fls[0]
+
+        for item in parser.elements:
+            kind = item[0]
+            val = item[1]
+            prefix = item[2] if len(item) > 2 else ''
+
             if kind == 'h':
                 flowables.append(Spacer(1, 6))
                 flowables.append(Paragraph(f"<b>{val}</b>", header_style))
                 flowables.append(Spacer(1, 4))
             elif kind == 'p':
                 flowables.append(Paragraph(val, use_p_style))
-                flowables.append(Spacer(1, 6))
+                flowables.append(Spacer(1, 5))
+            elif kind == 'bullet':
+                flowables.append(Paragraph(f"&bull;&nbsp; {val}", bullet_style))
+                flowables.append(Spacer(1, 2))
+            elif kind == 'number':
+                pfx = prefix if prefix else "1."
+                flowables.append(Paragraph(f"{pfx}&nbsp; {val}", number_style))
+                flowables.append(Spacer(1, 2))
             elif kind == 'table':
                 if not val:
                     continue
@@ -897,15 +971,11 @@ def _render_notulen_content_to_flowables(raw_html, body_style, header_style, met
                 table_rows = []
                 for row_idx, row in enumerate(val):
                     cells = []
-                    # Check if whole row is header
                     is_header_row = (row_idx == 0) or all(c[1] for c in row)
-                    for col_idx, (cell_txt, is_head) in enumerate(row):
-                        style = meta_key if (is_head or is_header_row) else body_style
-                        cells.append(Paragraph(cell_txt if cell_txt else "-", style))
-                    # Pad missing columns if any
+                    for col_idx, (cell_content, is_head) in enumerate(row):
+                        cells.append(_cell_to_flowable(cell_content, is_head or is_header_row))
                     while len(cells) < max_cols:
-                        style = meta_key if is_header_row else body_style
-                        cells.append(Paragraph("-", style))
+                        cells.append(Paragraph("-", meta_key if is_header_row else body_style))
                     table_rows.append(cells)
 
                 if table_rows:
@@ -913,15 +983,15 @@ def _render_notulen_content_to_flowables(raw_html, body_style, header_style, met
                     if max_cols == 1:
                         widths = [tot_w]
                     elif max_cols == 2:
-                        widths = [40, 475]
+                        widths = [35, 480]
                     elif max_cols == 3:
-                        # No: 35, Topik/Masukan: 135 (singkat), Tanggapan & Kesepakatan: 345 (luas, poin banyak)
-                        widths = [35, 135, 345]
+                        # No: 30, Topik/Masukan: 165 (plenty room, no awkward wrap), Tanggapan: 320
+                        widths = [30, 165, 320]
                     elif max_cols == 4:
-                        # No: 30, Perihal: 115 (ringkas), Pembahasan/Arahan: 225 (luas, poin a,b,c), Tindak Lanjut: 145
-                        widths = [30, 115, 225, 145]
+                        # No: 28, Perihal: 122, Pembahasan/Arahan: 235, Tindak Lanjut: 130
+                        widths = [28, 122, 235, 130]
                     elif max_cols == 5:
-                        widths = [30, 100, 185, 110, 90]
+                        widths = [25, 95, 195, 105, 95]
                     else:
                         widths = [tot_w / max_cols] * max_cols
 
@@ -931,10 +1001,10 @@ def _render_notulen_content_to_flowables(raw_html, body_style, header_style, met
                         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F1F5F9')),
                         ('VALIGN', (0,0), (-1,-1), 'TOP'),
                         ('ALIGN', (0,0), (0,-1), 'CENTER'),  # Column 0 (No) centered
-                        ('TOPPADDING', (0,0), (-1,-1), 4.5),
-                        ('BOTTOMPADDING', (0,0), (-1,-1), 4.5),
-                        ('LEFTPADDING', (0,0), (-1,-1), 5),
-                        ('RIGHTPADDING', (0,0), (-1,-1), 5),
+                        ('TOPPADDING', (0,0), (-1,-1), 5),
+                        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+                        ('LEFTPADDING', (0,0), (-1,-1), 6),
+                        ('RIGHTPADDING', (0,0), (-1,-1), 6),
                     ]))
                     flowables.append(Spacer(1, 4))
                     flowables.append(t)
@@ -945,6 +1015,8 @@ def _render_notulen_content_to_flowables(raw_html, body_style, header_style, met
             flowables = [Paragraph(clean_content.replace('\n', '<br/>'), body_style)]
 
     except Exception:
+        import traceback
+        traceback.print_exc()
         clean_content = re.sub('<[^<]+?>', '', raw_html or "").strip()
         flowables = [Paragraph(clean_content.replace('\n', '<br/>'), body_style)]
 
