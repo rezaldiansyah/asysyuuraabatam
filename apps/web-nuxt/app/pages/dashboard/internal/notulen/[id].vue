@@ -494,6 +494,16 @@ onMounted(() => {
   display: list-item !important;
 }
 
+:deep(.notulen-content td ul),
+:deep(.notulen-content td ol) {
+  margin-left: 1.25rem !important;
+  margin-bottom: 0.25rem !important;
+}
+
+:deep(.notulen-content td li) {
+  margin-bottom: 0.25rem !important;
+}
+
 :deep(.notulen-content h1) {
   font-size: 1.25rem;
   font-weight: 700;
