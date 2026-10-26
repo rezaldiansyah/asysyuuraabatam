@@ -19,4 +19,4 @@ COPY apps/api .
 
 # Run with Gunicorn + Uvicorn workers
 # Adjust workers as needed (2 workers optimal for 4GB RAM VPS)
-CMD ["gunicorn", "-w", "2", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000"]
+CMD ["gunicorn", "-w", "2", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000", "--timeout", "120", "--keep-alive", "5", "--graceful-timeout", "30"]

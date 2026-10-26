@@ -948,6 +948,7 @@ async def root():
         "status": "running"
     }
 
+@app.get("/health")
 @app.get("/api/health")
 async def health_check():
     from storage import is_r2_configured
