@@ -448,25 +448,28 @@ const expectedCheckOutTime = computed(() => {
     return 'Libur (Ahad)'
   }
   // Senin - Kamis
-  const unit = (todayData.employee?.unit?.name || '').toUpperCase()
+  const unit = (todayData.employee?.unit?.name || '').toUpperCase().trim()
   const raTime = cfg.schedule_ra_mon_thu || '14:00'
   const sditTime = cfg.schedule_sdit_mon_thu || '15:00'
   const smpitTime = cfg.schedule_smpit_mon_thu || '15:30'
+  const definedTimes = [raTime, sditTime, smpitTime].filter(Boolean).sort()
+  const latestUnitTime = definedTimes[definedTimes.length - 1] || '15:30'
+  const defaultVal = cfg.schedule_default_mon_thu || latestUnitTime
 
-  if (unit.includes('RA')) {
+  if (unit.includes('YAYASAN') || unit.startsWith('YYS')) {
+    return defaultVal
+  }
+  if (/\bRA\b/.test(unit) || unit.startsWith('RA ') || unit === 'RA' || unit.includes('RAUDHATUL')) {
     return raTime
   }
-  if (unit.includes('SDIT') || unit.includes('SD')) {
+  if (unit.includes('SDIT') || /\bSD\b/.test(unit)) {
     return sditTime
   }
-  if (unit.includes('SMPIT') || unit.includes('SMP')) {
+  if (unit.includes('SMPIT') || /\bSMP\b/.test(unit)) {
     return smpitTime
   }
 
-  // Unit lainnya / Yayasan / Non-unit jika tidak didefinisikan mengikuti unit yang paling terakhir pulang
-  const definedTimes = [raTime, sditTime, smpitTime].filter(Boolean).sort()
-  const latestUnitTime = definedTimes[definedTimes.length - 1] || '15:30'
-  return cfg.schedule_default_mon_thu || latestUnitTime
+  return defaultVal
 })
 
 // Haversine formula on client

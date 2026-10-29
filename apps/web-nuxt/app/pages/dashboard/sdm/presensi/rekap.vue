@@ -200,6 +200,14 @@
               >
                 &bull; {{ periodStats.totalPulangCepat }}x Pulang Cepat
               </span>
+              <span 
+                v-if="periodStats.totalTidakAbsenPulang > 0" 
+                class="text-[10px] text-rose-600 dark:text-rose-400 font-semibold cursor-pointer hover:underline"
+                title="Klik untuk melihat daftar tidak absen pulang"
+                @click="openRecapModal('tidak_absen_pulang')"
+              >
+                &bull; {{ periodStats.totalTidakAbsenPulang }}x Tdk Tap Pulang
+              </span>
             </div>
           </div>
         </div>
@@ -221,6 +229,15 @@
             @click="openRecapModal('pulang_cepat')"
           >
             <i class="pi pi-clock text-xs"></i>
+          </button>
+          <button
+            v-if="periodStats.totalTidakAbsenPulang > 0"
+            type="button"
+            class="w-7 h-7 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 flex items-center justify-center transition"
+            title="Lihat pegawai yang tidak absen pulang"
+            @click="openRecapModal('tidak_absen_pulang')"
+          >
+            <i class="pi pi-sign-out text-xs"></i>
           </button>
         </div>
       </div>
@@ -361,6 +378,23 @@
                 <i class="pi pi-clock text-[10px]"></i>
                 <span>{{ data.total_pulang_cepat }}x</span>
                 <span class="text-[10px] opacity-75">({{ data.total_menit_pulang_cepat || 0 }}m)</span>
+              </button>
+              <span v-else class="text-slate-300 dark:text-slate-600 text-xs">-</span>
+            </template>
+          </Column>
+
+          <Column field="total_tidak_absen_pulang" header="Tanpa Tap Pulang" sortable style="min-width: 120px">
+            <template #body="{ data }">
+              <button
+                v-if="data.total_tidak_absen_pulang > 0"
+                type="button"
+                class="px-2 py-0.5 rounded-md bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-semibold text-xs inline-flex items-center gap-1 transition"
+                :title="`Klik untuk melihat riwayat ${data.total_tidak_absen_pulang}x tidak absen pulang`"
+                @click="openNoCheckoutStaffModal(data)"
+              >
+                <i class="pi pi-sign-out text-[10px]"></i>
+                <span>{{ data.total_tidak_absen_pulang }}x</span>
+                <i class="pi pi-eye text-[9px] opacity-75"></i>
               </button>
               <span v-else class="text-slate-300 dark:text-slate-600 text-xs">-</span>
             </template>
@@ -509,6 +543,19 @@
                 <i class="pi pi-eye text-xs"></i>
               </button>
             </div>
+            <div v-else-if="recapModalType === 'tidak_absen_pulang'" class="flex items-center gap-1.5">
+              <span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800">
+                {{ emp.total_tidak_absen_pulang }}x Tidak Absen Pulang
+              </span>
+              <button
+                type="button"
+                @click="openNoCheckoutStaffModal(emp)"
+                class="w-7 h-7 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/80 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-300 flex items-center justify-center transition border border-amber-200 dark:border-amber-800"
+                title="Lihat rincian tanggal tidak absen pulang"
+              >
+                <i class="pi pi-eye text-xs"></i>
+              </button>
+            </div>
             <template v-else-if="recapModalType === 'izin_sakit_cuti'">
               <span v-if="emp.sakit > 0" class="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700">{{ emp.sakit }} Sakit</span>
               <span v-if="emp.izin > 0" class="px-2 py-0.5 rounded bg-blue-100 text-blue-700">{{ emp.izin }} Izin</span>
@@ -613,6 +660,106 @@
       </template>
     </Dialog>
 
+    <!-- Dialog Detail Tidak Absen Pulang Per Pegawai -->
+    <Dialog
+      v-model:visible="showNoCheckoutStaffDialog"
+      :modal="true"
+      :style="{ width: '50rem', maxWidth: '95vw' }"
+    >
+      <template #header>
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <i class="pi pi-sign-out text-lg"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800 dark:text-white">
+              Riwayat Tidak Absen Pulang: {{ selectedNoCheckoutStaff?.nama_lengkap }}
+            </h3>
+            <p class="text-xs text-slate-400">
+              {{ selectedNoCheckoutStaff?.unit_name }} &bull; Periode: {{ activePeriodLabel }}
+            </p>
+          </div>
+        </div>
+      </template>
+
+      <div class="space-y-4 pt-1 max-h-[65vh] overflow-y-auto pr-1">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-xs gap-2">
+          <div class="text-slate-600 dark:text-slate-300">
+            Total Kejadian: <strong class="text-amber-800 dark:text-amber-300">{{ selectedNoCheckoutStaff?.total_tidak_absen_pulang || 0 }}x Hari Tanpa Tap Pulang</strong>
+          </div>
+          <div class="text-slate-500 text-[11px] flex items-center gap-1.5">
+            <i class="pi pi-info-circle text-primary text-xs"></i>
+            <span>Pegawai tercatat check-in namun tidak memiliki rekaman absen kepulangan (check-out).</span>
+          </div>
+        </div>
+
+        <DataTable
+          :value="selectedNoCheckoutStaff?.no_checkout_records || []"
+          responsiveLayout="scroll"
+          class="text-xs"
+          stripedRows
+        >
+          <template #empty>
+            <div class="p-6 text-center text-slate-400">
+              <i class="pi pi-check-circle text-2xl text-emerald-500 mb-2"></i>
+              <p>Tidak ada catatan tidak absen pulang pada periode ini.</p>
+            </div>
+          </template>
+
+          <Column header="Hari & Tanggal" style="min-width: 140px">
+            <template #body="{ data }">
+              <div class="font-bold text-slate-800 dark:text-white">{{ data.day_name }}, {{ data.date }}</div>
+            </template>
+          </Column>
+
+          <Column header="Jam Masuk" style="width: 100px">
+            <template #body="{ data }">
+              <span class="font-mono font-bold text-emerald-700 dark:text-emerald-400">{{ data.check_in }}</span>
+            </template>
+          </Column>
+
+          <Column header="Jadwal Pulang" style="width: 110px">
+            <template #body="{ data }">
+              <span class="font-mono text-slate-500">{{ data.expected_checkout }}</span>
+            </template>
+          </Column>
+
+          <Column header="Status Pulang" style="width: 140px">
+            <template #body>
+              <span class="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[11px] font-bold">
+                Tanpa Tap Pulang
+              </span>
+            </template>
+          </Column>
+
+          <Column header="Catatan" style="min-width: 160px">
+            <template #body="{ data }">
+              <span class="text-slate-500 text-[11px] italic">{{ data.notes || '-' }}</span>
+            </template>
+          </Column>
+
+          <Column v-if="canEditAttendance" header="Aksi" style="width: 120px; text-align: center">
+            <template #body="{ data }">
+              <Button
+                label="Klarifikasi"
+                icon="pi pi-pencil"
+                severity="warning"
+                size="small"
+                outlined
+                class="!py-1 !px-2 !text-xs font-semibold"
+                title="Klarifikasi jam pulang atau ubah status"
+                @click="openEditAttendanceModal(data, selectedNoCheckoutStaff)"
+              />
+            </template>
+          </Column>
+        </DataTable>
+      </div>
+
+      <template #footer>
+        <Button label="Tutup" icon="pi pi-times" severity="secondary" text size="small" @click="showNoCheckoutStaffDialog = false" />
+      </template>
+    </Dialog>
+
     <!-- Dialog Detail Alpa (Tanpa Keterangan) Per Pegawai -->
     <Dialog
       v-model:visible="showAbsentStaffDialog"
@@ -701,7 +848,7 @@
       </template>
     </Dialog>
 
-    <!-- Dialog Ubah Status Presensi (Klarifikasi Alpa -> Sakit, Cuti, Izin, dll) -->
+    <!-- Dialog Ubah Status Presensi (Klarifikasi Alpa -> Sakit, Cuti, Izin, dll & Tanpa Tap Pulang) -->
     <Dialog
       v-model:visible="showEditAttendanceModal"
       :modal="true"
@@ -715,22 +862,25 @@
             <div class="font-bold text-sm text-slate-800 dark:text-white">{{ editAttendanceForm.employee_name }}</div>
             <div class="text-slate-500 text-[11px] mt-0.5">{{ editAttendanceForm.day_name }}, {{ editAttendanceForm.date }}</div>
           </div>
-          <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-bold text-[10px]">
-            Semula: Alpa
+          <span
+            class="px-2 py-0.5 rounded font-bold text-[10px]"
+            :class="editAttendanceForm.original_status === 'NO_CHECKOUT' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'bg-rose-100 text-rose-700'"
+          >
+            {{ editAttendanceForm.original_status === 'NO_CHECKOUT' ? 'Status: Tanpa Tap Pulang' : 'Semula: Alpa' }}
           </span>
         </div>
 
         <!-- Pilih Status Baru -->
         <div>
           <label class="block font-bold text-slate-700 dark:text-slate-200 mb-1.5">
-            Penyebab / Status Baru <span class="text-rose-500">*</span>
+            Penyebab / Status Presensi <span class="text-rose-500">*</span>
           </label>
           <Dropdown
             v-model="editAttendanceForm.status"
             :options="attendanceStatusOptions"
             optionLabel="label"
             optionValue="value"
-            placeholder="Pilih Status Baru"
+            placeholder="Pilih Status"
             class="w-full text-xs"
           >
             <template #option="{ option }">
@@ -741,8 +891,35 @@
             </template>
           </Dropdown>
           <p class="text-[10px] text-slate-400 mt-1">
-            Pilih jenis kehadiran/ketidakhadiran yang sah (Sakit, Izin, Cuti, Dispensasi, dll).
+            Pilih jenis kehadiran/ketidakhadiran yang sah (Hadir Manual, Sakit, Izin, Cuti, Dispensasi, dll).
           </p>
+        </div>
+
+        <!-- Jam Masuk & Jam Keluar jika status Hadir / Dispensasi / Terlambat -->
+        <div v-if="['PRESENT', 'LATE', 'DISPENSATION'].includes(editAttendanceForm.status)" class="grid grid-cols-2 gap-3 pt-1">
+          <div>
+            <label class="block font-bold text-slate-700 dark:text-slate-200 mb-1">
+              Jam Masuk (Check-in)
+            </label>
+            <InputText
+              v-model="editAttendanceForm.check_in"
+              placeholder="06:45"
+              class="w-full text-xs font-mono"
+            />
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 dark:text-slate-200 mb-1">
+              Jam Pulang (Check-out)
+            </label>
+            <InputText
+              v-model="editAttendanceForm.check_out"
+              placeholder="15:30"
+              class="w-full text-xs font-mono"
+            />
+            <p class="text-[10px] text-slate-400 mt-1">
+              Isi jam pulang untuk melengkapi presensi.
+            </p>
+          </div>
         </div>
 
         <!-- Catatan / Keterangan -->
@@ -753,7 +930,7 @@
           <Textarea
             v-model="editAttendanceForm.notes"
             rows="3"
-            placeholder="Contoh: Surat keterangan dokter RS terlampir / Izin urusan keluarga mendesak / Dispensasi dinas luar"
+            placeholder="Contoh: Surat keterangan dokter RS terlampir / Izin urusan keluarga mendesak / Dispensasi dinas luar / Lupa tap pulang"
             class="w-full text-xs"
           />
         </div>
@@ -1548,7 +1725,7 @@ const loading = ref(false)
 const hasFetched = ref(false)
 
 // Quick View Modal
-type RecapModalType = 'terlambat' | 'pulang_cepat' | 'izin_sakit_cuti' | 'alpa'
+type RecapModalType = 'terlambat' | 'pulang_cepat' | 'tidak_absen_pulang' | 'izin_sakit_cuti' | 'alpa'
 const showRecapModal = ref(false)
 const recapModalType = ref<RecapModalType>('alpa')
 
@@ -1559,6 +1736,15 @@ const selectedEarlyLeaveStaff = ref<any | null>(null)
 function openEarlyLeaveStaffModal(emp: any) {
   selectedEarlyLeaveStaff.value = emp
   showEarlyLeaveStaffDialog.value = true
+}
+
+// Staff No Checkout (Tanpa Tap Pulang) Detail Dialog
+const showNoCheckoutStaffDialog = ref(false)
+const selectedNoCheckoutStaff = ref<any | null>(null)
+
+function openNoCheckoutStaffModal(emp: any) {
+  selectedNoCheckoutStaff.value = emp
+  showNoCheckoutStaffDialog.value = true
 }
 
 // Staff Absent / Alpa Detail Dialog
@@ -1580,6 +1766,9 @@ const editAttendanceForm = ref({
   date: '',
   day_name: '',
   status: 'SICK',
+  original_status: '',
+  check_in: '',
+  check_out: '',
   notes: ''
 })
 
@@ -1598,14 +1787,19 @@ const attendanceStatusOptions = [
 ]
 
 function openEditAttendanceModal(record: any, staff: any) {
+  const isNoCheckout = !record.check_out || record.check_out === '-'
+  const initialStatus = isNoCheckout && record.check_in ? 'PRESENT' : (record.status || 'SICK')
   editAttendanceForm.value = {
-    attendance_id: record.attendance_id,
+    attendance_id: record.attendance_id || 0,
     employee_id: staff.employee_id,
     employee_name: staff.nama_lengkap,
     date: record.date,
     day_name: record.day_name,
-    status: 'SICK',
-    notes: record.notes && record.notes !== 'Tidak ada data di Fingerprint' && record.notes !== 'Tanpa Keterangan' ? record.notes : ''
+    status: initialStatus,
+    original_status: isNoCheckout && record.check_in ? 'NO_CHECKOUT' : 'ABSENT',
+    check_in: record.check_in || '',
+    check_out: (record.check_out && record.check_out !== '-') ? record.check_out : '',
+    notes: record.notes && record.notes !== 'Tidak ada data di Fingerprint' && record.notes !== 'Tanpa Keterangan' && record.notes !== 'Tidak tap pulang' ? record.notes : ''
   }
   showEditAttendanceModal.value = true
 }
@@ -1619,6 +1813,8 @@ async function saveAttendanceStatus() {
       employee_id: editAttendanceForm.value.employee_id,
       date: editAttendanceForm.value.date,
       status: editAttendanceForm.value.status,
+      check_in: editAttendanceForm.value.check_in || null,
+      check_out: editAttendanceForm.value.check_out || null,
       notes: editAttendanceForm.value.notes
     }
     await api.post('/sdm/attendance/update-status', payload)
@@ -1646,6 +1842,24 @@ async function saveAttendanceStatus() {
         )
         if (item) {
           item.notes = editAttendanceForm.value.notes
+        }
+      }
+    }
+
+    // Update local state in selectedNoCheckoutStaff so user sees immediate update
+    if (selectedNoCheckoutStaff.value) {
+      if (editAttendanceForm.value.check_out && editAttendanceForm.value.check_out.trim()) {
+        selectedNoCheckoutStaff.value.no_checkout_records = (selectedNoCheckoutStaff.value.no_checkout_records || []).filter(
+          (r: any) => !(r.attendance_id === editAttendanceForm.value.attendance_id || r.date === editAttendanceForm.value.date)
+        )
+        selectedNoCheckoutStaff.value.total_tidak_absen_pulang = Math.max(0, (selectedNoCheckoutStaff.value.total_tidak_absen_pulang || 0) - 1)
+      } else {
+        const item = (selectedNoCheckoutStaff.value.no_checkout_records || []).find(
+          (r: any) => r.attendance_id === editAttendanceForm.value.attendance_id || r.date === editAttendanceForm.value.date
+        )
+        if (item) {
+          item.notes = editAttendanceForm.value.notes
+          item.check_in = editAttendanceForm.value.check_in
         }
       }
     }
@@ -1717,6 +1931,7 @@ const periodStats = computed(() => {
   let totalTerlambat = 0
   let totalPulangCepat = 0
   let totalMenitPulangCepat = 0
+  let totalTidakAbsenPulang = 0
   let totalIzinSakitCuti = 0
   let totalAlpa = 0
   let totalTercatat = 0
@@ -1727,6 +1942,7 @@ const periodStats = computed(() => {
     totalTerlambat += (item.terlambat || 0)
     totalPulangCepat += (item.total_pulang_cepat || 0)
     totalMenitPulangCepat += (item.total_menit_pulang_cepat || 0)
+    totalTidakAbsenPulang += (item.total_tidak_absen_pulang || 0)
     totalIzinSakitCuti += (item.sakit || 0) + (item.izin || 0) + (item.cuti || 0)
     totalAlpa += (item.alpa || 0)
     totalTercatat += (item.total || 0)
@@ -1738,13 +1954,14 @@ const periodStats = computed(() => {
     ? (sumPercentage / totalEmployees).toFixed(1)
     : '0.0'
 
-  return { totalEmployees, totalHadir, totalTerlambat, totalPulangCepat, totalMenitPulangCepat, totalIzinSakitCuti, totalAlpa, totalTercatat, avgPresence }
+  return { totalEmployees, totalHadir, totalTerlambat, totalPulangCepat, totalMenitPulangCepat, totalTidakAbsenPulang, totalIzinSakitCuti, totalAlpa, totalTercatat, avgPresence }
 })
 
 // Quick View Modal helpers
 const recapModalTitle = computed(() => {
   if (recapModalType.value === 'terlambat') return `Daftar Pegawai Terlambat — ${activePeriodLabel.value}`
   if (recapModalType.value === 'pulang_cepat') return `Daftar Pegawai Pulang Lebih Awal — ${activePeriodLabel.value}`
+  if (recapModalType.value === 'tidak_absen_pulang') return `Daftar Pegawai Tanpa Tap Pulang — ${activePeriodLabel.value}`
   if (recapModalType.value === 'izin_sakit_cuti') return `Daftar Pegawai Izin / Sakit / Cuti — ${activePeriodLabel.value}`
   return `Daftar Pegawai Alpa (Tanpa Keterangan) — ${activePeriodLabel.value}`
 })
@@ -1756,6 +1973,9 @@ const recapModalList = computed(() => {
   }
   if (recapModalType.value === 'pulang_cepat') {
     return list.filter(i => (i.total_pulang_cepat || 0) > 0).sort((a, b) => (b.total_pulang_cepat || 0) - (a.total_pulang_cepat || 0))
+  }
+  if (recapModalType.value === 'tidak_absen_pulang') {
+    return list.filter(i => (i.total_tidak_absen_pulang || 0) > 0).sort((a, b) => (b.total_tidak_absen_pulang || 0) - (a.total_tidak_absen_pulang || 0))
   }
   if (recapModalType.value === 'izin_sakit_cuti') {
     return list.filter(i => ((i.sakit || 0) + (i.izin || 0) + (i.cuti || 0)) > 0)

@@ -1380,12 +1380,15 @@ function getExpectedCheckoutTime(dateObj: Date | string, unitName?: string | nul
   if (day === 5) return geofenceConfig.schedule_friday || '11:30'
   if (day === 6) return geofenceConfig.schedule_saturday || '12:00'
 
-  const u = (unitName || '').toUpperCase()
-  if (u.includes('RA')) return geofenceConfig.schedule_ra_mon_thu || '14:00'
-  if (u.includes('SD')) return geofenceConfig.schedule_sdit_mon_thu || '15:00'
-  if (u.includes('SMP')) return geofenceConfig.schedule_smpit_mon_thu || '15:30'
+  const u = (unitName || '').toUpperCase().trim()
+  const defaultVal = geofenceConfig.schedule_default_mon_thu || '15:30'
 
-  return geofenceConfig.schedule_default_mon_thu || '15:30'
+  if (u.includes('YAYASAN') || u.startsWith('YYS')) return defaultVal
+  if (/\bRA\b/.test(u) || u.startsWith('RA ') || u === 'RA' || u.includes('RAUDHATUL')) return geofenceConfig.schedule_ra_mon_thu || '14:00'
+  if (u.includes('SDIT') || /\bSD\b/.test(u)) return geofenceConfig.schedule_sdit_mon_thu || '15:00'
+  if (u.includes('SMPIT') || /\bSMP\b/.test(u)) return geofenceConfig.schedule_smpit_mon_thu || '15:30'
+
+  return defaultVal
 }
 
 function getEarlyLeaveInfo(row: any) {

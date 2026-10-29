@@ -860,7 +860,7 @@ def get_expected_checkout_time(target_date: Any, unit_name: Optional[str] = None
     elif weekday == 6: # Ahad
         return "Libur"
     else: # Senin - Kamis
-        u_name = (unit_name or "").upper()
+        u_name = (unit_name or "").upper().strip()
         ra_time = cfg.get("schedule_ra_mon_thu") or "14:00"
         sdit_time = cfg.get("schedule_sdit_mon_thu") or "15:00"
         smpit_time = cfg.get("schedule_smpit_mon_thu") or "15:30"
@@ -868,17 +868,21 @@ def get_expected_checkout_time(target_date: Any, unit_name: Optional[str] = None
         # Unit yang paling terakhir pulang di antara unit-unit sekolah
         defined_times = [t for t in [ra_time, sdit_time, smpit_time] if t]
         latest_unit_time = max(defined_times) if defined_times else "15:30"
+        default_val = cfg.get("schedule_default_mon_thu") or latest_unit_time
 
-        if "RA" in u_name:
+        # PENTING: Cek Yayasan terlebih dahulu agar tidak tertukar!
+        # Nama "Asy-Syuuraa" mengandung substring "RA", jadi jangan gunakan '"RA" in u_name'!
+        if "YAYASAN" in u_name or u_name.startswith("YYS") or "YYS" in u_name.split():
+            return default_val
+        elif re.search(r'\bRA\b', u_name) or u_name.startswith("RA ") or u_name == "RA" or "RAUDHATUL" in u_name:
             return ra_time
-        elif "SDIT" in u_name or "SD" in u_name:
+        elif "SDIT" in u_name or re.search(r'\bSD\b', u_name):
             return sdit_time
-        elif "SMPIT" in u_name or "SMP" in u_name:
+        elif "SMPIT" in u_name or re.search(r'\bSMP\b', u_name):
             return smpit_time
 
-        # Unit lainnya / Yayasan / Non-unit jika tidak didefinisikan mengikuti unit yang paling terakhir pulang
-        default_val = cfg.get("schedule_default_mon_thu")
-        return default_val if default_val else latest_unit_time
+        # Unit lainnya / Default
+        return default_val
 
 def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Returns distance in meters between two lat/lon coordinates."""
@@ -1234,7 +1238,9 @@ class QuickAttendanceStatusUpdate(BaseModel):
     attendance_id: Optional[int] = None
     employee_id: Optional[int] = None
     date: Optional[str] = None
-    status: schemas.AttendanceStatusEnum
+    status: Optional[schemas.AttendanceStatusEnum] = None
+    check_in: Optional[str] = None  # format HH:MM
+    check_out: Optional[str] = None # format HH:MM
     notes: Optional[str] = None
 
 @router.post("/attendance/update-status")
@@ -1245,6 +1251,7 @@ async def update_attendance_status(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    from datetime import datetime as dt
     user_role_code = current_user.role.code if current_user.role else ""
     authorized_roles = {"superadmin", "tu_yayasan", "tu_unit", "kabid_keuangan", "kabid_umum", "ketua_yayasan"}
     has_perm = user_role_code in authorized_roles or check_user_perm(current_user, "sdm.presensi:update") or check_user_perm(current_user, "sdm:*")
@@ -1261,7 +1268,6 @@ async def update_attendance_status(
         att = db.query(models.EmployeeAttendance).filter(models.EmployeeAttendance.id == target_id).first()
 
     if not att and payload.employee_id and payload.date:
-        from datetime import datetime as dt
         try:
             t_date = dt.strptime(payload.date, "%Y-%m-%d").date()
         except ValueError:
@@ -1273,13 +1279,25 @@ async def update_attendance_status(
         ).first()
 
         if not att:
-            new_status_val = payload.status.value if hasattr(payload.status, "value") else str(payload.status)
+            new_status_val = payload.status.value if (payload.status and hasattr(payload.status, "value")) else (str(payload.status) if payload.status else "PRESENT")
             att = models.EmployeeAttendance(
                 employee_id=payload.employee_id,
                 date=t_date,
                 status=new_status_val,
                 notes=payload.notes or ""
             )
+            if payload.check_in and payload.check_in.strip():
+                try:
+                    ci_time = dt.strptime(payload.check_in.strip(), "%H:%M").time()
+                    att.check_in = datetime.combine(t_date, ci_time)
+                except Exception:
+                    pass
+            if payload.check_out and payload.check_out.strip():
+                try:
+                    co_time = dt.strptime(payload.check_out.strip(), "%H:%M").time()
+                    att.check_out = datetime.combine(t_date, co_time)
+                except Exception:
+                    pass
             db.add(att)
             db.commit()
             db.refresh(att)
@@ -1298,8 +1316,26 @@ async def update_attendance_status(
         raise HTTPException(status_code=404, detail="Data presensi tidak ditemukan")
 
     old_status = att.status.value if hasattr(att.status, "value") else str(att.status)
-    new_status = payload.status.value if hasattr(payload.status, "value") else str(payload.status)
-    att.status = new_status
+    if payload.status is not None:
+        new_status = payload.status.value if hasattr(payload.status, "value") else str(payload.status)
+        att.status = new_status
+    else:
+        new_status = old_status
+
+    att_d = att.date.date() if hasattr(att.date, "date") and callable(att.date.date) else att.date
+    if payload.check_out is not None and payload.check_out.strip():
+        try:
+            co_time = dt.strptime(payload.check_out.strip(), "%H:%M").time()
+            att.check_out = datetime.combine(att_d, co_time)
+        except Exception:
+            pass
+    if payload.check_in is not None and payload.check_in.strip():
+        try:
+            ci_time = dt.strptime(payload.check_in.strip(), "%H:%M").time()
+            att.check_in = datetime.combine(att_d, ci_time)
+        except Exception:
+            pass
+
     if payload.notes is not None:
         att.notes = payload.notes.strip()
 
@@ -1313,6 +1349,8 @@ async def update_attendance_status(
             "employee_id": att.employee_id,
             "date": att.date.strftime("%Y-%m-%d") if hasattr(att.date, "strftime") else str(att.date)[:10],
             "status": new_status,
+            "check_in": att.check_in.strftime("%H:%M") if att.check_in else "-",
+            "check_out": att.check_out.strftime("%H:%M") if att.check_out else "-",
             "notes": att.notes
         }
     }
@@ -1430,15 +1468,17 @@ async def get_employee_attendance_recap(
         a = sum(1 for a in emp_att if status_str(a) == 'ABSENT')
         total = h + s + i + cuti + a
 
-        # Monthly breakdown for trend analysis & Overtime/Sunday logs & Early Leave & Alpa
+        # Monthly breakdown for trend analysis & Overtime/Sunday logs & Early Leave & Alpa & Tidak Absen Pulang
         monthly_trend = {}
         overtime_records = []
         early_leave_records = []
         alpa_records = []
+        no_checkout_records = []
         total_lembur = 0
         total_ahad = 0
         total_pulang_cepat = 0
         total_menit_pulang_cepat = 0
+        total_tidak_absen_pulang = 0
 
         for att in emp_att:
             try:
@@ -1449,7 +1489,8 @@ async def get_employee_attendance_recap(
                     monthly_trend[m_key] = {
                         "hadir": 0, "terlambat": 0, "sakit": 0, "izin": 0, 
                         "cuti": 0, "alpa": 0, "total": 0, "lembur": 0, "ahad": 0,
-                        "pulang_cepat": 0, "menit_pulang_cepat": 0
+                        "pulang_cepat": 0, "menit_pulang_cepat": 0,
+                        "tidak_absen_pulang": 0
                     }
                 st = status_str(att)
                 if st in ['PRESENT', 'LATE']:
@@ -1563,14 +1604,57 @@ async def get_employee_attendance_recap(
                         "is_duty_outside": is_duty_early,
                         "status": st
                     })
+
+                # Check Missing Checkout (Tidak Absen Pulang)
+                # Syarat:
+                # 1. Hadir / Masuk fisik (check_in ada atau status PRESENT/LATE)
+                # 2. Tidak ada jam check_out (None)
+                # 3. Bukan hari Ahad (Libur)
+                # 4. Bukan hari ini yang jam kerjanya belum selesai
+                is_missing_checkout = False
+                if (st in ['PRESENT', 'LATE'] or att.check_in is not None) and (not att.check_out) and not is_sunday:
+                    unit_label = emp.unit.name if emp.unit else None
+                    exp_out_str_nc = exp_out_str or get_expected_checkout_time(att.date, unit_label, geofence)
+                    if exp_out_str_nc and exp_out_str_nc != "Libur":
+                        today_val = dt.today().date()
+                        att_d = att.date.date() if hasattr(att.date, "date") and callable(att.date.date) else att.date
+                        
+                        if att_d < today_val:
+                            is_missing_checkout = True
+                        elif att_d == today_val:
+                            try:
+                                exp_h, exp_m = map(int, exp_out_str_nc.split(":"))
+                                if dt.now().time() >= dt.strptime(f"{exp_h}:{exp_m}", "%H:%M").time():
+                                    is_missing_checkout = True
+                            except Exception:
+                                is_missing_checkout = False
+
+                if is_missing_checkout:
+                    total_tidak_absen_pulang += 1
+                    monthly_trend[m_key]["tidak_absen_pulang"] = monthly_trend[m_key].get("tidak_absen_pulang", 0) + 1
+                    date_str_nc = att.date.strftime("%Y-%m-%d") if hasattr(att.date, "strftime") else str(att.date)[:10]
+                    day_idx_nc = att.date.weekday() if hasattr(att.date, "weekday") else 0
+                    day_name_nc = day_names_id[day_idx_nc] if 0 <= day_idx_nc < len(day_names_id) else "-"
+
+                    no_checkout_records.append({
+                        "attendance_id": att.id,
+                        "date": date_str_nc,
+                        "day_name": day_name_nc,
+                        "expected_checkout": exp_out_str_nc,
+                        "check_in": att.check_in.strftime("%H:%M") if (att.check_in and hasattr(att.check_in, "strftime")) else "-",
+                        "check_out": "-",
+                        "notes": notes_text or "Tidak melakukan tap absen pulang",
+                        "status": st
+                    })
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).warning(f"Error processing attendance record {getattr(att, 'id', None)}: {e}")
 
-        # Sort overtime, early leave, and alpa records descending by date
+        # Sort overtime, early leave, alpa, and no checkout records descending by date
         overtime_records.sort(key=lambda x: x["date"], reverse=True)
         early_leave_records.sort(key=lambda x: x["date"], reverse=True)
         alpa_records.sort(key=lambda x: x["date"], reverse=True)
+        no_checkout_records.sort(key=lambda x: x["date"], reverse=True)
 
         results.append({
             "employee_id": emp.id,
@@ -1594,9 +1678,11 @@ async def get_employee_attendance_recap(
             "total_ahad": total_ahad,
             "total_pulang_cepat": total_pulang_cepat,
             "total_menit_pulang_cepat": total_menit_pulang_cepat,
+            "total_tidak_absen_pulang": total_tidak_absen_pulang,
             "overtime_records": overtime_records,
             "early_leave_records": early_leave_records,
-            "alpa_records": alpa_records
+            "alpa_records": alpa_records,
+            "no_checkout_records": no_checkout_records
         })
 
     if has_cleanup:
