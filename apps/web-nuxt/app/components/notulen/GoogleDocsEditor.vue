@@ -410,10 +410,104 @@
 
     <!-- 3. The Document Paper Canvas (White A4 Sheet) -->
     <div class="gdocs-paper-container">
-      <div class="gdocs-paper">
+      <div class="gdocs-paper" @contextmenu="handlePaperContextMenu">
         <EditorContent :editor="editor" class="tiptap-content" />
       </div>
     </div>
+
+    <!-- 4. Table Context Menu (Right Click on Table Cell) -->
+    <Teleport to="body">
+      <div 
+        v-if="showContextMenu" 
+        ref="contextMenuRef"
+        class="fixed z-[9999] bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 py-1.5 w-56 text-xs font-sans select-none animate-in fade-in zoom-in-95 duration-100"
+        :style="{ left: contextMenuPos.x + 'px', top: contextMenuPos.y + 'px' }"
+        @click.stop
+      >
+        <div class="px-3 py-1.5 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-700/60 mb-1">
+          <i class="pi pi-table text-primary"></i>
+          <span>Opsi Tabel</span>
+        </div>
+
+        <!-- Rows -->
+        <button 
+          type="button" 
+          @click="execTableCommand(() => editor?.chain().focus().addRowBefore().run())" 
+          class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2.5 transition-colors"
+        >
+          <i class="pi pi-arrow-up text-[10px] text-emerald-600 w-3.5"></i>
+          <span>Sisipkan Baris di Atas</span>
+        </button>
+        <button 
+          type="button" 
+          @click="execTableCommand(() => editor?.chain().focus().addRowAfter().run())" 
+          class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2.5 transition-colors"
+        >
+          <i class="pi pi-arrow-down text-[10px] text-emerald-600 w-3.5"></i>
+          <span>Sisipkan Baris di Bawah</span>
+        </button>
+        <button 
+          type="button" 
+          @click="execTableCommand(() => editor?.chain().focus().deleteRow().run())" 
+          class="w-full text-left px-3 py-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2.5 transition-colors"
+        >
+          <i class="pi pi-trash text-[10px] text-rose-500 w-3.5"></i>
+          <span>Hapus Baris Ini</span>
+        </button>
+
+        <div class="my-1 border-t border-slate-100 dark:border-slate-700/60"></div>
+
+        <!-- Columns -->
+        <button 
+          type="button" 
+          @click="execTableCommand(() => editor?.chain().focus().addColumnBefore().run())" 
+          class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2.5 transition-colors"
+        >
+          <i class="pi pi-arrow-left text-[10px] text-blue-600 w-3.5"></i>
+          <span>Sisipkan Kolom di Kiri</span>
+        </button>
+        <button 
+          type="button" 
+          @click="execTableCommand(() => editor?.chain().focus().addColumnAfter().run())" 
+          class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2.5 transition-colors"
+        >
+          <i class="pi pi-arrow-right text-[10px] text-blue-600 w-3.5"></i>
+          <span>Sisipkan Kolom di Kanan</span>
+        </button>
+        <button 
+          type="button" 
+          @click="execTableCommand(() => editor?.chain().focus().deleteColumn().run())" 
+          class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2.5 transition-colors"
+        >
+          <i class="pi pi-minus text-[10px] text-slate-400 w-3.5"></i>
+          <span>Hapus Kolom Ini</span>
+        </button>
+
+        <div class="my-1 border-t border-slate-100 dark:border-slate-700/60"></div>
+
+        <!-- Merge / Split -->
+        <button 
+          type="button" 
+          @click="execTableCommand(() => editor?.chain().focus().mergeOrSplit().run())" 
+          class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2.5 transition-colors"
+        >
+          <i class="pi pi-link text-[10px] text-purple-600 w-3.5"></i>
+          <span>Gabung / Pisahkan Sel</span>
+        </button>
+
+        <div class="my-1 border-t border-slate-100 dark:border-slate-700/60"></div>
+
+        <!-- Delete Table -->
+        <button 
+          type="button" 
+          @click="execTableCommand(() => editor?.chain().focus().deleteTable().run())" 
+          class="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 flex items-center gap-2.5 font-medium transition-colors"
+        >
+          <i class="pi pi-times-circle text-[10px] text-red-500 w-3.5"></i>
+          <span>Hapus Seluruh Tabel</span>
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -445,23 +539,82 @@ const hoverCol = ref(0)
 const maxRows = 8
 const maxCols = 8
 
+// Context menu state for right-clicking inside tables
+const contextMenuRef = ref<HTMLElement | null>(null)
+const showContextMenu = ref(false)
+const contextMenuPos = ref({ x: 0, y: 0 })
+
 function toggleTableMenu() {
   showTableMenu.value = !showTableMenu.value
   hoverRow.value = 0
   hoverCol.value = 0
 }
 
+function handlePaperContextMenu(e: MouseEvent) {
+  const target = e.target as HTMLElement | null
+  const cell = target?.closest('td, th')
+  if (!cell || !editor.value) {
+    showContextMenu.value = false
+    return
+  }
+
+  // Set focus / cursor to clicked position in ProseMirror so table operations target this exact cell
+  const view = editor.value.view
+  if (view) {
+    const pos = view.posAtCoords({ left: e.clientX, top: e.clientY })
+    if (pos) {
+      editor.value.commands.setTextSelection(pos.pos)
+    }
+  }
+
+  // Check if we are inside a table
+  if (editor.value.isActive('table')) {
+    e.preventDefault()
+    const menuWidth = 230
+    const menuHeight = 310
+    const x = Math.min(e.clientX, window.innerWidth - menuWidth - 10)
+    const y = Math.min(e.clientY, window.innerHeight - menuHeight - 10)
+    contextMenuPos.value = { x: Math.max(10, x), y: Math.max(10, y) }
+    showContextMenu.value = true
+  } else {
+    showContextMenu.value = false
+  }
+}
+
+function execTableCommand(action: () => void) {
+  action()
+  showContextMenu.value = false
+}
+
 function handleOutsideClick(event: MouseEvent) {
-  if (!showTableMenu.value) return
-  if (tableDropdownRef.value && !tableDropdownRef.value.contains(event.target as Node)) {
+  const targetNode = event.target as Node
+  if (showTableMenu.value && tableDropdownRef.value && !tableDropdownRef.value.contains(targetNode)) {
     showTableMenu.value = false
     hoverRow.value = 0
     hoverCol.value = 0
+  }
+  if (showContextMenu.value && contextMenuRef.value && !contextMenuRef.value.contains(targetNode)) {
+    showContextMenu.value = false
+  }
+}
+
+function handleKeyDown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    showContextMenu.value = false
+    showTableMenu.value = false
+  }
+}
+
+function handleScroll() {
+  if (showContextMenu.value) {
+    showContextMenu.value = false
   }
 }
 
 onMounted(() => {
   document.addEventListener('pointerdown', handleOutsideClick)
+  window.addEventListener('scroll', handleScroll, true)
+  window.addEventListener('keydown', handleKeyDown)
 })
 
 const editor = useEditor({
@@ -523,6 +676,8 @@ watch(
 
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', handleOutsideClick)
+  window.removeEventListener('scroll', handleScroll, true)
+  window.removeEventListener('keydown', handleKeyDown)
   editor.value?.destroy()
 })
 
