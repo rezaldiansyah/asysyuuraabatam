@@ -177,132 +177,155 @@
 
       <div class="gdocs-tb-divider"></div>
 
-      <!-- Group 6: Table Menu & 1-Click Quick Table -->
-      <div class="relative flex items-center" ref="tableDropdownRef">
-        <!-- 1-Click Quick Insert Yayasan Table -->
-        <button
-          type="button"
-          @click="insertYayasanTable"
-          class="gdocs-tb-btn !px-2 flex items-center gap-1 font-semibold text-xs text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-          title="1-Klik: Sisipkan Tabel Resmi Yayasan (4 Kolom)"
-        >
-          <i class="pi pi-table text-xs text-emerald-600"></i>
-          <span>+ Tabel</span>
-        </button>
-
-        <!-- Dropdown trigger for more formats -->
+      <!-- Group 6: Table Menu & Interactive Grid Picker (Google Docs Style) -->
+      <div class="relative" ref="tableDropdownRef">
         <button
           type="button"
           @click.stop="toggleTableMenu"
-          :class="{ 'is-active': showTableMenu }"
-          class="gdocs-tb-btn !w-5 !px-0 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-          title="Pilihan Format Tabel Lainnya"
+          :class="{ 'is-active': editor.isActive('table') || showTableMenu }"
+          class="gdocs-tb-btn !px-2 flex items-center gap-1 font-semibold text-xs text-slate-700 dark:text-slate-200"
+          title="Sisipkan Tabel (Pilih Ukuran Baris & Kolom)"
         >
-          <i class="pi pi-chevron-down text-[8px]"></i>
+          <i class="pi pi-table text-xs text-primary"></i>
+          <span>Tabel</span>
+          <i class="pi pi-chevron-down text-[9px] text-slate-400"></i>
         </button>
 
-        <!-- Dropdown Menu -->
+        <!-- Dropdown Menu: Google Docs Style Interactive Grid Picker -->
         <div 
           v-if="showTableMenu" 
-          class="absolute left-0 top-full mt-1.5 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-2 z-50 text-xs font-sans"
+          class="absolute left-0 top-full mt-1.5 p-3.5 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 z-50 font-sans select-none"
+          @mouseleave="hoverRow = 0; hoverCol = 0"
         >
-          <div class="px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            Sisipkan Tabel Baru
+          <!-- Grid Section (When not already in a table) -->
+          <div v-if="!editor.isActive('table')">
+            <div class="flex items-center justify-between mb-2 gap-4">
+              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Sisipkan Tabel
+              </span>
+              <span class="font-mono text-xs font-bold text-primary px-2 py-0.5 rounded bg-primary/10">
+                {{ hoverRow > 0 && hoverCol > 0 ? `${hoverCol} × ${hoverRow}` : 'Pilih Ukuran' }}
+              </span>
+            </div>
+
+            <!-- Visual Grid Matrix (Hover to highlight rows & columns) -->
+            <div class="p-2 bg-slate-50 dark:bg-slate-900/60 rounded-lg border border-slate-200 dark:border-slate-700/80 inline-block">
+              <div 
+                v-for="r in maxRows" 
+                :key="'r-' + r" 
+                class="flex gap-1 mb-1 last:mb-0"
+              >
+                <div 
+                  v-for="c in maxCols" 
+                  :key="'c-' + c"
+                  @mouseenter="hoverRow = r; hoverCol = c"
+                  @click="insertGridTable(r, c)"
+                  class="w-5 h-5 rounded-[2px] border cursor-pointer transition-colors duration-75"
+                  :class="r <= hoverRow && c <= hoverCol 
+                    ? 'bg-blue-100 dark:bg-blue-900/80 border-blue-500 dark:border-blue-400 ring-1 ring-blue-400/40' 
+                    : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 hover:border-slate-400'"
+                  :title="`${c} Kolom × ${r} Baris`"
+                ></div>
+              </div>
+            </div>
+
+            <div class="text-center font-mono text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+              {{ hoverRow > 0 && hoverCol > 0 ? `${hoverCol} Kolom × ${hoverRow} Baris` : 'Arahkan kursor ke kotak grid di atas' }}
+            </div>
+
+            <!-- Quick Preset Shortcuts -->
+            <div class="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-1 text-[11px]">
+              <span class="text-slate-400 font-medium">Ukuran Cepat:</span>
+              <div class="flex gap-1.5">
+                <button 
+                  type="button" 
+                  @click="insertGridTable(3, 3)" 
+                  class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 hover:bg-primary hover:text-white transition-colors font-medium text-slate-700 dark:text-slate-200"
+                >
+                  3 × 3
+                </button>
+                <button 
+                  type="button" 
+                  @click="insertGridTable(4, 4)" 
+                  class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 hover:bg-primary hover:text-white transition-colors font-medium text-slate-700 dark:text-slate-200"
+                >
+                  4 × 4
+                </button>
+                <button 
+                  type="button" 
+                  @click="insertGridTable(3, 5)" 
+                  class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 hover:bg-primary hover:text-white transition-colors font-medium text-slate-700 dark:text-slate-200"
+                >
+                  5 × 3
+                </button>
+              </div>
+            </div>
           </div>
-          <button 
-            type="button" 
-            @click="insertYayasanTable" 
-            class="w-full text-left px-3 py-2 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 flex items-center gap-2 font-medium"
-          >
-            <i class="pi pi-check-circle text-xs text-emerald-600"></i>
-            <div>
-              <div class="font-semibold">Tabel Format Yayasan (4 Kolom)</div>
-              <div class="text-[10px] text-slate-500 font-normal">No, Topik, Arahan Pimpinan, Tindak Lanjut</div>
+
+          <!-- Active Table Actions (When cursor is inside a table) -->
+          <div v-else class="w-60">
+            <div class="px-1 py-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="pi pi-table"></i>
+              <span>Pengaturan Tabel Aktif</span>
             </div>
-          </button>
-          <button 
-            type="button" 
-            @click="insertCustomTable(3)" 
-            class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2"
-          >
-            <i class="pi pi-table text-xs text-slate-400"></i>
-            <span>Tabel 3 Kolom (Masukan & Solusi)</span>
-          </button>
-          <button 
-            type="button" 
-            @click="insertCustomTable(2)" 
-            class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2"
-          >
-            <i class="pi pi-table text-xs text-slate-400"></i>
-            <span>Tabel 2 Kolom (Sederhana)</span>
-          </button>
-          <button 
-            type="button" 
-            @click="insertStandardTable(3, 3)" 
-            class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2"
-          >
-            <i class="pi pi-th-large text-xs text-slate-400"></i>
-            <span>Tabel Standar Grid (3 x 3)</span>
-          </button>
+            <p class="text-[10px] text-slate-500 mb-2 px-1">
+              Kursor berada di dalam sel tabel:
+            </p>
 
-          <template v-if="editor.isActive('table')">
-            <div class="my-1 border-t border-slate-100 dark:border-slate-700"></div>
+            <div class="space-y-0.5 text-xs">
+              <button 
+                type="button" 
+                @click="editor.chain().focus().addRowAfter().run(); showTableMenu = false" 
+                class="w-full text-left px-2.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded flex items-center gap-2"
+              >
+                <i class="pi pi-plus text-xs text-emerald-600"></i>
+                <span>Tambah Baris ke Bawah</span>
+              </button>
+              <button 
+                type="button" 
+                @click="editor.chain().focus().addColumnAfter().run(); showTableMenu = false" 
+                class="w-full text-left px-2.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded flex items-center gap-2"
+              >
+                <i class="pi pi-plus text-xs text-blue-600"></i>
+                <span>Tambah Kolom ke Kanan</span>
+              </button>
+              <button 
+                type="button" 
+                @click="editor.chain().focus().deleteRow().run(); showTableMenu = false" 
+                class="w-full text-left px-2.5 py-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-700 dark:text-rose-400 rounded flex items-center gap-2"
+              >
+                <i class="pi pi-trash text-xs text-rose-500"></i>
+                <span>Hapus Baris Ini</span>
+              </button>
+              <button 
+                type="button" 
+                @click="editor.chain().focus().deleteColumn().run(); showTableMenu = false" 
+                class="w-full text-left px-2.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded flex items-center gap-2"
+              >
+                <i class="pi pi-minus text-xs text-slate-400"></i>
+                <span>Hapus Kolom Ini</span>
+              </button>
+              <button 
+                type="button" 
+                @click="editor.chain().focus().mergeOrSplit().run(); showTableMenu = false" 
+                class="w-full text-left px-2.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded flex items-center gap-2"
+              >
+                <i class="pi pi-link text-xs text-purple-600"></i>
+                <span>Gabung / Pisahkan Sel (Merge/Split)</span>
+              </button>
 
-            <div class="px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Aksi Baris & Kolom Aktif
+              <div class="my-1 border-t border-slate-100 dark:border-slate-700"></div>
+
+              <button 
+                type="button" 
+                @click="editor.chain().focus().deleteTable().run(); showTableMenu = false" 
+                class="w-full text-left px-2.5 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 rounded flex items-center gap-2 font-semibold"
+              >
+                <i class="pi pi-times-circle text-xs"></i>
+                <span>Hapus Seluruh Tabel</span>
+              </button>
             </div>
-            <button 
-              type="button" 
-              @click="editor.chain().focus().addRowAfter().run(); showTableMenu = false" 
-              class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2"
-            >
-              <i class="pi pi-plus text-xs text-emerald-600"></i>
-              <span>Tambah Baris ke Bawah</span>
-            </button>
-            <button 
-              type="button" 
-              @click="editor.chain().focus().deleteRow().run(); showTableMenu = false" 
-              class="w-full text-left px-3 py-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-700 dark:text-rose-400 flex items-center gap-2"
-            >
-              <i class="pi pi-trash text-xs text-rose-500"></i>
-              <span>Hapus Baris Ini</span>
-            </button>
-            <button 
-              type="button" 
-              @click="editor.chain().focus().addColumnAfter().run(); showTableMenu = false" 
-              class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2"
-            >
-              <i class="pi pi-plus text-xs text-blue-600"></i>
-              <span>Tambah Kolom ke Kanan</span>
-            </button>
-            <button 
-              type="button" 
-              @click="editor.chain().focus().deleteColumn().run(); showTableMenu = false" 
-              class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2"
-            >
-              <i class="pi pi-minus text-xs text-slate-400"></i>
-              <span>Hapus Kolom Ini</span>
-            </button>
-            <button 
-              type="button" 
-              @click="editor.chain().focus().mergeOrSplit().run(); showTableMenu = false" 
-              class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2"
-            >
-              <i class="pi pi-link text-xs text-purple-600"></i>
-              <span>Gabung / Pisahkan Sel (Merge/Split)</span>
-            </button>
-
-            <div class="my-1 border-t border-slate-100 dark:border-slate-700"></div>
-
-            <button 
-              type="button" 
-              @click="editor.chain().focus().deleteTable().run(); showTableMenu = false" 
-              class="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 flex items-center gap-2 font-semibold"
-            >
-              <i class="pi pi-times-circle text-xs"></i>
-              <span>Hapus Seluruh Tabel</span>
-            </button>
-          </template>
+          </div>
         </div>
       </div>
 
@@ -417,15 +440,23 @@ const emit = defineEmits<{
 
 const tableDropdownRef = ref<HTMLElement | null>(null)
 const showTableMenu = ref(false)
+const hoverRow = ref(0)
+const hoverCol = ref(0)
+const maxRows = 8
+const maxCols = 8
 
 function toggleTableMenu() {
   showTableMenu.value = !showTableMenu.value
+  hoverRow.value = 0
+  hoverCol.value = 0
 }
 
 function handleOutsideClick(event: MouseEvent) {
   if (!showTableMenu.value) return
   if (tableDropdownRef.value && !tableDropdownRef.value.contains(event.target as Node)) {
     showTableMenu.value = false
+    hoverRow.value = 0
+    hoverCol.value = 0
   }
 }
 
@@ -529,95 +560,19 @@ function printDocument() {
   window.print()
 }
 
-// Insert Standard Grid Table
-function insertStandardTable(rows = 3, cols = 3) {
+// Insert Dynamic Grid Table (Google Docs / Sheets style)
+function insertGridTable(rows = 3, cols = 3) {
   if (!editor.value) return
   showTableMenu.value = false
-  editor.value.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run()
-}
+  hoverRow.value = 0
+  hoverCol.value = 0
 
-// Insert Yayasan Standard 4-Column Table
-function insertYayasanTable() {
-  if (!editor.value) return
-  showTableMenu.value = false
-  const html = `
-    <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
-      <tr>
-        <th style="width: 45px; text-align: center;"><p><strong>No</strong></p></th>
-        <th style="width: 25%;"><p><strong>Perihal / Topik</strong></p></th>
-        <th style="width: 45%;"><p><strong>Pembahasan / Arahan Pimpinan</strong></p></th>
-        <th style="width: 25%;"><p><strong>Tindak Lanjut & PIC</strong></p></th>
-      </tr>
-      <tr>
-        <td style="text-align: center;"><p>1</p></td>
-        <td><p>Topik pembahasan pertama...</p></td>
-        <td><p>a. Poin arahan pimpinan...<br>b. Solusi yang disepakati...</p></td>
-        <td><p>PIC dan batas waktu...</p></td>
-      </tr>
-    </table>
-    <p></p>
-  `
-  try {
-    const res = editor.value.chain().focus().insertContent(html).run()
-    if (!res) {
-      editor.value.chain().focus().insertTable({ rows: 2, cols: 4, withHeaderRow: true }).run()
-    }
-  } catch (e) {
-    editor.value.chain().focus().insertTable({ rows: 2, cols: 4, withHeaderRow: true }).run()
-  }
-}
-
-// Insert Custom Column Table
-function insertCustomTable(cols: 2 | 3) {
-  if (!editor.value) return
-  showTableMenu.value = false
-  if (cols === 3) {
-    const html = `
-      <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
-        <tr>
-          <th style="width: 45px; text-align: center;"><p><strong>No</strong></p></th>
-          <th style="width: 35%;"><p><strong>Topik / Masukan Peserta</strong></p></th>
-          <th style="width: 60%;"><p><strong>Tanggapan & Kesepakatan Bersama</strong></p></th>
-        </tr>
-        <tr>
-          <td style="text-align: center;"><p>1</p></td>
-          <td><p></p></td>
-          <td><p></p></td>
-        </tr>
-      </table>
-      <p></p>
-    `
-    try {
-      const res = editor.value.chain().focus().insertContent(html).run()
-      if (!res) {
-        editor.value.chain().focus().insertTable({ rows: 2, cols: 3, withHeaderRow: true }).run()
-      }
-    } catch (e) {
-      editor.value.chain().focus().insertTable({ rows: 2, cols: 3, withHeaderRow: true }).run()
-    }
-  } else {
-    const html = `
-      <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
-        <tr>
-          <th style="width: 45px; text-align: center;"><p><strong>No</strong></p></th>
-          <th><p><strong>Poin Pembahasan / Catatan Rapat</strong></p></th>
-        </tr>
-        <tr>
-          <td style="text-align: center;"><p>1</p></td>
-          <td><p></p></td>
-        </tr>
-      </table>
-      <p></p>
-    `
-    try {
-      const res = editor.value.chain().focus().insertContent(html).run()
-      if (!res) {
-        editor.value.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run()
-      }
-    } catch (e) {
-      editor.value.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run()
-    }
-  }
+  // Native Tiptap table command - clean, robust, and completely flexible
+  editor.value
+    .chain()
+    .focus()
+    .insertTable({ rows, cols, withHeaderRow: true })
+    .run()
 }
 
 // Full Official Notulen Template
@@ -640,30 +595,26 @@ function applyFullTemplate() {
 
     <h3>2. Pembahasan Pokok & Jalannya Diskusi</h3>
     <table class="notulen-table" style="width: 100%; border-collapse: collapse; margin: 12px 0;" border="1">
-      <thead>
-        <tr style="background-color: #f1f5f9; font-weight: bold;">
-          <th style="width: 45px; text-align: center; padding: 8px; border: 1px solid #94a3b8;">No</th>
-          <th style="width: 25%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Perihal / Topik</th>
-          <th style="width: 45%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Pembahasan / Arahan Pimpinan</th>
-          <th style="width: 24%; padding: 8px; border: 1px solid #94a3b8; text-align: left;">Tindak Lanjut</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td style="text-align: center; padding: 8px; border: 1px solid #94a3b8;"><p>1</p></td>
-          <td style="padding: 8px; border: 1px solid #94a3b8;"><p>Evaluasi Kegiatan & Perencanaan Program</p></td>
-          <td style="padding: 8px; border: 1px solid #94a3b8;">
-            <p>Rangkuman pembahasan dan arahan pimpinan:</p>
-            <ul>
-              <li>Poin arahan pertama terkait jadwal dan koordinasi lapangan.</li>
-              <li>Poin arahan kedua terkait penganggaran serta persiapan teknis.</li>
-            </ul>
-          </td>
-          <td style="padding: 8px; border: 1px solid #94a3b8;">
-            <p>Tim terkait menuntaskan persiapan sebelum batas waktu yang disepakati.</p>
-          </td>
-        </tr>
-      </tbody>
+      <tr>
+        <th style="width: 45px; text-align: center;"><p><strong>No</strong></p></th>
+        <th style="width: 25%;"><p><strong>Perihal / Topik</strong></p></th>
+        <th style="width: 45%;"><p><strong>Pembahasan / Arahan Pimpinan</strong></p></th>
+        <th style="width: 25%;"><p><strong>Tindak Lanjut</strong></p></th>
+      </tr>
+      <tr>
+        <td style="text-align: center;"><p>1</p></td>
+        <td><p>Evaluasi Kegiatan & Perencanaan Program</p></td>
+        <td>
+          <p>Rangkuman pembahasan dan arahan pimpinan:</p>
+          <ul>
+            <li>Poin arahan pertama terkait jadwal dan koordinasi lapangan.</li>
+            <li>Poin arahan kedua terkait penganggaran serta persiapan teknis.</li>
+          </ul>
+        </td>
+        <td>
+          <p>Tim terkait menuntaskan persiapan sebelum batas waktu yang disepakati.</p>
+        </td>
+      </tr>
     </table>
     <p></p>
 
@@ -677,9 +628,7 @@ function applyFullTemplate() {
 // Expose methods for parent if needed
 defineExpose({
   editor,
-  insertYayasanTable,
-  insertCustomTable,
-  insertStandardTable,
+  insertGridTable,
   applyFullTemplate,
 })
 </script>
