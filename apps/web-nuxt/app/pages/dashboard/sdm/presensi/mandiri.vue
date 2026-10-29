@@ -438,34 +438,45 @@ const expectedCheckOutTime = computed(() => {
   const now = new Date()
   const day = now.getDay() // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
   const cfg = geofence as any
+  if (day === 0) {
+    return 'Libur (Ahad)'
+  }
+
+  const uCode = (todayData.employee?.unit?.code || '').toUpperCase().trim()
+  const uName = (todayData.employee?.unit?.name || '').toUpperCase().trim()
+
+  // 1. Dynamic unit schedules
+  const unitSched = cfg.unit_schedules?.[uCode]
+  if (unitSched) {
+    if (day === 5) return unitSched.work_end_friday || cfg.schedule_friday || '11:30'
+    if (day === 6) return unitSched.work_end_saturday || cfg.schedule_saturday || '12:00'
+    return unitSched.work_end_mon_thu || cfg.schedule_default_mon_thu || '15:30'
+  }
+
+  // 2. Legacy fallback
   if (day === 5) {
     return cfg.schedule_friday || '11:30'
   }
   if (day === 6) {
     return cfg.schedule_saturday || '12:00'
   }
-  if (day === 0) {
-    return 'Libur (Ahad)'
-  }
+
   // Senin - Kamis
-  const unit = (todayData.employee?.unit?.name || '').toUpperCase().trim()
   const raTime = cfg.schedule_ra_mon_thu || '14:00'
   const sditTime = cfg.schedule_sdit_mon_thu || '15:00'
   const smpitTime = cfg.schedule_smpit_mon_thu || '15:30'
-  const definedTimes = [raTime, sditTime, smpitTime].filter(Boolean).sort()
-  const latestUnitTime = definedTimes[definedTimes.length - 1] || '15:30'
-  const defaultVal = cfg.schedule_default_mon_thu || latestUnitTime
+  const defaultVal = cfg.schedule_default_mon_thu || cfg.work_end_time || '15:30'
 
-  if (unit.includes('YAYASAN') || unit.startsWith('YYS')) {
+  if (uCode === 'YYS' || uName.includes('YAYASAN') || uName.startsWith('YYS')) {
     return defaultVal
   }
-  if (/\bRA\b/.test(unit) || unit.startsWith('RA ') || unit === 'RA' || unit.includes('RAUDHATUL')) {
+  if (uCode === 'RA' || /\bRA\b/.test(uName) || uName.startsWith('RA ') || uName.includes('RAUDHATUL')) {
     return raTime
   }
-  if (unit.includes('SDIT') || /\bSD\b/.test(unit)) {
+  if (uCode === 'SDIT' || uName.includes('SDIT') || /\bSD\b/.test(uName)) {
     return sditTime
   }
-  if (unit.includes('SMPIT') || /\bSMP\b/.test(unit)) {
+  if (uCode === 'SMPIT' || uName.includes('SMPIT') || /\bSMP\b/.test(uName)) {
     return smpitTime
   }
 

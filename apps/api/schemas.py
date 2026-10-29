@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from enum import Enum
 from datetime import date, datetime
 
@@ -301,8 +301,19 @@ class UnitBase(BaseModel):
     code: str
     name: str
 
+class UnitCreate(UnitBase):
+    address: Optional[str] = None
+    is_active: Optional[bool] = True
+
+class UnitUpdate(BaseModel):
+    code: Optional[str] = None
+    name: Optional[str] = None
+    address: Optional[str] = None
+    is_active: Optional[bool] = None
+
 class Unit(UnitBase):
     id: int
+    address: Optional[str] = None
     is_active: Optional[bool] = True
 
     class Config:
@@ -633,6 +644,7 @@ class GeofenceSettingsSchema(BaseModel):
     schedule_friday: Optional[str] = "11:30"
     schedule_saturday: Optional[str] = "12:00"
     schedule_default_mon_thu: Optional[str] = "16:00"
+    unit_schedules: Optional[Dict[str, Any]] = None
 
 class EmployeeCheckInRequest(BaseModel):
     latitude: float

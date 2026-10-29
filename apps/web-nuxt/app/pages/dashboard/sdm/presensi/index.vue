@@ -1113,9 +1113,9 @@
     <!-- Dialog Pengaturan Jam Masuk, Jam Pulang & Toleransi Keterlambatan -->
     <Dialog 
       v-model:visible="showWorkHoursDialog" 
-      header="Pengaturan Jam Kerja & Toleransi Keterlambatan" 
+      header="Pengaturan Jam Kerja & Toleransi Presensi (Per Unit)" 
       modal 
-      :style="{ width: '480px', maxWidth: '95vw' }"
+      :style="{ width: '640px', maxWidth: '96vw' }"
     >
       <div class="space-y-4">
         <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 leading-relaxed">
@@ -1125,18 +1125,13 @@
           </NuxtLink>.
         </div>
 
-        <!-- Bagian 1: Jam Masuk & Toleransi -->
+        <!-- Bagian 1: Toleransi Keterlambatan Global -->
         <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40 space-y-3">
-          <div class="font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
-            <i class="pi pi-sign-in text-emerald-600"></i>
-            <span>Jam Masuk &amp; Toleransi</span>
+          <div class="font-bold text-slate-800 dark:text-white flex items-center gap-1.5 text-xs">
+            <i class="pi pi-clock text-emerald-600"></i>
+            <span>Toleransi Waktu Presensi</span>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Jam Masuk Sekolah</label>
-              <InputText v-model="geofenceConfig.work_start_time" placeholder="06:45" class="w-full text-xs font-mono" />
-              <span class="text-[10px] text-slate-400">Default: 06:45</span>
-            </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Toleransi Terlambat</label>
               <InputNumber 
@@ -1164,61 +1159,69 @@
           </div>
         </div>
 
-        <!-- Bagian 2: Jam Kepulangan Berdasarkan Hari & Unit -->
-        <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40 space-y-3">
-          <div class="font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
-            <i class="pi pi-sign-out text-blue-600"></i>
-            <span>Jadwal Jam Kepulangan (Beda Hari &amp; Unit)</span>
+        <!-- Bagian 2: Jam Kerja & Kepulangan Berdasarkan Unit (Dinamis) -->
+        <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="font-bold text-slate-800 dark:text-white flex items-center gap-1.5 text-xs">
+              <i class="pi pi-building text-blue-600"></i>
+              <span>Jadwal Jam Kerja &amp; Kepulangan Per Unit</span>
+            </div>
+            <span class="text-[11px] font-semibold text-slate-500">{{ units.length }} Unit Terdaftar</span>
           </div>
 
-          <div class="space-y-2">
-            <div class="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-              📅 Senin s/d Kamis:
-            </div>
-            <div class="grid grid-cols-3 gap-2">
-              <div>
-                <label class="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">Unit RA</label>
-                <InputText v-model="geofenceConfig.schedule_ra_mon_thu" placeholder="14:00" class="w-full text-xs font-mono" />
-              </div>
-              <div>
-                <label class="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">Unit SDIT</label>
-                <InputText v-model="geofenceConfig.schedule_sdit_mon_thu" placeholder="15:00" class="w-full text-xs font-mono" />
-              </div>
-              <div>
-                <label class="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">Unit SMPIT</label>
-                <InputText v-model="geofenceConfig.schedule_smpit_mon_thu" placeholder="15:30" class="w-full text-xs font-mono" />
-              </div>
-            </div>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">
+            Setiap unit dapat memiliki jam kedatangan dan jam pulang yang berbeda-beda. Pengaturan ini otomatis tersambung ke seluruh pegawai di unit terkait.
+          </p>
 
-            <div class="pt-1.5">
-              <label class="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">
-                🏢 Unit Lainnya / Yayasan / Non-Unit (Senin - Kamis)
-              </label>
-              <InputText 
-                v-model="geofenceConfig.schedule_default_mon_thu" 
-                placeholder="15:30 (Otomatis ikuti unit terakhir pulang)" 
-                class="w-full text-xs font-mono" 
-              />
-              <span class="text-[10px] text-slate-400">
-                Jika dikosongkan, otomatis mengikuti unit sekolah yang paling terakhir pulang (default: 15:30).
-              </span>
-            </div>
-          </div>
+          <div class="space-y-2.5 max-h-[44vh] overflow-y-auto pr-1">
+            <div 
+              v-for="u in units" 
+              :key="u.id" 
+              class="p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-2.5 shadow-2xs"
+            >
+              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5">
+                <div class="flex items-center gap-2">
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                    {{ u.code }}
+                  </span>
+                  <span class="font-bold text-xs text-slate-800 dark:text-white">{{ u.name }}</span>
+                </div>
+              </div>
 
-          <div class="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                🕌 Jum'at (Semua Unit)
-              </label>
-              <InputText v-model="geofenceConfig.schedule_friday" placeholder="11:30" class="w-full text-xs font-mono" />
-              <span class="text-[10px] text-slate-400">Pulang sebelum Sholat Jum'at</span>
-            </div>
-            <div>
-              <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                🏫 Sabtu (Semua Unit)
-              </label>
-              <InputText v-model="geofenceConfig.schedule_saturday" placeholder="12:00" class="w-full text-xs font-mono" />
-              <span class="text-[10px] text-slate-400">Pulang tengah hari</span>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div>
+                  <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Jam Masuk</label>
+                  <InputText 
+                    v-model="getUnitScheduleRef(u.code).work_start_time" 
+                    placeholder="06:45" 
+                    class="w-full !text-xs font-mono !py-1" 
+                  />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Senin–Kamis</label>
+                  <InputText 
+                    v-model="getUnitScheduleRef(u.code).work_end_mon_thu" 
+                    placeholder="15:30" 
+                    class="w-full !text-xs font-mono !py-1" 
+                  />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Jum'at</label>
+                  <InputText 
+                    v-model="getUnitScheduleRef(u.code).work_end_friday" 
+                    placeholder="11:30" 
+                    class="w-full !text-xs font-mono !py-1" 
+                  />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Sabtu</label>
+                  <InputText 
+                    v-model="getUnitScheduleRef(u.code).work_end_saturday" 
+                    placeholder="12:00" 
+                    class="w-full !text-xs font-mono !py-1" 
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1352,8 +1355,29 @@ const geofenceConfig = reactive({
   schedule_smpit_mon_thu: '15:30',
   schedule_friday: '11:30',
   schedule_saturday: '12:00',
-  schedule_default_mon_thu: '16:00'
+  schedule_default_mon_thu: '16:00',
+  unit_schedules: {} as Record<string, any>
 })
+
+function getUnitScheduleRef(uCode: string) {
+  if (!geofenceConfig.unit_schedules) geofenceConfig.unit_schedules = {}
+  if (!geofenceConfig.unit_schedules[uCode]) {
+    let defEnd = '15:30'
+    if (uCode === 'RA') defEnd = geofenceConfig.schedule_ra_mon_thu || '14:00'
+    else if (uCode === 'SDIT') defEnd = geofenceConfig.schedule_sdit_mon_thu || '15:00'
+    else if (uCode === 'SMPIT') defEnd = geofenceConfig.schedule_smpit_mon_thu || '15:30'
+    else defEnd = geofenceConfig.schedule_default_mon_thu || '15:30'
+
+    geofenceConfig.unit_schedules[uCode] = {
+      unit_name: uCode,
+      work_start_time: geofenceConfig.work_start_time || '06:45',
+      work_end_mon_thu: defEnd,
+      work_end_friday: geofenceConfig.schedule_friday || '11:30',
+      work_end_saturday: geofenceConfig.schedule_saturday || '12:00'
+    }
+  }
+  return geofenceConfig.unit_schedules[uCode]
+}
 
 // Quick-View Category Modal State
 type CategoryKey = 'HADIR' | 'LATE' | 'SICK' | 'PERMIT' | 'LEAVE' | 'ABSENT' | 'UNRECORDED'
@@ -1372,21 +1396,37 @@ function formatTimeShort(dt: Date | null): string {
   return `${h}:${m}`
 }
 
-function getExpectedCheckoutTime(dateObj: Date | string, unitName?: string | null): string | null {
+function getExpectedCheckoutTime(dateObj: Date | string, unitCode?: string | null, unitName?: string | null): string | null {
   const d = typeof dateObj === 'string' ? new Date(dateObj) : dateObj
   if (!d || isNaN(d.getTime())) return null
   const day = d.getDay() // 0 = Sunday, 5 = Friday, 6 = Saturday
   if (day === 0) return null // Sunday / Libur
+
+  let uCode = (unitCode || '').toUpperCase().trim()
+  if (!uCode && unitName) {
+    const u = unitName.toUpperCase().trim()
+    if (u.includes('YAYASAN') || u.startsWith('YYS')) uCode = 'YYS'
+    else if (/\bRA\b/.test(u) || u.startsWith('RA ') || u === 'RA' || u.includes('RAUDHATUL')) uCode = 'RA'
+    else if (u.includes('SDIT') || /\bSD\b/.test(u)) uCode = 'SDIT'
+    else if (u.includes('SMPIT') || /\bSMP\b/.test(u)) uCode = 'SMPIT'
+  }
+
+  const unitSched = geofenceConfig.unit_schedules?.[uCode]
+  if (unitSched) {
+    if (day === 5) return unitSched.work_end_friday || geofenceConfig.schedule_friday || '11:30'
+    if (day === 6) return unitSched.work_end_saturday || geofenceConfig.schedule_saturday || '12:00'
+    return unitSched.work_end_mon_thu || geofenceConfig.schedule_default_mon_thu || '15:30'
+  }
+
+  // Fallback to legacy fields
   if (day === 5) return geofenceConfig.schedule_friday || '11:30'
   if (day === 6) return geofenceConfig.schedule_saturday || '12:00'
 
-  const u = (unitName || '').toUpperCase().trim()
   const defaultVal = geofenceConfig.schedule_default_mon_thu || '15:30'
-
-  if (u.includes('YAYASAN') || u.startsWith('YYS')) return defaultVal
-  if (/\bRA\b/.test(u) || u.startsWith('RA ') || u === 'RA' || u.includes('RAUDHATUL')) return geofenceConfig.schedule_ra_mon_thu || '14:00'
-  if (u.includes('SDIT') || /\bSD\b/.test(u)) return geofenceConfig.schedule_sdit_mon_thu || '15:00'
-  if (u.includes('SMPIT') || /\bSMP\b/.test(u)) return geofenceConfig.schedule_smpit_mon_thu || '15:30'
+  if (uCode === 'YYS') return defaultVal
+  if (uCode === 'RA') return geofenceConfig.schedule_ra_mon_thu || '14:00'
+  if (uCode === 'SDIT') return geofenceConfig.schedule_sdit_mon_thu || '15:00'
+  if (uCode === 'SMPIT') return geofenceConfig.schedule_smpit_mon_thu || '15:30'
 
   return defaultVal
 }
@@ -1400,7 +1440,7 @@ function getEarlyLeaveInfo(row: any) {
   if (outDate.getHours() >= 18) return null
 
   const targetDate = filterDate.value || new Date()
-  const expStr = getExpectedCheckoutTime(targetDate, row.employee?.unit?.name)
+  const expStr = getExpectedCheckoutTime(targetDate, row.employee?.unit?.code, row.employee?.unit?.name)
   if (!expStr) return null
 
   const [eh, em] = expStr.split(':').map(Number)
@@ -1632,6 +1672,24 @@ const fetchGeofenceConfig = async () => {
     const res = await api.get<any>('/sdm/settings/geofence')
     if (res) {
       Object.assign(geofenceConfig, res)
+      if (!geofenceConfig.unit_schedules) geofenceConfig.unit_schedules = {}
+      for (const u of units.value) {
+        if (!geofenceConfig.unit_schedules[u.code]) {
+          let defEnd = '15:30'
+          if (u.code === 'RA') defEnd = geofenceConfig.schedule_ra_mon_thu || '14:00'
+          else if (u.code === 'SDIT') defEnd = geofenceConfig.schedule_sdit_mon_thu || '15:00'
+          else if (u.code === 'SMPIT') defEnd = geofenceConfig.schedule_smpit_mon_thu || '15:30'
+          else defEnd = geofenceConfig.schedule_default_mon_thu || '15:30'
+
+          geofenceConfig.unit_schedules[u.code] = {
+            unit_name: u.name,
+            work_start_time: geofenceConfig.work_start_time || '06:45',
+            work_end_mon_thu: defEnd,
+            work_end_friday: geofenceConfig.schedule_friday || '11:30',
+            work_end_saturday: geofenceConfig.schedule_saturday || '12:00'
+          }
+        }
+      }
     }
   } catch (e) {
     console.error('Failed to load geofence settings:', e)
@@ -1641,11 +1699,18 @@ const fetchGeofenceConfig = async () => {
 const saveWorkHoursConfig = async () => {
   savingWorkHours.value = true
   try {
+    // Keep legacy fallback properties synchronized
+    if (geofenceConfig.unit_schedules) {
+      if (geofenceConfig.unit_schedules.RA) geofenceConfig.schedule_ra_mon_thu = geofenceConfig.unit_schedules.RA.work_end_mon_thu
+      if (geofenceConfig.unit_schedules.SDIT) geofenceConfig.schedule_sdit_mon_thu = geofenceConfig.unit_schedules.SDIT.work_end_mon_thu
+      if (geofenceConfig.unit_schedules.SMPIT) geofenceConfig.schedule_smpit_mon_thu = geofenceConfig.unit_schedules.SMPIT.work_end_mon_thu
+      if (geofenceConfig.unit_schedules.YYS) geofenceConfig.schedule_default_mon_thu = geofenceConfig.unit_schedules.YYS.work_end_mon_thu
+    }
     await api.put('/sdm/settings/geofence', { ...geofenceConfig })
     toast.add({
       severity: 'success',
       summary: 'Tersimpan',
-      detail: `Jam kerja (${geofenceConfig.work_start_time} - ${geofenceConfig.work_end_time}) & toleransi (${geofenceConfig.late_tolerance_minutes || 0} menit) berhasil diperbarui.`,
+      detail: `Pengaturan jam kerja per unit berhasil diperbarui.`,
       life: 4000
     })
     showWorkHoursDialog.value = false

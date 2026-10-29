@@ -836,10 +836,45 @@ DEFAULT_GEOFENCE = {
     "schedule_smpit_mon_thu": "15:30",
     "schedule_friday": "11:30",
     "schedule_saturday": "12:00",
-    "schedule_default_mon_thu": "15:30"
+    "schedule_default_mon_thu": "15:30",
+    "unit_schedules": {
+        "YYS": {
+            "unit_name": "Yayasan Asy-Syuuraa",
+            "work_start_time": "06:45",
+            "work_end_mon_thu": "15:30",
+            "work_end_friday": "11:30",
+            "work_end_saturday": "12:00"
+        },
+        "RA": {
+            "unit_name": "RA Asy-Syuuraa",
+            "work_start_time": "06:45",
+            "work_end_mon_thu": "14:00",
+            "work_end_friday": "11:30",
+            "work_end_saturday": "12:00"
+        },
+        "SDIT": {
+            "unit_name": "SDIT Asy-Syuuraa",
+            "work_start_time": "06:45",
+            "work_end_mon_thu": "15:00",
+            "work_end_friday": "11:30",
+            "work_end_saturday": "12:00"
+        },
+        "SMPIT": {
+            "unit_name": "SMPIT Asy-Syuuraa",
+            "work_start_time": "06:45",
+            "work_end_mon_thu": "15:30",
+            "work_end_friday": "11:30",
+            "work_end_saturday": "12:00"
+        }
+    }
 }
 
-def get_expected_checkout_time(target_date: Any, unit_name: Optional[str] = None, geofence: Optional[dict] = None) -> str:
+def get_expected_checkout_time(
+    target_date: Any, 
+    unit_code: Optional[str] = None, 
+    unit_name: Optional[str] = None, 
+    geofence: Optional[dict] = None
+) -> str:
     cfg = geofence or DEFAULT_GEOFENCE
     if isinstance(target_date, str):
         try:
@@ -853,35 +888,54 @@ def get_expected_checkout_time(target_date: Any, unit_name: Optional[str] = None
         return cfg.get("work_end_time", "15:30")
 
     weekday = target_date.weekday()
+    if weekday == 6: # Ahad
+        return "Libur"
+
+    # 1. Resolve unit code (prioritize direct unit_code from DB relation)
+    u_code = (unit_code or "").upper().strip()
+    if not u_code and unit_name:
+        u_name = unit_name.upper().strip()
+        if "YAYASAN" in u_name or u_name.startswith("YYS") or "YYS" in u_name.split():
+            u_code = "YYS"
+        elif re.search(r'\bRA\b', u_name) or u_name.startswith("RA ") or u_name == "RA" or "RAUDHATUL" in u_name:
+            u_code = "RA"
+        elif "SDIT" in u_name or re.search(r'\bSD\b', u_name):
+            u_code = "SDIT"
+        elif "SMPIT" in u_name or re.search(r'\bSMP\b', u_name):
+            u_code = "SMPIT"
+
+    # 2. Check dynamic per-unit configuration
+    unit_schedules = cfg.get("unit_schedules") or {}
+    if u_code and u_code in unit_schedules:
+        u_cfg = unit_schedules[u_code] or {}
+        if weekday == 4: # Jumat
+            return u_cfg.get("work_end_friday") or cfg.get("schedule_friday", "11:30")
+        elif weekday == 5: # Sabtu
+            return u_cfg.get("work_end_saturday") or cfg.get("schedule_saturday", "12:00")
+        else: # Senin - Kamis
+            return u_cfg.get("work_end_mon_thu") or cfg.get("schedule_default_mon_thu", "15:30")
+
+    # 3. Fallback to global/legacy settings
     if weekday == 4: # Jumat
         return cfg.get("schedule_friday", "11:30")
     elif weekday == 5: # Sabtu
         return cfg.get("schedule_saturday", "12:00")
-    elif weekday == 6: # Ahad
-        return "Libur"
     else: # Senin - Kamis
-        u_name = (unit_name or "").upper().strip()
         ra_time = cfg.get("schedule_ra_mon_thu") or "14:00"
         sdit_time = cfg.get("schedule_sdit_mon_thu") or "15:00"
         smpit_time = cfg.get("schedule_smpit_mon_thu") or "15:30"
-
-        # Unit yang paling terakhir pulang di antara unit-unit sekolah
         defined_times = [t for t in [ra_time, sdit_time, smpit_time] if t]
         latest_unit_time = max(defined_times) if defined_times else "15:30"
-        default_val = cfg.get("schedule_default_mon_thu") or latest_unit_time
+        default_val = cfg.get("schedule_default_mon_thu") or cfg.get("work_end_time") or latest_unit_time
 
-        # PENTING: Cek Yayasan terlebih dahulu agar tidak tertukar!
-        # Nama "Asy-Syuuraa" mengandung substring "RA", jadi jangan gunakan '"RA" in u_name'!
-        if "YAYASAN" in u_name or u_name.startswith("YYS") or "YYS" in u_name.split():
+        if u_code == "YYS":
             return default_val
-        elif re.search(r'\bRA\b', u_name) or u_name.startswith("RA ") or u_name == "RA" or "RAUDHATUL" in u_name:
+        elif u_code == "RA":
             return ra_time
-        elif "SDIT" in u_name or re.search(r'\bSD\b', u_name):
+        elif u_code == "SDIT":
             return sdit_time
-        elif "SMPIT" in u_name or re.search(r'\bSMP\b', u_name):
+        elif u_code == "SMPIT":
             return smpit_time
-
-        # Unit lainnya / Default
         return default_val
 
 def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -934,6 +988,19 @@ async def update_geofence_settings(
         )
         db.add(row)
     else:
+        existing = {}
+        if row.content_json:
+            try:
+                existing = json.loads(row.content_json)
+            except Exception:
+                existing = {}
+        # Preserve or deep merge unit_schedules if not sent from lightweight callers
+        if not content_data.get("unit_schedules") and existing.get("unit_schedules"):
+            content_data["unit_schedules"] = existing.get("unit_schedules")
+        elif content_data.get("unit_schedules") and existing.get("unit_schedules"):
+            merged_sched = {**existing.get("unit_schedules", {}), **content_data.get("unit_schedules", {})}
+            content_data["unit_schedules"] = merged_sched
+
         row.content_json = json.dumps(content_data)
         
     db.commit()
@@ -945,9 +1012,9 @@ async def get_today_employee_attendance(
     db: Session = Depends(get_db)
 ):
     """Get today's attendance record & geofence settings for the logged-in employee."""
-    employee = db.query(models.Employee).filter(models.Employee.user_id == current_user.id).first()
+    employee = db.query(models.Employee).options(joinedload(models.Employee.unit)).filter(models.Employee.user_id == current_user.id).first()
     if not employee:
-        employee = db.query(models.Employee).filter(
+        employee = db.query(models.Employee).options(joinedload(models.Employee.unit)).filter(
             (models.Employee.nik_kepegawaian == current_user.nik) |
             (models.Employee.nip == current_user.nik)
         ).first()
@@ -970,7 +1037,12 @@ async def get_today_employee_attendance(
             "nama_lengkap": employee.nama_lengkap,
             "nip": employee.nip,
             "position": employee.position,
-            "unit_id": employee.unit_id
+            "unit_id": employee.unit_id,
+            "unit": {
+                "id": employee.unit.id,
+                "code": employee.unit.code,
+                "name": employee.unit.name
+            } if employee.unit else None
         } if employee else None,
         "attendance": {
             "id": attendance.id,
@@ -1568,8 +1640,9 @@ async def get_employee_attendance_recap(
                 early_mins = 0
                 exp_out_str = None
                 if att.check_out and hasattr(att.check_out, "time") and not is_sunday and not is_holiday_duty and st in ['PRESENT', 'LATE']:
+                    unit_code = emp.unit.code if emp.unit else None
                     unit_label = emp.unit.name if emp.unit else None
-                    exp_out_str = get_expected_checkout_time(att.date, unit_label, geofence)
+                    exp_out_str = get_expected_checkout_time(att.date, unit_code=unit_code, unit_name=unit_label, geofence=geofence)
                     if exp_out_str and exp_out_str != "Libur":
                         try:
                             exp_h, exp_m = map(int, exp_out_str.split(":"))
@@ -1613,8 +1686,9 @@ async def get_employee_attendance_recap(
                 # 4. Bukan hari ini yang jam kerjanya belum selesai
                 is_missing_checkout = False
                 if (st in ['PRESENT', 'LATE'] or att.check_in is not None) and (not att.check_out) and not is_sunday:
+                    unit_code = emp.unit.code if emp.unit else None
                     unit_label = emp.unit.name if emp.unit else None
-                    exp_out_str_nc = exp_out_str or get_expected_checkout_time(att.date, unit_label, geofence)
+                    exp_out_str_nc = exp_out_str or get_expected_checkout_time(att.date, unit_code=unit_code, unit_name=unit_label, geofence=geofence)
                     if exp_out_str_nc and exp_out_str_nc != "Libur":
                         today_val = dt.today().date()
                         att_d = att.date.date() if hasattr(att.date, "date") and callable(att.date.date) else att.date

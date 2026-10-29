@@ -1244,9 +1244,90 @@ async def update_role_permissions(role_id: int, data: dict, db: Session = Depend
 
 # --- General Routes ---
 @app.get("/units", response_model=List[schemas.Unit])
-async def get_units(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    units = db.query(models.Unit).offset(skip).limit(limit).all()
+async def get_units(skip: int = 0, limit: int = 100, is_active: Optional[bool] = None, db: Session = Depends(get_db)):
+    query = db.query(models.Unit)
+    if is_active is not None:
+        query = query.filter(models.Unit.is_active == is_active)
+    units = query.offset(skip).limit(limit).all()
     return units
+
+@app.post("/units", response_model=schemas.Unit)
+async def create_unit(
+    unit: schemas.UnitCreate,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    from deps import check_user_perm
+    if current_user.role and current_user.role.code not in ["superadmin", "tu_yayasan", "ketua_yayasan"]:
+        if not check_user_perm(current_user, "pengaturan.sekolah:update"):
+            raise HTTPException(status_code=403, detail="Tidak memiliki hak akses menambah unit sekolah.")
+            
+    existing = db.query(models.Unit).filter(models.Unit.code == unit.code.upper().strip()).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Unit dengan kode '{unit.code}' sudah terdaftar.")
+        
+    db_unit = models.Unit(
+        code=unit.code.upper().strip(),
+        name=unit.name.strip(),
+        address=unit.address,
+        is_active=unit.is_active if unit.is_active is not None else True
+    )
+    db.add(db_unit)
+    db.commit()
+    db.refresh(db_unit)
+    return db_unit
+
+@app.put("/units/{unit_id}", response_model=schemas.Unit)
+async def update_unit(
+    unit_id: int,
+    unit: schemas.UnitUpdate,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    from deps import check_user_perm
+    if current_user.role and current_user.role.code not in ["superadmin", "tu_yayasan", "ketua_yayasan"]:
+        if not check_user_perm(current_user, "pengaturan.sekolah:update"):
+            raise HTTPException(status_code=403, detail="Tidak memiliki hak akses mengubah unit sekolah.")
+            
+    db_unit = db.query(models.Unit).filter(models.Unit.id == unit_id).first()
+    if not db_unit:
+        raise HTTPException(status_code=404, detail="Unit tidak ditemukan.")
+        
+    if unit.code is not None:
+        new_code = unit.code.upper().strip()
+        existing = db.query(models.Unit).filter(models.Unit.code == new_code, models.Unit.id != unit_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Kode unit '{new_code}' sudah digunakan oleh unit lain.")
+        db_unit.code = new_code
+    if unit.name is not None:
+        db_unit.name = unit.name.strip()
+    if unit.address is not None:
+        db_unit.address = unit.address
+    if unit.is_active is not None:
+        db_unit.is_active = unit.is_active
+
+    db.commit()
+    db.refresh(db_unit)
+    return db_unit
+
+@app.delete("/units/{unit_id}")
+async def delete_unit(
+    unit_id: int,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    from deps import check_user_perm
+    if current_user.role and current_user.role.code not in ["superadmin", "tu_yayasan", "ketua_yayasan"]:
+        if not check_user_perm(current_user, "pengaturan.sekolah:update"):
+            raise HTTPException(status_code=403, detail="Tidak memiliki hak akses menonaktifkan unit sekolah.")
+            
+    db_unit = db.query(models.Unit).filter(models.Unit.id == unit_id).first()
+    if not db_unit:
+        raise HTTPException(status_code=404, detail="Unit tidak ditemukan.")
+        
+    db_unit.is_active = False
+    db.commit()
+    return {"message": f"Unit {db_unit.name} berhasil dinonaktifkan"}
 
 # --- Academic Routes ---
 

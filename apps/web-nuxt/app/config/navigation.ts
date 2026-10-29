@@ -116,6 +116,7 @@ export const navigation: MenuItem[] = [
         key: 'pengaturan',
         children: [
             { label: 'Identitas Sekolah', to: '/dashboard/settings/sekolah', key: 'pengaturan.sekolah' },
+            { label: 'Master Unit Sekolah', to: '/dashboard/settings/unit', key: 'pengaturan.sekolah' },
             { label: 'Kop Surat & Cetak PDF', to: '/dashboard/settings/kop-surat', key: 'pengaturan.kop_surat' },
             { label: 'Manajemen User', to: '/dashboard/users', key: 'pengaturan.users' },
             { label: 'Role & Permissions', to: '/dashboard/settings/roles', key: 'pengaturan.roles' },
