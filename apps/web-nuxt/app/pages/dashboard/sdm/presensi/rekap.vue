@@ -386,7 +386,17 @@
 
           <Column field="alpa" header="Alpa" sortable style="width: 75px">
             <template #body="{ data }">
-              <span class="font-semibold text-rose-600">{{ data.alpa }}</span>
+              <button
+                v-if="data.alpa > 0"
+                type="button"
+                class="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 font-semibold text-xs inline-flex items-center gap-1 transition"
+                :title="`Klik untuk melihat riwayat ${data.alpa}x alpa`"
+                @click="openAbsentStaffModal(data)"
+              >
+                <span>{{ data.alpa }}x</span>
+                <i class="pi pi-eye text-[9px] opacity-75"></i>
+              </button>
+              <span v-else class="text-slate-300 dark:text-slate-600 text-xs">-</span>
             </template>
           </Column>
 
@@ -486,17 +496,37 @@
             <span v-if="recapModalType === 'terlambat'" class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700">
               {{ emp.terlambat }}x Terlambat
             </span>
-            <span v-else-if="recapModalType === 'pulang_cepat'" class="px-2.5 py-1 rounded-lg bg-orange-100 text-orange-700">
-              {{ emp.total_pulang_cepat }}x Pulang Cepat ({{ emp.total_menit_pulang_cepat || 0 }}m)
-            </span>
+            <div v-else-if="recapModalType === 'pulang_cepat'" class="flex items-center gap-1.5">
+              <span class="px-2.5 py-1 rounded-lg bg-orange-100 text-orange-700">
+                {{ emp.total_pulang_cepat }}x Pulang Cepat ({{ emp.total_menit_pulang_cepat || 0 }}m)
+              </span>
+              <button
+                type="button"
+                @click="openEarlyLeaveStaffModal(emp)"
+                class="w-7 h-7 rounded-lg bg-orange-100 hover:bg-orange-200 dark:bg-orange-950/80 dark:hover:bg-orange-900 text-orange-700 dark:text-orange-300 flex items-center justify-center transition border border-orange-200 dark:border-orange-800"
+                title="Lihat rincian hari dan jam pulang cepat"
+              >
+                <i class="pi pi-eye text-xs"></i>
+              </button>
+            </div>
             <template v-else-if="recapModalType === 'izin_sakit_cuti'">
               <span v-if="emp.sakit > 0" class="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700">{{ emp.sakit }} Sakit</span>
               <span v-if="emp.izin > 0" class="px-2 py-0.5 rounded bg-blue-100 text-blue-700">{{ emp.izin }} Izin</span>
               <span v-if="emp.cuti > 0" class="px-2 py-0.5 rounded bg-purple-100 text-purple-700">{{ emp.cuti }} Cuti</span>
             </template>
-            <span v-else-if="recapModalType === 'alpa'" class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-700">
-              {{ emp.alpa }}x Alpa
-            </span>
+            <div v-else-if="recapModalType === 'alpa'" class="flex items-center gap-1.5">
+              <span class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-700">
+                {{ emp.alpa }}x Alpa
+              </span>
+              <button
+                type="button"
+                @click="openAbsentStaffModal(emp)"
+                class="w-7 h-7 rounded-lg bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/80 dark:hover:bg-rose-900 text-rose-700 dark:text-rose-300 flex items-center justify-center transition border border-rose-200 dark:border-rose-800"
+                title="Lihat rincian tanggal alpa & ubah keterangan"
+              >
+                <i class="pi pi-eye text-xs"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -580,6 +610,175 @@
 
       <template #footer>
         <Button label="Tutup" icon="pi pi-times" severity="secondary" text size="small" @click="showEarlyLeaveStaffDialog = false" />
+      </template>
+    </Dialog>
+
+    <!-- Dialog Detail Alpa (Tanpa Keterangan) Per Pegawai -->
+    <Dialog
+      v-model:visible="showAbsentStaffDialog"
+      :modal="true"
+      :style="{ width: '50rem', maxWidth: '95vw' }"
+    >
+      <template #header>
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 flex items-center justify-center shrink-0">
+            <i class="pi pi-user-times text-lg"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800 dark:text-white">
+              Riwayat Alpa: {{ selectedAbsentStaff?.nama_lengkap }}
+            </h3>
+            <p class="text-xs text-slate-400">
+              {{ selectedAbsentStaff?.unit_name }} &bull; Periode: {{ activePeriodLabel }}
+            </p>
+          </div>
+        </div>
+      </template>
+
+      <div class="space-y-4 pt-1 max-h-[65vh] overflow-y-auto pr-1">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 text-xs gap-2">
+          <div class="text-slate-600 dark:text-slate-300">
+            Total Ketidakhadiran: <strong class="text-rose-700 dark:text-rose-300">{{ selectedAbsentStaff?.alpa || 0 }}x Hari Alpa</strong>
+          </div>
+          <div v-if="canEditAttendance" class="text-slate-500 text-[11px] flex items-center gap-1.5">
+            <i class="pi pi-info-circle text-primary text-xs"></i>
+            <span>Anda memiliki hak akses untuk mengklarifikasi / mengubah status alpa di bawah ini.</span>
+          </div>
+        </div>
+
+        <DataTable
+          :value="selectedAbsentStaff?.alpa_records || []"
+          responsiveLayout="scroll"
+          class="text-xs"
+          stripedRows
+        >
+          <template #empty>
+            <div class="p-6 text-center text-slate-400">
+              <i class="pi pi-check-circle text-2xl text-emerald-500 mb-2"></i>
+              <p>Tidak ada catatan alpa pada periode ini atau seluruh catatan telah diklarifikasi.</p>
+            </div>
+          </template>
+
+          <Column header="Hari & Tanggal" style="min-width: 140px">
+            <template #body="{ data }">
+              <div class="font-bold text-slate-800 dark:text-white">{{ data.day_name }}, {{ data.date }}</div>
+            </template>
+          </Column>
+
+          <Column header="Status Saat Ini" style="width: 130px">
+            <template #body>
+              <span class="px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 text-[11px] font-bold">
+                Alpa / Kosong
+              </span>
+            </template>
+          </Column>
+
+          <Column header="Keterangan / Sumber" style="min-width: 180px">
+            <template #body="{ data }">
+              <span class="text-slate-500 text-[11px] italic">{{ data.notes || 'Tidak ada data di Fingerprint' }}</span>
+            </template>
+          </Column>
+
+          <Column v-if="canEditAttendance" header="Aksi" style="width: 130px; text-align: center">
+            <template #body="{ data }">
+              <Button
+                label="Ubah Status"
+                icon="pi pi-pencil"
+                severity="warning"
+                size="small"
+                outlined
+                class="!py-1 !px-2.5 !text-xs font-semibold"
+                title="Klarifikasi penyebab alpa (Sakit, Cuti, Izin, dll)"
+                @click="openEditAttendanceModal(data, selectedAbsentStaff)"
+              />
+            </template>
+          </Column>
+        </DataTable>
+      </div>
+
+      <template #footer>
+        <Button label="Tutup" icon="pi pi-times" severity="secondary" text size="small" @click="showAbsentStaffDialog = false" />
+      </template>
+    </Dialog>
+
+    <!-- Dialog Ubah Status Presensi (Klarifikasi Alpa -> Sakit, Cuti, Izin, dll) -->
+    <Dialog
+      v-model:visible="showEditAttendanceModal"
+      :modal="true"
+      :header="`Klarifikasi Status Presensi Pegawai`"
+      :style="{ width: '34rem', maxWidth: '95vw' }"
+    >
+      <div class="space-y-4 pt-2 text-xs">
+        <!-- Target Info Box -->
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <div>
+            <div class="font-bold text-sm text-slate-800 dark:text-white">{{ editAttendanceForm.employee_name }}</div>
+            <div class="text-slate-500 text-[11px] mt-0.5">{{ editAttendanceForm.day_name }}, {{ editAttendanceForm.date }}</div>
+          </div>
+          <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-bold text-[10px]">
+            Semula: Alpa
+          </span>
+        </div>
+
+        <!-- Pilih Status Baru -->
+        <div>
+          <label class="block font-bold text-slate-700 dark:text-slate-200 mb-1.5">
+            Penyebab / Status Baru <span class="text-rose-500">*</span>
+          </label>
+          <Dropdown
+            v-model="editAttendanceForm.status"
+            :options="attendanceStatusOptions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Pilih Status Baru"
+            class="w-full text-xs"
+          >
+            <template #option="{ option }">
+              <div class="flex items-center gap-2 text-xs py-0.5">
+                <i :class="option.icon"></i>
+                <span>{{ option.label }}</span>
+              </div>
+            </template>
+          </Dropdown>
+          <p class="text-[10px] text-slate-400 mt-1">
+            Pilih jenis kehadiran/ketidakhadiran yang sah (Sakit, Izin, Cuti, Dispensasi, dll).
+          </p>
+        </div>
+
+        <!-- Catatan / Keterangan -->
+        <div>
+          <label class="block font-bold text-slate-700 dark:text-slate-200 mb-1.5">
+            Catatan / Alasan Keterangan
+          </label>
+          <Textarea
+            v-model="editAttendanceForm.notes"
+            rows="3"
+            placeholder="Contoh: Surat keterangan dokter RS terlampir / Izin urusan keluarga mendesak / Dispensasi dinas luar"
+            class="w-full text-xs"
+          />
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex items-center justify-end gap-2">
+          <Button
+            label="Batal"
+            icon="pi pi-times"
+            severity="secondary"
+            text
+            size="small"
+            :disabled="savingAttendance"
+            @click="showEditAttendanceModal = false"
+          />
+          <Button
+            label="Simpan Perubahan"
+            icon="pi pi-check"
+            severity="primary"
+            size="small"
+            :loading="savingAttendance"
+            @click="saveAttendanceStatus"
+          />
+        </div>
       </template>
     </Dialog>
 
@@ -1314,11 +1513,20 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
+import { useAuthStore } from '~/stores/auth'
+import { usePermission } from '~/composables/usePermission'
 
 definePageMeta({ layout: 'dashboard' })
 
 const toast = useToast()
 const api = useApi()
+const authStore = useAuthStore()
+const { can } = usePermission()
+
+const canEditAttendance = computed(() => {
+  const code = (authStore.user?.role && typeof authStore.user.role === 'object' ? authStore.user.role.code : authStore.user?.role) || ''
+  return ['superadmin', 'tu_yayasan', 'tu_unit', 'kabid_keuangan', 'kabid_umum', 'ketua_yayasan'].includes(code) || can('sdm.presensi', 'update') || can('sdm', 'update')
+})
 
 // Period Filter State
 const periodMode = ref<'1m' | '3m' | '6m' | 'custom'>('1m')
@@ -1351,6 +1559,110 @@ const selectedEarlyLeaveStaff = ref<any | null>(null)
 function openEarlyLeaveStaffModal(emp: any) {
   selectedEarlyLeaveStaff.value = emp
   showEarlyLeaveStaffDialog.value = true
+}
+
+// Staff Absent / Alpa Detail Dialog
+const showAbsentStaffDialog = ref(false)
+const selectedAbsentStaff = ref<any | null>(null)
+
+function openAbsentStaffModal(emp: any) {
+  selectedAbsentStaff.value = emp
+  showAbsentStaffDialog.value = true
+}
+
+// Edit Attendance Status Modal
+const showEditAttendanceModal = ref(false)
+const savingAttendance = ref(false)
+const editAttendanceForm = ref({
+  attendance_id: 0,
+  employee_id: 0,
+  employee_name: '',
+  date: '',
+  day_name: '',
+  status: 'SICK',
+  notes: ''
+})
+
+const attendanceStatusOptions = [
+  { label: 'Sakit (Surat Dokter / Sakit)', value: 'SICK', icon: 'pi pi-heart text-amber-500' },
+  { label: 'Izin Biasa (Keperluan Pribadi / Keluarga)', value: 'PERMIT', icon: 'pi pi-info-circle text-blue-500' },
+  { label: 'Dispensasi / Tugas Luar (Dinas / Pelatihan)', value: 'DISPENSATION', icon: 'pi pi-briefcase text-sky-500' },
+  { label: 'Cuti Tahunan', value: 'LEAVE_ANNUAL', icon: 'pi pi-calendar text-purple-500' },
+  { label: 'Cuti Melahirkan', value: 'LEAVE_MATERNITY', icon: 'pi pi-user text-pink-500' },
+  { label: 'Cuti Menikah', value: 'LEAVE_MARRIAGE', icon: 'pi pi-heart-fill text-rose-500' },
+  { label: 'Cuti Berkabung (Kedukaan)', value: 'LEAVE_BEREAVEMENT', icon: 'pi pi-moon text-slate-500' },
+  { label: 'Cuti Ibadah (Haji / Umroh)', value: 'LEAVE_PILGRIMAGE', icon: 'pi pi-compass text-emerald-500' },
+  { label: 'Cuti di Luar Tanggungan', value: 'LEAVE_UNPAID', icon: 'pi pi-file text-slate-400' },
+  { label: 'Hadir Manual (Verifikasi Kehadiran)', value: 'PRESENT', icon: 'pi pi-check text-emerald-600' },
+  { label: 'Alpa (Tetap Tanpa Keterangan)', value: 'ABSENT', icon: 'pi pi-times-circle text-rose-600' }
+]
+
+function openEditAttendanceModal(record: any, staff: any) {
+  editAttendanceForm.value = {
+    attendance_id: record.attendance_id,
+    employee_id: staff.employee_id,
+    employee_name: staff.nama_lengkap,
+    date: record.date,
+    day_name: record.day_name,
+    status: 'SICK',
+    notes: record.notes && record.notes !== 'Tidak ada data di Fingerprint' && record.notes !== 'Tanpa Keterangan' ? record.notes : ''
+  }
+  showEditAttendanceModal.value = true
+}
+
+async function saveAttendanceStatus() {
+  if (!editAttendanceForm.value.status) return
+  savingAttendance.value = true
+  try {
+    const payload = {
+      attendance_id: editAttendanceForm.value.attendance_id,
+      employee_id: editAttendanceForm.value.employee_id,
+      date: editAttendanceForm.value.date,
+      status: editAttendanceForm.value.status,
+      notes: editAttendanceForm.value.notes
+    }
+    await api.post('/sdm/attendance/update-status', payload)
+    toast.add({
+      severity: 'success',
+      summary: 'Status Berhasil Diubah',
+      detail: `Presensi ${editAttendanceForm.value.employee_name} pada ${editAttendanceForm.value.date} telah diperbarui`,
+      life: 3000
+    })
+    showEditAttendanceModal.value = false
+
+    // Update local state in selectedAbsentStaff so user sees immediate update
+    if (selectedAbsentStaff.value) {
+      if (editAttendanceForm.value.status !== 'ABSENT') {
+        selectedAbsentStaff.value.alpa_records = (selectedAbsentStaff.value.alpa_records || []).filter(
+          (r: any) => !(r.attendance_id === editAttendanceForm.value.attendance_id || r.date === editAttendanceForm.value.date)
+        )
+        selectedAbsentStaff.value.alpa = Math.max(0, (selectedAbsentStaff.value.alpa || 0) - 1)
+        if (editAttendanceForm.value.status === 'SICK') selectedAbsentStaff.value.sakit = (selectedAbsentStaff.value.sakit || 0) + 1
+        else if (['PERMIT', 'DISPENSATION'].includes(editAttendanceForm.value.status)) selectedAbsentStaff.value.izin = (selectedAbsentStaff.value.izin || 0) + 1
+        else if (editAttendanceForm.value.status.startsWith('LEAVE_')) selectedAbsentStaff.value.cuti = (selectedAbsentStaff.value.cuti || 0) + 1
+      } else {
+        const item = (selectedAbsentStaff.value.alpa_records || []).find(
+          (r: any) => r.attendance_id === editAttendanceForm.value.attendance_id || r.date === editAttendanceForm.value.date
+        )
+        if (item) {
+          item.notes = editAttendanceForm.value.notes
+        }
+      }
+    }
+
+    // Refresh recap data silently
+    fetchData()
+  } catch (err: any) {
+    console.error('Failed to update attendance status:', err)
+    toast.add({
+      severity: 'error',
+      summary: 'Gagal Memperbarui',
+      detail: err?.data?.detail || err?.message || 'Terjadi kesalahan sistem',
+      life: 4000
+    })
+  } finally {
+    savingAttendance.value = false
+  }
 }
 
 // Analytics Modal State

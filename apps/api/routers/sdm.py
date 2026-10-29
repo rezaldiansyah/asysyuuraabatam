@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from fastapi.responses import Response
 import csv
 import io
@@ -1230,6 +1230,93 @@ async def create_bulk_employee_attendance(request: schemas.BulkEmployeeAttendanc
         "message": f"Created {count} new attendance records, updated {updated} existing ones, protected {skipped_locked} locked Fingerprint/GPS records"
     }
 
+class QuickAttendanceStatusUpdate(BaseModel):
+    attendance_id: Optional[int] = None
+    employee_id: Optional[int] = None
+    date: Optional[str] = None
+    status: schemas.AttendanceStatusEnum
+    notes: Optional[str] = None
+
+@router.post("/attendance/update-status")
+@router.put("/attendance/{attendance_id}/status")
+async def update_attendance_status(
+    payload: QuickAttendanceStatusUpdate,
+    attendance_id: Optional[int] = None,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user_role_code = current_user.role.code if current_user.role else ""
+    authorized_roles = {"superadmin", "tu_yayasan", "tu_unit", "kabid_keuangan", "kabid_umum", "ketua_yayasan"}
+    has_perm = user_role_code in authorized_roles or check_user_perm(current_user, "sdm.presensi:update") or check_user_perm(current_user, "sdm:*")
+
+    if not has_perm:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Akses ditolak: Hanya TU, Kabid Keuangan, atau Super Administrator yang dapat mengubah status presensi."
+        )
+
+    target_id = attendance_id or payload.attendance_id
+    att = None
+    if target_id:
+        att = db.query(models.EmployeeAttendance).filter(models.EmployeeAttendance.id == target_id).first()
+
+    if not att and payload.employee_id and payload.date:
+        from datetime import datetime as dt
+        try:
+            t_date = dt.strptime(payload.date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Format tanggal tidak valid. Gunakan YYYY-MM-DD.")
+            
+        att = db.query(models.EmployeeAttendance).filter(
+            models.EmployeeAttendance.employee_id == payload.employee_id,
+            models.EmployeeAttendance.date == t_date
+        ).first()
+
+        if not att:
+            new_status_val = payload.status.value if hasattr(payload.status, "value") else str(payload.status)
+            att = models.EmployeeAttendance(
+                employee_id=payload.employee_id,
+                date=t_date,
+                status=new_status_val,
+                notes=payload.notes or ""
+            )
+            db.add(att)
+            db.commit()
+            db.refresh(att)
+            return {
+                "message": f"Catatan presensi baru berhasil dibuat dengan status {new_status_val}",
+                "attendance": {
+                    "id": att.id,
+                    "employee_id": att.employee_id,
+                    "date": payload.date,
+                    "status": new_status_val,
+                    "notes": att.notes
+                }
+            }
+
+    if not att:
+        raise HTTPException(status_code=404, detail="Data presensi tidak ditemukan")
+
+    old_status = att.status.value if hasattr(att.status, "value") else str(att.status)
+    new_status = payload.status.value if hasattr(payload.status, "value") else str(payload.status)
+    att.status = new_status
+    if payload.notes is not None:
+        att.notes = payload.notes.strip()
+
+    db.commit()
+    db.refresh(att)
+
+    return {
+        "message": f"Status presensi berhasil diubah dari {old_status} menjadi {new_status}",
+        "attendance": {
+            "id": att.id,
+            "employee_id": att.employee_id,
+            "date": att.date.strftime("%Y-%m-%d") if hasattr(att.date, "strftime") else str(att.date)[:10],
+            "status": new_status,
+            "notes": att.notes
+        }
+    }
+
 @router.get("/attendance/recap")
 async def get_employee_attendance_recap(
     month: Optional[str] = None, # Format YYYY-MM
@@ -1343,10 +1430,11 @@ async def get_employee_attendance_recap(
         a = sum(1 for a in emp_att if status_str(a) == 'ABSENT')
         total = h + s + i + cuti + a
 
-        # Monthly breakdown for trend analysis & Overtime/Sunday logs & Early Leave
+        # Monthly breakdown for trend analysis & Overtime/Sunday logs & Early Leave & Alpa
         monthly_trend = {}
         overtime_records = []
         early_leave_records = []
+        alpa_records = []
         total_lembur = 0
         total_ahad = 0
         total_pulang_cepat = 0
@@ -1376,6 +1464,17 @@ async def get_employee_attendance_recap(
                     monthly_trend[m_key]["cuti"] += 1
                 elif st == 'ABSENT':
                     monthly_trend[m_key]["alpa"] += 1
+                    date_str_alpa = att.date.strftime("%Y-%m-%d") if hasattr(att.date, "strftime") else str(att.date)[:10]
+                    day_idx_alpa = att.date.weekday() if hasattr(att.date, "weekday") else 0
+                    day_name_alpa = day_names_id[day_idx_alpa] if 0 <= day_idx_alpa < len(day_names_id) else "-"
+
+                    alpa_records.append({
+                        "attendance_id": att.id,
+                        "date": date_str_alpa,
+                        "day_name": day_name_alpa,
+                        "notes": notes_text or "Tidak ada data di Fingerprint",
+                        "status": st
+                    })
                 monthly_trend[m_key]["total"] += 1
 
                 # Check Overtime (Checkout >= 18:00) and Sunday / Holiday Piket
@@ -1468,9 +1567,10 @@ async def get_employee_attendance_recap(
                 import logging
                 logging.getLogger(__name__).warning(f"Error processing attendance record {getattr(att, 'id', None)}: {e}")
 
-        # Sort overtime and early leave records descending by date
+        # Sort overtime, early leave, and alpa records descending by date
         overtime_records.sort(key=lambda x: x["date"], reverse=True)
         early_leave_records.sort(key=lambda x: x["date"], reverse=True)
+        alpa_records.sort(key=lambda x: x["date"], reverse=True)
 
         results.append({
             "employee_id": emp.id,
@@ -1495,7 +1595,8 @@ async def get_employee_attendance_recap(
             "total_pulang_cepat": total_pulang_cepat,
             "total_menit_pulang_cepat": total_menit_pulang_cepat,
             "overtime_records": overtime_records,
-            "early_leave_records": early_leave_records
+            "early_leave_records": early_leave_records,
+            "alpa_records": alpa_records
         })
 
     if has_cleanup:
