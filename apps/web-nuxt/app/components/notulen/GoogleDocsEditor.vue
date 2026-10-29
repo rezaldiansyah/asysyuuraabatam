@@ -107,7 +107,7 @@
         <button 
           type="button" 
           class="gdocs-tb-btn" 
-          :class="{ 'is-active': editor.isActive({ textAlign: 'left' }) }"
+          :class="{ 'is-active': isAlignActive('left') }"
           @click="editor.chain().focus().setTextAlign('left').run()" 
           title="Rata Kiri"
         >
@@ -116,7 +116,7 @@
         <button 
           type="button" 
           class="gdocs-tb-btn" 
-          :class="{ 'is-active': editor.isActive({ textAlign: 'center' }) }"
+          :class="{ 'is-active': isAlignActive('center') }"
           @click="editor.chain().focus().setTextAlign('center').run()" 
           title="Rata Tengah"
         >
@@ -125,7 +125,7 @@
         <button 
           type="button" 
           class="gdocs-tb-btn" 
-          :class="{ 'is-active': editor.isActive({ textAlign: 'right' }) }"
+          :class="{ 'is-active': isAlignActive('right') }"
           @click="editor.chain().focus().setTextAlign('right').run()" 
           title="Rata Kanan"
         >
@@ -134,7 +134,7 @@
         <button 
           type="button" 
           class="gdocs-tb-btn" 
-          :class="{ 'is-active': editor.isActive({ textAlign: 'justify' }) }"
+          :class="{ 'is-active': isAlignActive('justify') }"
           @click="editor.chain().focus().setTextAlign('justify').run()" 
           title="Rata Kanan-Kiri (Justify)"
         >
@@ -177,24 +177,34 @@
 
       <div class="gdocs-tb-divider"></div>
 
-      <!-- Table Menu Dropdown & Controls -->
-      <div class="relative" ref="tableDropdownRef">
+      <!-- Group 6: Table Menu & 1-Click Quick Table -->
+      <div class="relative flex items-center" ref="tableDropdownRef">
+        <!-- 1-Click Quick Insert Yayasan Table -->
+        <button
+          type="button"
+          @click="insertYayasanTable"
+          class="gdocs-tb-btn !px-2 flex items-center gap-1 font-semibold text-xs text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+          title="1-Klik: Sisipkan Tabel Resmi Yayasan (4 Kolom)"
+        >
+          <i class="pi pi-table text-xs text-emerald-600"></i>
+          <span>+ Tabel</span>
+        </button>
+
+        <!-- Dropdown trigger for more formats -->
         <button
           type="button"
           @click.stop="toggleTableMenu"
-          :class="{ 'is-active': editor.isActive('table') || showTableMenu }"
-          class="gdocs-tb-btn !px-2 flex items-center gap-1 font-semibold text-xs text-slate-700 dark:text-slate-200"
-          title="Menu Pengaturan Tabel"
+          :class="{ 'is-active': showTableMenu }"
+          class="gdocs-tb-btn !w-5 !px-0 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+          title="Pilihan Format Tabel Lainnya"
         >
-          <i class="pi pi-table text-xs text-primary"></i>
-          <span>Tabel</span>
-          <i class="pi pi-chevron-down text-[9px] text-slate-400"></i>
+          <i class="pi pi-chevron-down text-[8px]"></i>
         </button>
 
         <!-- Dropdown Menu -->
         <div 
           v-if="showTableMenu" 
-          class="absolute left-0 mt-1.5 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-2 z-50 text-xs font-sans"
+          class="absolute left-0 top-full mt-1.5 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-2 z-50 text-xs font-sans"
         >
           <div class="px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
             Sisipkan Tabel Baru
@@ -342,16 +352,16 @@
 
       <div class="gdocs-tb-divider"></div>
 
-      <!-- Quick Template & Clean -->
+      <!-- Group 7: Template & Clean -->
       <div class="flex items-center gap-1">
         <button 
           type="button" 
           @click="applyFullTemplate" 
           class="gdocs-template-pill"
-          title="Sisipkan struktur notulen resmi lengkap"
+          title="Sisipkan struktur notulen resmi lengkap yayasan"
         >
           <i class="pi pi-file text-xs text-amber-600"></i>
-          <span>Template Lengkap</span>
+          <span>Template</span>
         </button>
         <button 
           type="button" 
@@ -425,6 +435,11 @@ onMounted(() => {
 
 const editor = useEditor({
   content: props.modelValue || '',
+  editorProps: {
+    attributes: {
+      class: 'tiptap ProseMirror focus:outline-none min-h-[650px] leading-relaxed',
+    },
+  },
   extensions: [
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
@@ -488,6 +503,17 @@ const currentHeadingValue = computed(() => {
   if (editor.value.isActive('heading', { level: 3 })) return '3'
   return 'p'
 })
+
+function isAlignActive(align: string) {
+  if (!editor.value) return false
+  if (align === 'left') {
+    return editor.value.isActive({ textAlign: 'left' }) || 
+      (!editor.value.isActive({ textAlign: 'center' }) && 
+       !editor.value.isActive({ textAlign: 'right' }) && 
+       !editor.value.isActive({ textAlign: 'justify' }))
+  }
+  return editor.value.isActive({ textAlign: align })
+}
 
 function setHeadingStyle(val: string) {
   if (!editor.value) return
@@ -680,16 +706,16 @@ defineExpose({
   top: 0.5rem;
   z-index: 25;
   background-color: #ffffff;
-  border-radius: 9999px;
+  border-radius: 0.875rem;
   border: 1px solid #cbd5e1;
   box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.08);
-  padding: 0.35rem 0.85rem;
+  padding: 0.35rem 0.65rem;
   margin: 0 auto 0.75rem auto;
   max-width: 860px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.35rem;
 }
 :deep(.dark) .gdocs-toolbar {
   background-color: #1e293b;
@@ -701,8 +727,9 @@ defineExpose({
 .gdocs-tb-divider {
   width: 1px;
   height: 1.25rem;
-  background-color: #e2e8f0;
+  background-color: #cbd5e1;
   margin: 0 0.25rem;
+  flex-shrink: 0;
 }
 :deep(.dark) .gdocs-tb-divider {
   background-color: #475569;
@@ -713,7 +740,7 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
+  min-width: 28px;
   height: 28px;
   border-radius: 0.375rem;
   color: #475569;
@@ -871,11 +898,13 @@ defineExpose({
 /* =========================================================================
    TIPTAP CONTENT STYLES INSIDE DOCUMENT
    ========================================================================= */
+:deep(.tiptap-content .ProseMirror),
 :deep(.tiptap-content .tiptap) {
   outline: none !important;
   min-height: 650px;
 }
 
+:deep(.tiptap-content .ProseMirror p.is-editor-empty:first-child::before),
 :deep(.tiptap-content .tiptap p.is-editor-empty:first-child::before) {
   color: #94a3b8;
   content: attr(data-placeholder);
@@ -884,6 +913,7 @@ defineExpose({
   pointer-events: none;
 }
 
+:deep(.tiptap-content .ProseMirror h1),
 :deep(.tiptap-content .tiptap h1) {
   font-size: 1.6rem;
   font-weight: 700;
@@ -891,6 +921,7 @@ defineExpose({
   margin-bottom: 0.5rem;
   color: #0f172a;
 }
+:deep(.tiptap-content .ProseMirror h2),
 :deep(.tiptap-content .tiptap h2) {
   font-size: 1.3rem;
   font-weight: 700;
@@ -898,6 +929,7 @@ defineExpose({
   margin-bottom: 0.5rem;
   color: #0f172a;
 }
+:deep(.tiptap-content .ProseMirror h3),
 :deep(.tiptap-content .tiptap h3) {
   font-size: 1.1rem;
   font-weight: 600;
@@ -905,49 +937,71 @@ defineExpose({
   margin-bottom: 0.35rem;
   color: #1e293b;
 }
+:deep(.dark) .tiptap-content .ProseMirror h1,
+:deep(.dark) .tiptap-content .ProseMirror h2,
+:deep(.dark) .tiptap-content .ProseMirror h3,
 :deep(.dark) .tiptap-content .tiptap h1,
 :deep(.dark) .tiptap-content .tiptap h2,
 :deep(.dark) .tiptap-content .tiptap h3 {
   color: #f8fafc;
 }
 
+:deep(.tiptap-content .ProseMirror p),
 :deep(.tiptap-content .tiptap p) {
   margin: 0.4rem 0;
 }
 
 /* Bullet & Numbered lists */
-:deep(.tiptap-content .tiptap ul) {
+:deep(.tiptap-content ul:not([data-type="taskList"])),
+:deep(.tiptap-content .ProseMirror ul:not([data-type="taskList"])),
+:deep(.tiptap-content .tiptap ul:not([data-type="taskList"])) {
   list-style-type: disc !important;
-  padding-left: 1.75rem !important;
+  list-style-position: outside !important;
+  padding-left: 1.5rem !important;
   margin: 0.5rem 0 !important;
 }
+:deep(.tiptap-content ol),
+:deep(.tiptap-content .ProseMirror ol),
 :deep(.tiptap-content .tiptap ol) {
   list-style-type: decimal !important;
-  padding-left: 1.75rem !important;
+  list-style-position: outside !important;
+  padding-left: 1.5rem !important;
   margin: 0.5rem 0 !important;
 }
+:deep(.tiptap-content li),
+:deep(.tiptap-content .ProseMirror li),
 :deep(.tiptap-content .tiptap li) {
   padding-left: 0.25rem !important;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.25rem !important;
 }
 
 /* Task lists (Checklist) */
-:deep(.tiptap-content .tiptap ul[data-type="taskList"]) {
+:deep(.tiptap-content ul[data-type="taskList"]),
+:deep(.tiptap-content .ProseMirror ul[data-type="taskList"]) {
   list-style: none !important;
-  padding: 0 !important;
+  padding-left: 0.25rem !important;
+  margin: 0.5rem 0 !important;
 }
-:deep(.tiptap-content .tiptap ul[data-type="taskList"] li) {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
+:deep(.tiptap-content ul[data-type="taskList"] li) {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 0.5rem !important;
+  margin-bottom: 0.35rem !important;
 }
-:deep(.tiptap-content .tiptap ul[data-type="taskList"] li > label) {
-  flex: 0 0 auto;
-  user-select: none;
-  margin-top: 0.2rem;
+:deep(.tiptap-content ul[data-type="taskList"] li > label) {
+  flex: 0 0 auto !important;
+  user-select: none !important;
+  margin-top: 0.2rem !important;
+  cursor: pointer !important;
 }
-:deep(.tiptap-content .tiptap ul[data-type="taskList"] li > div) {
-  flex: 1 1 auto;
+:deep(.tiptap-content ul[data-type="taskList"] li > label input[type="checkbox"]) {
+  cursor: pointer !important;
+  width: 15px !important;
+  height: 15px !important;
+  accent-color: #2563eb !important;
+}
+:deep(.tiptap-content ul[data-type="taskList"] li > div) {
+  flex: 1 1 auto !important;
 }
 
 /* =========================================================================
