@@ -72,3 +72,5 @@ Gunakan akun berikut untuk masuk ke dashboard:
   - **Akademik**: Jadwal Pelajaran (`/dashboard/jadwal`), Data Kelas, Mapel.
   - **Keuangan**: Kategori Pembayaran, Generate Tagihan, Pencatatan Pembayaran (`/dashboard/keuangan`).
   - **CMS**: Manajemen Berita (`/dashboard/cms/berita`), Upload Media.
+- **SDM & Presensi**: Presensi GPS Mandiri, Rekap Kehadiran, Jam Kerja Dinamis per Unit.
+- **Notulen Rapat**: Notulen Terpadu dengan Dynamic Table Builder & Action Items.
