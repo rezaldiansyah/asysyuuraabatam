@@ -40,6 +40,43 @@
       </div>
     </div>
 
+    <!-- Banner Konfirmasi Kehadiran Hari Ini (Persistent) -->
+    <div 
+      v-if="todayAttendance?.check_in" 
+      class="p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition shadow-xs"
+      :class="todayAttendance?.check_out 
+        ? 'bg-blue-50/90 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100' 
+        : 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100'"
+    >
+      <div class="flex items-center gap-3">
+        <div 
+          class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs"
+          :class="todayAttendance?.check_out ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300'"
+        >
+          <i :class="todayAttendance?.check_out ? 'pi pi-verified text-xl' : 'pi pi-check-circle text-xl'"></i>
+        </div>
+        <div>
+          <div class="font-bold text-sm">
+            {{ todayAttendance?.check_out ? 'Presensi Hari Ini Selesai (Check-In & Check-Out Lengkap)' : 'Presensi Masuk Hari Ini Tercatat' }}
+          </div>
+          <div class="text-xs opacity-90 mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+            <span>Masuk: <b>{{ formatTimeOnly(todayAttendance?.check_in) }} WIB</b> <span v-if="todayAttendance?.check_in_distance != null">({{ todayAttendance.check_in_distance }}m)</span></span>
+            <span v-if="todayAttendance?.check_out">Pulang: <b>{{ formatTimeOnly(todayAttendance?.check_out) }} WIB</b> <span v-if="todayAttendance?.check_out_distance != null">({{ todayAttendance.check_out_distance }}m)</span></span>
+            <span>Status: <b>{{ getStatusLabel(todayAttendance?.status) }}</b></span>
+          </div>
+        </div>
+      </div>
+      <button 
+        type="button"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition self-end sm:self-center"
+        :class="todayAttendance?.check_out ? 'bg-blue-200/60 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 hover:bg-blue-200' : 'bg-emerald-200/60 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-200'"
+        @click="scrollToHistory"
+      >
+        <i class="pi pi-history text-xs"></i>
+        <span>Lihat Riwayat Saya</span>
+      </button>
+    </div>
+
     <!-- Main Live Attendance Card -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <!-- Left Column: Clock & GPS Radar -->
@@ -358,6 +395,230 @@
         </div>
       </div>
     </div>
+
+    <!-- Section Riwayat Presensi Pegawai (30 Hari Terakhir) -->
+    <div id="riwayat-presensi-section" class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-700">
+        <div>
+          <h2 class="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+            <i class="pi pi-history text-emerald-600"></i>
+            Riwayat Presensi Saya (30 Hari Terakhir)
+          </h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            Rekap seluruh rekaman check-in & check-out kehadiran pribadi Anda
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <Button 
+            icon="pi pi-refresh" 
+            label="Segarkan" 
+            text 
+            size="small" 
+            class="text-xs font-semibold"
+            :loading="historyLoading"
+            @click="fetchMyHistory" 
+          />
+        </div>
+      </div>
+
+      <!-- History Stats Summary Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-center">
+          <div class="text-[10px] uppercase font-bold text-slate-400">Total Hari</div>
+          <div class="text-xl font-extrabold text-slate-800 dark:text-white mt-0.5">{{ myHistory.length }}</div>
+        </div>
+        <div class="p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 text-center">
+          <div class="text-[10px] uppercase font-bold text-emerald-600">Tepat Waktu</div>
+          <div class="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">{{ historyStats.presentCount }}</div>
+        </div>
+        <div class="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-center">
+          <div class="text-[10px] uppercase font-bold text-amber-600">Terlambat</div>
+          <div class="text-xl font-extrabold text-amber-600 dark:text-amber-400 mt-0.5">{{ historyStats.lateCount }}</div>
+        </div>
+        <div class="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 text-center">
+          <div class="text-[10px] uppercase font-bold text-blue-600">Tugas / Izin</div>
+          <div class="text-xl font-extrabold text-blue-600 dark:text-blue-400 mt-0.5">{{ historyStats.otherCount }}</div>
+        </div>
+      </div>
+
+      <!-- History Records Table & Cards -->
+      <div v-if="historyLoading" class="py-12 text-center text-slate-400 text-xs">
+        <i class="pi pi-spin pi-spinner text-2xl mb-2 text-emerald-600"></i>
+        <div>Memuat riwayat presensi...</div>
+      </div>
+
+      <div v-else-if="myHistory.length === 0" class="py-12 text-center text-slate-400 text-xs">
+        <i class="pi pi-calendar-times text-3xl mb-2 text-slate-300"></i>
+        <div>Belum ada data presensi tercatat dalam 30 hari terakhir.</div>
+      </div>
+
+      <div v-else class="space-y-3">
+        <!-- Desktop Table View -->
+        <div class="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-bold border-b border-slate-200 dark:border-slate-700">
+              <tr>
+                <th class="py-3 px-4">Tanggal & Hari</th>
+                <th class="py-3 px-4 text-center">Status</th>
+                <th class="py-3 px-4">Check-in Masuk</th>
+                <th class="py-3 px-4">Check-out Pulang</th>
+                <th class="py-3 px-4">Keterangan / Catatan</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
+              <tr v-for="item in myHistory" :key="item.id" class="hover:bg-slate-50/70 dark:hover:bg-slate-800/60 transition">
+                <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                  <div>{{ formatIndoDate(item.date) }}</div>
+                  <div class="text-[10px] text-slate-400 font-normal">{{ item.day_name }}</div>
+                </td>
+                <td class="py-3 px-4 text-center whitespace-nowrap">
+                  <span class="px-2.5 py-1 rounded-full text-[10px] font-bold" :class="getStatusBadgeClass(item.status)">
+                    {{ getStatusLabel(item.status) }}
+                  </span>
+                </td>
+                <td class="py-3 px-4 whitespace-nowrap">
+                  <div class="font-mono font-bold text-slate-800 dark:text-white">
+                    {{ formatTimeOnly(item.check_in) || '-' }}
+                  </div>
+                  <div v-if="item.check_in_distance != null" class="text-[10px] text-slate-400">
+                    Jarak: {{ item.check_in_distance }}m
+                  </div>
+                </td>
+                <td class="py-3 px-4 whitespace-nowrap">
+                  <div class="font-mono font-bold text-slate-800 dark:text-white">
+                    {{ formatTimeOnly(item.check_out) || '-' }}
+                  </div>
+                  <div v-if="item.check_out_distance != null" class="text-[10px] text-slate-400">
+                    Jarak: {{ item.check_out_distance }}m
+                  </div>
+                </td>
+                <td class="py-3 px-4 text-slate-600 dark:text-slate-300">
+                  <span v-if="item.notes" class="truncate max-w-[240px] block" :title="item.notes">
+                    {{ item.notes }}
+                  </span>
+                  <span v-else class="text-slate-400">-</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile Cards View -->
+        <div class="block sm:hidden space-y-2.5">
+          <div 
+            v-for="item in myHistory" 
+            :key="'mobile-' + item.id"
+            class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90 shadow-xs space-y-2 text-xs"
+          >
+            <div class="flex justify-between items-start gap-2">
+              <div>
+                <div class="font-bold text-slate-800 dark:text-white">{{ formatIndoDate(item.date) }}</div>
+                <div class="text-[10px] text-slate-400">{{ item.day_name }}</div>
+              </div>
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold" :class="getStatusBadgeClass(item.status)">
+                {{ getStatusLabel(item.status) }}
+              </span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-slate-700/60 text-[11px]">
+              <div>
+                <span class="text-slate-400 block text-[10px]">Check-in Masuk:</span>
+                <span class="font-mono font-bold text-slate-800 dark:text-white">{{ formatTimeOnly(item.check_in) || '-' }}</span>
+                <span v-if="item.check_in_distance != null" class="text-slate-400 text-[10px] ml-1">({{ item.check_in_distance }}m)</span>
+              </div>
+              <div>
+                <span class="text-slate-400 block text-[10px]">Check-out Pulang:</span>
+                <span class="font-mono font-bold text-slate-800 dark:text-white">{{ formatTimeOnly(item.check_out) || '-' }}</span>
+                <span v-if="item.check_out_distance != null" class="text-slate-400 text-[10px] ml-1">({{ item.check_out_distance }}m)</span>
+              </div>
+            </div>
+            <div v-if="item.notes" class="pt-1 border-t border-slate-100 dark:border-slate-700/60 text-[11px] text-slate-600 dark:text-slate-300">
+              <span class="text-slate-400">Catatan:</span> {{ item.notes }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Dialog Pop-up Konfirmasi Presensi Berhasil -->
+    <Dialog 
+      v-model:visible="showSuccessDialog" 
+      modal 
+      :closable="true" 
+      :style="{ width: '92vw', maxWidth: '440px' }"
+      class="rounded-3xl overflow-hidden shadow-2xl"
+    >
+      <template #header>
+        <div class="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
+          <i class="pi pi-check-circle text-xl"></i>
+          <span>Konfirmasi Presensi</span>
+        </div>
+      </template>
+
+      <div class="py-2 text-center space-y-4">
+        <!-- Big Icon -->
+        <div class="w-16 h-16 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950/60 border-2 border-emerald-300 dark:border-emerald-700 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm">
+          <i class="pi pi-check text-3xl font-black"></i>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-bold text-slate-800 dark:text-white">
+            {{ lastActionResult?.title || 'Presensi Berhasil Dicatat!' }}
+          </h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            {{ lastActionResult?.message || 'Data kehadiran Anda telah resmi tersimpan di sistem yayasan.' }}
+          </p>
+        </div>
+
+        <!-- Detail Box -->
+        <div class="bg-slate-50 dark:bg-slate-900/80 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 text-left text-xs space-y-2.5">
+          <div class="flex justify-between items-center pb-2 border-b border-slate-200/60 dark:border-slate-800">
+            <span class="text-slate-500">Jenis Presensi:</span>
+            <span class="font-bold text-slate-800 dark:text-white">
+              {{ lastActionResult?.type === 'in' ? 'Check-in Masuk' : 'Check-out Pulang' }}
+            </span>
+          </div>
+          <div class="flex justify-between items-center pb-2 border-b border-slate-200/60 dark:border-slate-800">
+            <span class="text-slate-500">Waktu (WIB):</span>
+            <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+              {{ lastActionResult?.time || currentTime }} WIB
+            </span>
+          </div>
+          <div class="flex justify-between items-center pb-2 border-b border-slate-200/60 dark:border-slate-800">
+            <span class="text-slate-500">Status Kehadiran:</span>
+            <span 
+              class="px-2.5 py-0.5 rounded-full text-[11px] font-bold"
+              :class="getStatusBadgeClass(lastActionResult?.status)"
+            >
+              {{ getStatusLabel(lastActionResult?.status) }}
+            </span>
+          </div>
+          <div class="flex justify-between items-center pb-2 border-b border-slate-200/60 dark:border-slate-800">
+            <span class="text-slate-500">Jarak Lokasi (GPS):</span>
+            <span class="font-semibold text-slate-700 dark:text-slate-300">
+              {{ lastActionResult?.distance != null ? lastActionResult.distance + ' meter dari sekolah' : 'Dalam Area Sekolah' }}
+            </span>
+          </div>
+          <div v-if="lastActionResult?.notes" class="flex justify-between items-start pt-0.5">
+            <span class="text-slate-500">Catatan/Agenda:</span>
+            <span class="font-medium text-slate-700 dark:text-slate-300 text-right max-w-[200px] truncate">
+              {{ lastActionResult.notes }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="w-full flex gap-2">
+          <Button 
+            label="Tutup & Lihat Riwayat" 
+            icon="pi pi-check" 
+            class="w-full font-bold text-xs" 
+            severity="success"
+            @click="showSuccessDialog = false"
+          />
+        </div>
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -377,6 +638,23 @@ const attendanceNotes = ref('')
 const isDutyOutside = ref(false)
 const dutyReason = ref('')
 const selectedCategory = ref('')
+
+const showSuccessDialog = ref(false)
+const lastActionResult = ref<any>(null)
+const historyLoading = ref(false)
+const myHistory = ref<any[]>([])
+
+const historyStats = computed(() => {
+  let presentCount = 0
+  let lateCount = 0
+  let otherCount = 0
+  for (const r of myHistory.value) {
+    if (r.status === 'PRESENT') presentCount++
+    else if (r.status === 'LATE') lateCount++
+    else otherCount++
+  }
+  return { presentCount, lateCount, otherCount }
+})
 
 const isSunday = computed(() => {
   return new Date().getDay() === 0
@@ -628,6 +906,19 @@ async function handleCheckIn() {
       is_duty_outside: isDutyOutside.value,
       duty_reason: finalDuty || undefined
     })
+
+    // Tampilkan pop-up dialog konfirmasi sukses
+    lastActionResult.value = {
+      type: 'in',
+      title: 'Check-in Berhasil Dicatat!',
+      message: res.message || 'Check-in masuk Anda telah berhasil disimpan.',
+      time: formatTimeOnly(res?.attendance?.check_in || new Date().toISOString()),
+      status: res?.attendance?.status || (isDutyOutside.value ? 'DISPENSATION' : 'PRESENT'),
+      distance: res?.attendance?.check_in_distance ?? currentDistance.value,
+      notes: res?.attendance?.notes || finalNote || finalDuty
+    }
+    showSuccessDialog.value = true
+
     toast.add({
       severity: 'success',
       summary: 'Presensi Berhasil',
@@ -639,6 +930,7 @@ async function handleCheckIn() {
     selectedCategory.value = ''
     isDutyOutside.value = false
     await fetchTodayData()
+    await fetchMyHistory()
   } catch (e: any) {
     const msg = e?.data?.detail || 'Gagal melakukan check-in'
     toast.add({ severity: 'error', summary: 'Check-in Gagal', detail: msg, life: 6000 })
@@ -681,6 +973,19 @@ async function handleCheckOut() {
       is_duty_outside: isDutyOutside.value,
       duty_reason: finalDuty || undefined
     })
+
+    // Tampilkan pop-up dialog konfirmasi sukses
+    lastActionResult.value = {
+      type: 'out',
+      title: 'Check-out Berhasil Dicatat!',
+      message: res.message || 'Check-out pulang Anda telah berhasil disimpan.',
+      time: formatTimeOnly(res?.attendance?.check_out || new Date().toISOString()),
+      status: res?.attendance?.status || todayAttendance.value?.status || 'PRESENT',
+      distance: res?.attendance?.check_out_distance ?? currentDistance.value,
+      notes: res?.attendance?.notes || finalNote
+    }
+    showSuccessDialog.value = true
+
     toast.add({
       severity: 'success',
       summary: 'Presensi Berhasil',
@@ -691,11 +996,53 @@ async function handleCheckOut() {
     dutyReason.value = ''
     selectedCategory.value = ''
     await fetchTodayData()
+    await fetchMyHistory()
   } catch (e: any) {
     const msg = e?.data?.detail || 'Gagal melakukan check-out'
     toast.add({ severity: 'error', summary: 'Check-out Gagal', detail: msg, life: 6000 })
   } finally {
     submitting.value = false
+  }
+}
+
+async function fetchMyHistory() {
+  historyLoading.value = true
+  try {
+    const res = await api.get<any>('/sdm/attendance/my-history?limit=31')
+    if (res && res.records) {
+      myHistory.value = res.records
+    }
+  } catch (e) {
+    console.error('Failed to load attendance history', e)
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+function formatIndoDate(dateStr?: string | null) {
+  if (!dateStr) return '-'
+  try {
+    const parts = dateStr.split('T')[0].split('-')
+    if (parts.length === 3) {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+      const d = parseInt(parts[2], 10)
+      const m = parseInt(parts[1], 10) - 1
+      const y = parts[0]
+      return `${d} ${months[m] || ''} ${y}`
+    }
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+  } catch {
+    return dateStr
+  }
+}
+
+function scrollToHistory() {
+  if (typeof document !== 'undefined') {
+    const el = document.getElementById('riwayat-presensi-section')
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' })
+    }
   }
 }
 
@@ -741,6 +1088,7 @@ onMounted(() => {
   updateLiveClock()
   timerInterval = setInterval(updateLiveClock, 1000)
   fetchTodayData()
+  fetchMyHistory()
   getLiveLocation()
 })
 

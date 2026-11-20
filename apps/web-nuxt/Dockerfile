@@ -26,6 +26,7 @@ RUN npm run build
 FROM base AS runner
 
 ENV NODE_ENV=production
+ENV TZ="Asia/Jakarta"
 ENV PORT=3000
 ENV HOST=0.0.0.0
 

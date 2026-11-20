@@ -9,7 +9,7 @@ import openpyxl
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from typing import List, Optional, Any
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta, time as dtime
 from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel
 import passlib.hash
@@ -17,6 +17,16 @@ import passlib.hash
 import models, schemas
 from database import get_db
 from deps import get_current_user, check_user_perm
+
+WIB = timezone(timedelta(hours=7))
+
+def get_wib_now() -> datetime:
+    """Current datetime in WIB (Asia/Jakarta, UTC+7) as naive datetime."""
+    return datetime.now(WIB).replace(tzinfo=None)
+
+def get_wib_today() -> date:
+    """Current date in WIB (Asia/Jakarta, UTC+7)."""
+    return datetime.now(WIB).date()
 
 router = APIRouter(prefix="/sdm", tags=["sdm"])
 
@@ -1019,15 +1029,18 @@ async def get_today_employee_attendance(
             (models.Employee.nip == current_user.nik)
         ).first()
 
-    today_date = date.today()
+    today_date = get_wib_today()
     geofence = get_geofence_config(db)
     
     attendance = None
     if employee:
+        s_dt = datetime.combine(today_date, dtime.min)
+        e_dt = datetime.combine(today_date, dtime.max)
         attendance = db.query(models.EmployeeAttendance).filter(
             models.EmployeeAttendance.employee_id == employee.id,
-            models.EmployeeAttendance.date == today_date
-        ).first()
+            models.EmployeeAttendance.date >= s_dt,
+            models.EmployeeAttendance.date <= e_dt
+        ).order_by(models.EmployeeAttendance.id.desc()).first()
         
     return {
         "today": today_date.isoformat(),
@@ -1056,6 +1069,67 @@ async def get_today_employee_attendance(
         "geofence": geofence
     }
 
+@router.get("/attendance/my-history")
+async def get_my_attendance_history(
+    month: Optional[str] = None, # YYYY-MM
+    limit: int = 31,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get personal attendance records for the logged-in employee."""
+    employee = db.query(models.Employee).filter(models.Employee.user_id == current_user.id).first()
+    if not employee:
+        employee = db.query(models.Employee).filter(
+            (models.Employee.nik_kepegawaian == current_user.nik) |
+            (models.Employee.nip == current_user.nik)
+        ).first()
+    if not employee:
+        return {"employee": None, "records": []}
+
+    query = db.query(models.EmployeeAttendance).filter(
+        models.EmployeeAttendance.employee_id == employee.id
+    )
+    if month:
+        try:
+            m_dt = datetime.strptime(month, "%Y-%m").date()
+            import calendar
+            _, last_day = calendar.monthrange(m_dt.year, m_dt.month)
+            s_dt = datetime.combine(m_dt.replace(day=1), dtime.min)
+            e_dt = datetime.combine(m_dt.replace(day=last_day), dtime.max)
+            query = query.filter(models.EmployeeAttendance.date >= s_dt, models.EmployeeAttendance.date <= e_dt)
+        except Exception:
+            pass
+
+    records = query.order_by(models.EmployeeAttendance.date.desc(), models.EmployeeAttendance.id.desc()).limit(limit).all()
+
+    items = []
+    day_names = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Ahad"]
+    for r in records:
+        r_date = r.date.date() if isinstance(r.date, datetime) else r.date
+        d_idx = r_date.weekday() if (r_date and hasattr(r_date, "weekday")) else 0
+        items.append({
+            "id": r.id,
+            "date": r_date.isoformat() if r_date else None,
+            "day_name": day_names[d_idx] if 0 <= d_idx < 7 else "-",
+            "status": r.status.value if hasattr(r.status, "value") else str(r.status),
+            "check_in": r.check_in.isoformat() if r.check_in else None,
+            "check_out": r.check_out.isoformat() if r.check_out else None,
+            "check_in_distance": r.check_in_distance,
+            "check_out_distance": r.check_out_distance,
+            "notes": r.notes,
+            "device_info": r.device_info
+        })
+
+    return {
+        "employee": {
+            "id": employee.id,
+            "nama_lengkap": employee.nama_lengkap,
+            "nip": employee.nip,
+            "position": employee.position
+        },
+        "records": items
+    }
+
 @router.post("/attendance/check-in")
 async def employee_check_in(
     req: schemas.EmployeeCheckInRequest,
@@ -1072,12 +1146,15 @@ async def employee_check_in(
     if not employee:
         raise HTTPException(status_code=400, detail="Data pegawai tidak ditemukan untuk akun ini. Silakan hubungi bagian Tata Usaha.")
 
-    today_date = date.today()
-    now_dt = datetime.now()
+    today_date = get_wib_today()
+    now_dt = get_wib_now()
+    s_dt = datetime.combine(today_date, dtime.min)
+    e_dt = datetime.combine(today_date, dtime.max)
     
     existing = db.query(models.EmployeeAttendance).filter(
         models.EmployeeAttendance.employee_id == employee.id,
-        models.EmployeeAttendance.date == today_date
+        models.EmployeeAttendance.date >= s_dt,
+        models.EmployeeAttendance.date <= e_dt
     ).first()
     
     if existing and existing.check_in:
@@ -1138,7 +1215,7 @@ async def employee_check_in(
     else:
         db_att = models.EmployeeAttendance(
             employee_id=employee.id,
-            date=today_date,
+            date=datetime.combine(today_date, dtime.min),
             status=status_val,
             check_in=now_dt,
             check_in_lat=req.latitude,
@@ -1175,12 +1252,15 @@ async def employee_check_out(
     if not employee:
         raise HTTPException(status_code=400, detail="Data pegawai tidak ditemukan untuk akun ini.")
 
-    today_date = date.today()
-    now_dt = datetime.now()
+    today_date = get_wib_today()
+    now_dt = get_wib_now()
+    s_dt = datetime.combine(today_date, dtime.min)
+    e_dt = datetime.combine(today_date, dtime.max)
     
     existing = db.query(models.EmployeeAttendance).filter(
         models.EmployeeAttendance.employee_id == employee.id,
-        models.EmployeeAttendance.date == today_date
+        models.EmployeeAttendance.date >= s_dt,
+        models.EmployeeAttendance.date <= e_dt
     ).first()
     
     if not existing or not existing.check_in:
@@ -1230,7 +1310,12 @@ async def get_employee_attendances(
     if date:
         from datetime import datetime as dt
         target_date = dt.strptime(date, "%Y-%m-%d").date()
-        query = query.filter(models.EmployeeAttendance.date == target_date)
+        s_dt = datetime.combine(target_date, dtime.min)
+        e_dt = datetime.combine(target_date, dtime.max)
+        query = query.filter(
+            models.EmployeeAttendance.date >= s_dt,
+            models.EmployeeAttendance.date <= e_dt
+        )
         
     if unit_id:
         query = query.join(models.Employee).filter(models.Employee.unit_id == unit_id)
@@ -1454,8 +1539,8 @@ async def get_employee_attendance_recap(
         except ValueError:
             raise HTTPException(status_code=400, detail="Format month tidak valid. Gunakan YYYY-MM.")
     else:
-        # Default to current month
-        today = dt.today().date()
+        # Default to current month (WIB)
+        today = get_wib_today()
         s_date = today.replace(day=1)
         _, last_day = calendar.monthrange(today.year, today.month)
         e_date = today.replace(day=last_day)
@@ -1470,9 +1555,11 @@ async def get_employee_attendance_recap(
     employees = emp_query.all()
 
     # Get all attendance records in date range
+    s_dt = datetime.combine(s_date, dtime.min)
+    e_dt = datetime.combine(e_date, dtime.max)
     att_query = db.query(models.EmployeeAttendance).filter(
-        models.EmployeeAttendance.date >= s_date,
-        models.EmployeeAttendance.date <= e_date
+        models.EmployeeAttendance.date >= s_dt,
+        models.EmployeeAttendance.date <= e_dt
     )
     if unit_id:
         att_query = att_query.join(models.Employee).filter(models.Employee.unit_id == unit_id)
