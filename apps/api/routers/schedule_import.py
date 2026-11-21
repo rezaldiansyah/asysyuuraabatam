@@ -428,3 +428,15 @@ async def confirm_schedule_upload(
         "count": inserted_count,
         "mode": mode
     }
+
+
+@router.post("/seed-smpit")
+async def trigger_seed_smpit(
+    force: bool = False,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Seed SMPIT academic schedule directly into the database."""
+    from seed_smpit_schedules import seed_smpit_data
+    return seed_smpit_data(db, force=force)
+

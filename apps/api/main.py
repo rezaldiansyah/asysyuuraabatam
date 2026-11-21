@@ -915,6 +915,20 @@ def run_migrations_on_startup():
     except Exception as e:
         print(f"[Startup R2 Migration] CMS migration note: {e}")
 
+    # 10. Auto-seed SMPIT schedule data if not yet populated
+    try:
+        from seed_smpit_schedules import seed_smpit_data
+        from database import SessionLocal
+        smpit_db = SessionLocal()
+        try:
+            s_res = seed_smpit_data(smpit_db, force=False)
+            print(f"[Startup Seed] SMPIT schedules status: {s_res}")
+        finally:
+            smpit_db.close()
+    except Exception as e:
+        print(f"[Startup Seed] SMPIT schedules note: {e}")
+
+
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
