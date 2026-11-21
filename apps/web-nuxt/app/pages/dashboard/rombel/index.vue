@@ -180,14 +180,14 @@
           <template #body="{ data }">
             <div class="flex items-center gap-2.5 py-1">
               <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-xs text-slate-700 dark:text-slate-200 shrink-0">
-                {{ data.level }}
+                {{ formatLevelDisplay(data.level, data.unit?.code || data.unit?.name) }}
               </div>
               <div>
                 <div class="font-bold text-slate-800 dark:text-white text-sm">
                   {{ data.name }}
                 </div>
                 <div class="text-[11px] text-slate-400">
-                  Tingkat / Grade {{ data.level }}
+                  {{ formatLevelSubtitle(data.level, data.unit?.code || data.unit?.name) }}
                 </div>
               </div>
             </div>
@@ -566,8 +566,9 @@ const availableLevelsForUnit = computed(() => {
 
   if (code.includes('RA') || code.includes('PAUD')) {
     return [
-      { label: 'Kelompok A', value: 1 },
-      { label: 'Kelompok B', value: 2 }
+      { label: 'Kelompok Bermain (KB)', value: 0 },
+      { label: 'Kelompok A (TK-A)', value: 1 },
+      { label: 'Kelompok B (TK-B)', value: 2 }
     ]
   } else if (code.includes('SMP')) {
     return [
@@ -587,6 +588,30 @@ const availableLevelsForUnit = computed(() => {
     ]
   }
 })
+
+function formatLevelDisplay(level: number, unitCodeOrName?: string) {
+  const u = (unitCodeOrName || '').toUpperCase()
+  if (u.includes('RA') || u.includes('PAUD')) {
+    if (level === 0) return 'KB'
+    if (level === 1) return 'A'
+    if (level === 2) return 'B'
+    return String(level)
+  }
+  return String(level)
+}
+
+function formatLevelSubtitle(level: number, unitCodeOrName?: string) {
+  const u = (unitCodeOrName || '').toUpperCase()
+  if (u.includes('RA') || u.includes('PAUD')) {
+    if (level === 0) return 'Kelompok Bermain (KB)'
+    if (level === 1) return 'Kelompok A'
+    if (level === 2) return 'Kelompok B'
+    return `Jenjang RA ${level}`
+  } else if (u.includes('SMP')) {
+    return `Tingkat ${level} SMP`
+  }
+  return `Tingkat / Kelas ${level} SD`
+}
 
 const filteredTeachersForUnit = computed(() => {
   if (!form.unit_id) return teachers.value
