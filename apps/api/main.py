@@ -928,6 +928,19 @@ def run_migrations_on_startup():
     except Exception as e:
         print(f"[Startup Seed] SMPIT schedules note: {e}")
 
+    # 11. Auto-seed SDIT data (classrooms, subjects, teachers, students, and schedules)
+    try:
+        from seed_sdit_data import seed_sdit_data
+        from database import SessionLocal
+        sdit_db = SessionLocal()
+        try:
+            sdit_res = seed_sdit_data(sdit_db, force=False)
+            print(f"[Startup Seed] SDIT data status: {sdit_res}")
+        finally:
+            sdit_db.close()
+    except Exception as e:
+        print(f"[Startup Seed] SDIT data note: {e}")
+
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")

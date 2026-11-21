@@ -440,3 +440,15 @@ async def trigger_seed_smpit(
     from seed_smpit_schedules import seed_smpit_data
     return seed_smpit_data(db, force=force)
 
+
+@router.post("/seed-sdit")
+async def trigger_seed_sdit(
+    force: bool = False,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Seed SDIT academic data (classrooms, subjects, teachers, students, schedules) into the database."""
+    from seed_sdit_data import seed_sdit_data
+    return seed_sdit_data(db, force=force)
+
+
