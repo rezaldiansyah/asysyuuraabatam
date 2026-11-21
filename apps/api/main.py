@@ -735,10 +735,9 @@ def run_migrations_on_startup():
         lock_db.close()
         return
 
+    # 1. Run direct DDL self-healing for new columns on existing tables
     try:
-        # 1. Run direct DDL self-healing for new columns on existing tables
-        try:
-            with engine.connect() as conn:
+        with engine.connect() as conn:
             conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS recipient_type VARCHAR DEFAULT 'individual'"))
             conn.commit()
             print("[Startup] Verified column documents.recipient_type exists.")
@@ -988,14 +987,17 @@ def run_migrations_on_startup():
     except Exception as e:
         print(f"[Startup Seed] SDIT data note: {e}")
 
-    finally:
-        if is_postgres and lock_acquired:
-            try:
-                lock_db.execute(text("SELECT pg_advisory_unlock(789123456)"))
-                print("[Startup Lock] Released advisory lock.")
-            except Exception:
-                pass
+    # Release multi-worker advisory lock
+    if is_postgres and lock_acquired:
+        try:
+            lock_db.execute(text("SELECT pg_advisory_unlock(789123456)"))
+            print("[Startup Lock] Released advisory lock.")
+        except Exception:
+            pass
+    try:
         lock_db.close()
+    except Exception:
+        pass
 
 
 
