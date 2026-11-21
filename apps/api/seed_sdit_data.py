@@ -292,10 +292,24 @@ def seed_sdit_data(db: Session, force: bool = False):
         db.flush()
 
     inserted_sched_count = 0
+    diag = {
+        "classrooms_map_len": len(classrooms_map),
+        "subjects_map_len": len(subjects_map),
+        "teachers_map_len": len(teachers_map),
+        "missing_cr": 0,
+        "missing_subj": 0,
+        "missing_teacher": 0,
+        "existing_skipped": 0,
+        "first_error": None
+    }
     for item in schedules_spec:
         cr = classrooms_map.get(item["classroom_name"])
         subj = subjects_map.get(item["subject_code"])
         teacher = teachers_map.get(item["teacher_nik"])
+
+        if not cr: diag["missing_cr"] += 1
+        if not subj: diag["missing_subj"] += 1
+        if not teacher: diag["missing_teacher"] += 1
 
         if cr and subj and teacher:
             day_str = str(item.get("day", "")).strip().upper()
@@ -320,7 +334,11 @@ def seed_sdit_data(db: Session, force: bool = False):
                         db.add(sched)
                         db.flush()
                         inserted_sched_count += 1
+                    else:
+                        diag["existing_skipped"] += 1
             except Exception as sc_err:
+                if not diag["first_error"]:
+                    diag["first_error"] = str(sc_err)
                 print(f"[Seed SDIT] Schedule insert note: {sc_err}")
 
     db.commit()
@@ -329,5 +347,6 @@ def seed_sdit_data(db: Session, force: bool = False):
         "status": "success",
         "message": f"Successfully seeded {len(students_spec)} students and {inserted_sched_count} schedules for SDIT.",
         "students_count": len(students_spec),
-        "schedules_count": inserted_sched_count
+        "schedules_count": inserted_sched_count,
+        "diagnostics": diag
     }
