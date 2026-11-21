@@ -3,11 +3,18 @@ import json
 from datetime import datetime
 from sqlalchemy.orm import Session
 import models
+from deduplicate_academic import deduplicate_academic_data
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sdit_data.json")
 
 def seed_sdit_data(db: Session, force: bool = False):
     """Seed SDIT academic year, unit, classrooms, subjects, teachers, students, and schedules."""
+    # First, run deduplication on any duplicate classrooms/subjects
+    try:
+        deduplicate_academic_data(db)
+    except Exception as e:
+        print(f"[Seed SDIT] Pre-deduplication note: {e}")
+
     if not os.path.exists(DATA_PATH):
         print(f"[Seed SDIT] Data file not found: {DATA_PATH}")
         return {"status": "error", "message": "Data file not found"}
@@ -140,7 +147,8 @@ def seed_sdit_data(db: Session, force: bool = False):
 
         cr = db.query(models.Classroom).filter(
             models.Classroom.unit_id == sdit_unit.id,
-            models.Classroom.name == cs["name"]
+            models.Classroom.name == cs["name"],
+            models.Classroom.academic_year_id == ay.id
         ).first()
 
         if not cr:
@@ -193,16 +201,21 @@ def seed_sdit_data(db: Session, force: bool = False):
 
     for st in students_spec:
         nis = st.get("nis")
+        nis = str(nis).strip() if nis else None
         nisn = st.get("nisn")
+        nisn = str(nisn).strip() if nisn and str(nisn).strip() else None
+
         nama = st.get("name")
         gender = st.get("gender", "L")
+        if gender not in ["L", "P"]:
+            gender = "L"
+
         pob = st.get("birth_place")
         dob_str = st.get("birth_date")
         cr_name = st.get("classroom")
 
         if nis:
             if nis in seen_nis:
-                # Disambiguate duplicate NIS from document typo
                 nis = f"{nis}-B"
             seen_nis.add(nis)
 
@@ -215,36 +228,42 @@ def seed_sdit_data(db: Session, force: bool = False):
             except Exception:
                 dob = None
 
-        student = None
-        if nis:
-            student = db.query(models.Student).filter(models.Student.nis == nis).first()
-        if not student and nisn:
-            student = db.query(models.Student).filter(models.Student.nisn == nisn).first()
-        if not student and nama:
-            student = db.query(models.Student).filter(
-                models.Student.unit_id == sdit_unit.id,
-                models.Student.full_name == nama
-            ).first()
+        try:
+            with db.begin_nested():
+                student = None
+                if nis:
+                    student = db.query(models.Student).filter(models.Student.nis == nis).first()
+                if not student and nisn:
+                    student = db.query(models.Student).filter(models.Student.nisn == nisn).first()
+                if not student and nama:
+                    student = db.query(models.Student).filter(
+                        models.Student.unit_id == sdit_unit.id,
+                        models.Student.full_name == nama
+                    ).first()
 
-        if not student:
-            student = models.Student(
-                nis=nis,
-                nisn=nisn,
-                full_name=nama,
-                gender=gender,
-                birth_place=pob,
-                birth_date=dob,
-                status="ACTIVE",
-                current_classroom_id=cr.id if cr else None,
-                unit_id=sdit_unit.id
-            )
-            db.add(student)
-            student_count += 1
-        else:
-            if cr and student.current_classroom_id != cr.id:
-                student.current_classroom_id = cr.id
-            if not student.unit_id:
-                student.unit_id = sdit_unit.id
+                if not student:
+                    student = models.Student(
+                        nis=nis,
+                        nisn=nisn,
+                        full_name=nama,
+                        gender=gender,
+                        birth_place=pob,
+                        birth_date=dob,
+                        status="ACTIVE",
+                        current_classroom_id=cr.id if cr else None,
+                        unit_id=sdit_unit.id
+                    )
+                    db.add(student)
+                    db.flush()
+                    student_count += 1
+                else:
+                    if cr and student.current_classroom_id != cr.id:
+                        student.current_classroom_id = cr.id
+                    if not student.unit_id:
+                        student.unit_id = sdit_unit.id
+                    db.flush()
+        except Exception as st_err:
+            print(f"[Seed SDIT] Note skipping/recovering student {nama} ({nis}): {st_err}")
 
     db.commit()
     print(f"[Seed SDIT] Seeded {student_count} new students (Total dataset: {len(students_spec)})")
@@ -279,17 +298,29 @@ def seed_sdit_data(db: Session, force: bool = False):
         teacher = teachers_map.get(item["teacher_nik"])
 
         if cr and subj and teacher:
-            sched = models.Schedule(
-                academic_year_id=ay.id,
-                classroom_id=cr.id,
-                subject_id=subj.id,
-                teacher_id=teacher.id,
-                day=item["day"],
-                start_time=item["start_time"],
-                end_time=item["end_time"]
-            )
-            db.add(sched)
-            inserted_sched_count += 1
+            try:
+                with db.begin_nested():
+                    existing = db.query(models.Schedule).filter(
+                        models.Schedule.academic_year_id == ay.id,
+                        models.Schedule.classroom_id == cr.id,
+                        models.Schedule.day == item["day"],
+                        models.Schedule.start_time == item["start_time"]
+                    ).first()
+                    if not existing:
+                        sched = models.Schedule(
+                            academic_year_id=ay.id,
+                            classroom_id=cr.id,
+                            subject_id=subj.id,
+                            teacher_id=teacher.id,
+                            day=item["day"],
+                            start_time=item["start_time"],
+                            end_time=item["end_time"]
+                        )
+                        db.add(sched)
+                        db.flush()
+                        inserted_sched_count += 1
+            except Exception as sc_err:
+                print(f"[Seed SDIT] Schedule insert note: {sc_err}")
 
     db.commit()
     print(f"[Seed SDIT] Successfully seeded {inserted_sched_count} schedules for SDIT!")

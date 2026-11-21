@@ -714,10 +714,31 @@ def run_cms_migration(db: Session) -> dict:
 
 @app.on_event("startup")
 def run_migrations_on_startup():
-    # 1. Run direct DDL self-healing for new columns on existing tables
+    from database import SessionLocal
+    from sqlalchemy import text
+
+    # Multi-worker lock: ensure only one Gunicorn worker executes migrations & startup seeding
+    lock_db = SessionLocal()
+    lock_acquired = True
+    is_postgres = False
     try:
-        from sqlalchemy import text
-        with engine.connect() as conn:
+        bind_url = str(lock_db.bind.url) if hasattr(lock_db, "bind") and lock_db.bind else ""
+        if "postgresql" in bind_url:
+            is_postgres = True
+            lock_acquired = bool(lock_db.execute(text("SELECT pg_try_advisory_lock(789123456)")).scalar())
+    except Exception as lock_err:
+        print(f"[Startup Lock Warning]: {lock_err}")
+        lock_acquired = True
+
+    if not lock_acquired:
+        print("[Startup Migration] Another Gunicorn worker is already executing startup migrations/seeds. Skipping.")
+        lock_db.close()
+        return
+
+    try:
+        # 1. Run direct DDL self-healing for new columns on existing tables
+        try:
+            with engine.connect() as conn:
             conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS recipient_type VARCHAR DEFAULT 'individual'"))
             conn.commit()
             print("[Startup] Verified column documents.recipient_type exists.")
@@ -915,6 +936,19 @@ def run_migrations_on_startup():
     except Exception as e:
         print(f"[Startup R2 Migration] CMS migration note: {e}")
 
+    # 9.5 Deduplicate classrooms and subjects across all units
+    try:
+        from deduplicate_academic import deduplicate_academic_data
+        from database import SessionLocal
+        dedup_db = SessionLocal()
+        try:
+            d_res = deduplicate_academic_data(dedup_db)
+            print(f"[Startup Deduplicate] Status: {d_res}")
+        finally:
+            dedup_db.close()
+    except Exception as e:
+        print(f"[Startup Deduplicate] Note: {e}")
+
     # 10. Merge duplicate teacher profiles (e.g. Dr. M. Tholibin Azhari & Debby Liyani Ra'ad)
     try:
         from merge_duplicate_teachers import merge_all_duplicates
@@ -953,6 +987,15 @@ def run_migrations_on_startup():
             sdit_db.close()
     except Exception as e:
         print(f"[Startup Seed] SDIT data note: {e}")
+
+    finally:
+        if is_postgres and lock_acquired:
+            try:
+                lock_db.execute(text("SELECT pg_advisory_unlock(789123456)"))
+                print("[Startup Lock] Released advisory lock.")
+            except Exception:
+                pass
+        lock_db.close()
 
 
 

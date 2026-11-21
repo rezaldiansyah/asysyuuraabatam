@@ -462,4 +462,15 @@ async def trigger_merge_teachers(
     return merge_all_duplicates(db)
 
 
+@router.post("/deduplicate")
+async def trigger_deduplicate(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Deduplicate duplicate classrooms and subjects across all units."""
+    from deduplicate_academic import deduplicate_academic_data
+    return deduplicate_academic_data(db)
+
+
+
 
