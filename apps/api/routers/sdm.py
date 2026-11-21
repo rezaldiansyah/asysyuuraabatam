@@ -948,6 +948,47 @@ def get_expected_checkout_time(
             return smpit_time
         return default_val
 
+def get_expected_checkin_time(
+    target_date: Any,
+    unit_code: Optional[str] = None,
+    unit_name: Optional[str] = None,
+    geofence: Optional[dict] = None
+) -> str:
+    cfg = geofence or DEFAULT_GEOFENCE
+    if isinstance(target_date, str):
+        try:
+            target_date = datetime.strptime(target_date[:10], "%Y-%m-%d").date()
+        except Exception:
+            return cfg.get("work_start_time", "06:45")
+    elif hasattr(target_date, "date") and callable(target_date.date):
+        target_date = target_date.date()
+
+    if not hasattr(target_date, "weekday"):
+        return cfg.get("work_start_time", "06:45")
+
+    weekday = target_date.weekday()
+    if weekday == 6: # Ahad
+        return "Libur"
+
+    u_code = (unit_code or "").upper().strip()
+    if not u_code and unit_name:
+        u_name = unit_name.upper().strip()
+        if "YAYASAN" in u_name or u_name.startswith("YYS") or "YYS" in u_name.split():
+            u_code = "YYS"
+        elif re.search(r'\bRA\b', u_name) or u_name.startswith("RA ") or u_name == "RA" or "RAUDHATUL" in u_name:
+            u_code = "RA"
+        elif "SDIT" in u_name or re.search(r'\bSD\b', u_name):
+            u_code = "SDIT"
+        elif "SMPIT" in u_name or re.search(r'\bSMP\b', u_name):
+            u_code = "SMPIT"
+
+    unit_schedules = cfg.get("unit_schedules") or {}
+    if u_code and u_code in unit_schedules:
+        u_cfg = unit_schedules[u_code] or {}
+        return u_cfg.get("work_start_time") or cfg.get("work_start_time", "06:45")
+
+    return cfg.get("work_start_time", "06:45")
+
 def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Returns distance in meters between two lat/lon coordinates."""
     R = 6371000.0  # Earth radius in meters
@@ -1627,12 +1668,13 @@ async def get_employee_attendance_recap(
         a = sum(1 for a in emp_att if status_str(a) == 'ABSENT')
         total = h + s + i + cuti + a
 
-        # Monthly breakdown for trend analysis & Overtime/Sunday logs & Early Leave & Alpa & Tidak Absen Pulang
+        # Monthly breakdown for trend analysis & Overtime/Sunday logs & Early Leave & Alpa & Tidak Absen Pulang & Terlambat
         monthly_trend = {}
         overtime_records = []
         early_leave_records = []
         alpa_records = []
         no_checkout_records = []
+        late_records = []
         total_lembur = 0
         total_ahad = 0
         total_pulang_cepat = 0
@@ -1652,10 +1694,41 @@ async def get_employee_attendance_recap(
                         "tidak_absen_pulang": 0
                     }
                 st = status_str(att)
+                notes_text = att.notes or ""
                 if st in ['PRESENT', 'LATE']:
                     monthly_trend[m_key]["hadir"] += 1
                 if st == 'LATE':
                     monthly_trend[m_key]["terlambat"] += 1
+                    date_str_late = att.date.strftime("%Y-%m-%d") if hasattr(att.date, "strftime") else str(att.date)[:10]
+                    day_idx_late = att.date.weekday() if hasattr(att.date, "weekday") else 0
+                    day_name_late = day_names_id[day_idx_late] if 0 <= day_idx_late < len(day_names_id) else "-"
+
+                    unit_code = emp.unit.code if emp.unit else None
+                    unit_label = emp.unit.name if emp.unit else None
+                    exp_in_str = get_expected_checkin_time(att.date, unit_code=unit_code, unit_name=unit_label, geofence=geofence)
+
+                    mins_late = 0
+                    if att.check_in and hasattr(att.check_in, "time") and exp_in_str and exp_in_str != "Libur":
+                        try:
+                            exp_h, exp_m = map(int, exp_in_str.split(":"))
+                            exp_total = (exp_h * 60) + exp_m
+                            act_total = (att.check_in.hour * 60) + att.check_in.minute
+                            if act_total > exp_total:
+                                mins_late = act_total - exp_total
+                        except Exception:
+                            pass
+
+                    late_records.append({
+                        "attendance_id": att.id,
+                        "date": date_str_late,
+                        "day_name": day_name_late,
+                        "expected_checkin": exp_in_str,
+                        "check_in": att.check_in.strftime("%H:%M") if (att.check_in and hasattr(att.check_in, "strftime")) else "-",
+                        "check_out": att.check_out.strftime("%H:%M") if (att.check_out and hasattr(att.check_out, "strftime")) else "-",
+                        "minutes_late": mins_late,
+                        "notes": notes_text or "Terlambat",
+                        "status": st
+                    })
                 elif st == 'SICK':
                     monthly_trend[m_key]["sakit"] += 1
                 elif st in ['PERMIT', 'DISPENSATION']:
@@ -1811,11 +1884,12 @@ async def get_employee_attendance_recap(
                 import logging
                 logging.getLogger(__name__).warning(f"Error processing attendance record {getattr(att, 'id', None)}: {e}")
 
-        # Sort overtime, early leave, alpa, and no checkout records descending by date
+        # Sort overtime, early leave, alpa, no checkout, and late records descending by date
         overtime_records.sort(key=lambda x: x["date"], reverse=True)
         early_leave_records.sort(key=lambda x: x["date"], reverse=True)
         alpa_records.sort(key=lambda x: x["date"], reverse=True)
         no_checkout_records.sort(key=lambda x: x["date"], reverse=True)
+        late_records.sort(key=lambda x: x["date"], reverse=True)
 
         results.append({
             "employee_id": emp.id,
@@ -1843,7 +1917,8 @@ async def get_employee_attendance_recap(
             "overtime_records": overtime_records,
             "early_leave_records": early_leave_records,
             "alpa_records": alpa_records,
-            "no_checkout_records": no_checkout_records
+            "no_checkout_records": no_checkout_records,
+            "late_records": late_records
         })
 
     if has_cleanup:

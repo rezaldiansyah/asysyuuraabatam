@@ -360,9 +360,20 @@
             </template>
           </Column>
 
-          <Column field="terlambat" header="Terlambat" sortable style="width: 95px">
+          <Column field="terlambat" header="Terlambat" sortable style="min-width: 105px">
             <template #body="{ data }">
-              <span class="font-semibold text-amber-600">{{ data.terlambat || 0 }}</span>
+              <button
+                v-if="data.terlambat > 0"
+                type="button"
+                class="px-2 py-0.5 rounded-md bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-semibold text-xs inline-flex items-center gap-1 transition"
+                :title="`Klik untuk melihat riwayat ${data.terlambat}x terlambat`"
+                @click="openLateStaffModal(data)"
+              >
+                <i class="pi pi-clock text-[10px]"></i>
+                <span>{{ data.terlambat }}x</span>
+                <i class="pi pi-eye text-[9px] opacity-75"></i>
+              </button>
+              <span v-else class="text-slate-300 dark:text-slate-600 text-xs">-</span>
             </template>
           </Column>
 
@@ -527,9 +538,19 @@
             </div>
           </div>
           <div class="flex items-center gap-1.5 text-xs font-bold">
-            <span v-if="recapModalType === 'terlambat'" class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700">
-              {{ emp.terlambat }}x Terlambat
-            </span>
+            <div v-if="recapModalType === 'terlambat'" class="flex items-center gap-1.5">
+              <span class="px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300">
+                {{ emp.terlambat }}x Terlambat
+              </span>
+              <button
+                type="button"
+                @click="openLateStaffModal(emp)"
+                class="w-7 h-7 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/80 dark:hover:bg-amber-900 text-amber-700 dark:text-amber-300 flex items-center justify-center transition border border-amber-200 dark:border-amber-800"
+                title="Lihat rincian tanggal dan jam keterlambatan"
+              >
+                <i class="pi pi-eye text-xs"></i>
+              </button>
+            </div>
             <div v-else-if="recapModalType === 'pulang_cepat'" class="flex items-center gap-1.5">
               <span class="px-2.5 py-1 rounded-lg bg-orange-100 text-orange-700">
                 {{ emp.total_pulang_cepat }}x Pulang Cepat ({{ emp.total_menit_pulang_cepat || 0 }}m)
@@ -657,6 +678,109 @@
 
       <template #footer>
         <Button label="Tutup" icon="pi pi-times" severity="secondary" text size="small" @click="showEarlyLeaveStaffDialog = false" />
+      </template>
+    </Dialog>
+
+    <!-- Dialog Detail Terlambat Per Pegawai -->
+    <Dialog
+      v-model:visible="showLateStaffDialog"
+      :modal="true"
+      :style="{ width: '50rem', maxWidth: '95vw' }"
+    >
+      <template #header>
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <i class="pi pi-clock text-lg"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800 dark:text-white">
+              Riwayat Keterlambatan: {{ selectedLateStaff?.nama_lengkap }}
+            </h3>
+            <p class="text-xs text-slate-400">
+              {{ selectedLateStaff?.unit_name }} &bull; Periode: {{ activePeriodLabel }}
+            </p>
+          </div>
+        </div>
+      </template>
+
+      <div class="space-y-4 pt-1 max-h-[65vh] overflow-y-auto pr-1">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-xs gap-2">
+          <div class="text-slate-600 dark:text-slate-300">
+            Total Kejadian: <strong class="text-amber-700 dark:text-amber-300">{{ selectedLateStaff?.terlambat || 0 }}x Hari Terlambat</strong>
+          </div>
+          <div class="text-slate-500 text-[11px] flex items-center gap-1.5">
+            <i class="pi pi-info-circle text-primary text-xs"></i>
+            <span>Pegawai melakukan tap absen masuk melewati batas jam operasional unit.</span>
+          </div>
+        </div>
+
+        <DataTable
+          :value="selectedLateStaff?.late_records || []"
+          responsiveLayout="scroll"
+          class="text-xs"
+          stripedRows
+        >
+          <template #empty>
+            <div class="p-6 text-center text-slate-400">
+              <i class="pi pi-check-circle text-2xl text-emerald-500 mb-2"></i>
+              <p>Tidak ada catatan keterlambatan pada periode ini.</p>
+            </div>
+          </template>
+
+          <Column header="Hari & Tanggal" style="min-width: 140px">
+            <template #body="{ data }">
+              <div class="font-bold text-slate-800 dark:text-white">{{ data.day_name }}, {{ data.date }}</div>
+            </template>
+          </Column>
+
+          <Column header="Batas Masuk" style="width: 110px">
+            <template #body="{ data }">
+              <span class="font-mono text-slate-500">{{ data.expected_checkin || '06:45' }}</span>
+            </template>
+          </Column>
+
+          <Column header="Jam Masuk" style="width: 110px">
+            <template #body="{ data }">
+              <span class="font-mono font-bold text-amber-600 dark:text-amber-400">{{ data.check_in }}</span>
+            </template>
+          </Column>
+
+          <Column header="Keterlambatan" style="width: 130px">
+            <template #body="{ data }">
+              <span v-if="data.minutes_late > 0" class="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[11px] font-bold">
+                +{{ data.minutes_late }} menit
+              </span>
+              <span v-else class="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 text-[11px]">
+                Terlambat
+              </span>
+            </template>
+          </Column>
+
+          <Column header="Catatan" style="min-width: 160px">
+            <template #body="{ data }">
+              <span class="text-slate-500 text-[11px] italic">{{ data.notes || '-' }}</span>
+            </template>
+          </Column>
+
+          <Column v-if="canEditAttendance" header="Aksi" style="width: 120px; text-align: center">
+            <template #body="{ data }">
+              <Button
+                label="Klarifikasi"
+                icon="pi pi-pencil"
+                severity="warning"
+                size="small"
+                outlined
+                class="!py-1 !px-2 !text-xs font-semibold"
+                title="Klarifikasi jam masuk atau ubah status"
+                @click="openEditAttendanceModal(data, selectedLateStaff)"
+              />
+            </template>
+          </Column>
+        </DataTable>
+      </div>
+
+      <template #footer>
+        <Button label="Tutup" icon="pi pi-times" severity="secondary" text size="small" @click="showLateStaffDialog = false" />
       </template>
     </Dialog>
 
@@ -1729,6 +1853,15 @@ type RecapModalType = 'terlambat' | 'pulang_cepat' | 'tidak_absen_pulang' | 'izi
 const showRecapModal = ref(false)
 const recapModalType = ref<RecapModalType>('alpa')
 
+// Staff Late (Terlambat) Detail Dialog
+const showLateStaffDialog = ref(false)
+const selectedLateStaff = ref<any | null>(null)
+
+function openLateStaffModal(emp: any) {
+  selectedLateStaff.value = emp
+  showLateStaffDialog.value = true
+}
+
 // Staff Early Leave Detail Dialog
 const showEarlyLeaveStaffDialog = ref(false)
 const selectedEarlyLeaveStaff = ref<any | null>(null)
@@ -1773,22 +1906,23 @@ const editAttendanceForm = ref({
 })
 
 const attendanceStatusOptions = [
+  { label: 'Hadir Manual (Verifikasi Kehadiran)', value: 'PRESENT', icon: 'pi pi-check text-emerald-600' },
+  { label: 'Terlambat (Dengan Catatan)', value: 'LATE', icon: 'pi pi-clock text-amber-500' },
+  { label: 'Dispensasi / Tugas Luar (Dinas / Pelatihan)', value: 'DISPENSATION', icon: 'pi pi-briefcase text-sky-500' },
   { label: 'Sakit (Surat Dokter / Sakit)', value: 'SICK', icon: 'pi pi-heart text-amber-500' },
   { label: 'Izin Biasa (Keperluan Pribadi / Keluarga)', value: 'PERMIT', icon: 'pi pi-info-circle text-blue-500' },
-  { label: 'Dispensasi / Tugas Luar (Dinas / Pelatihan)', value: 'DISPENSATION', icon: 'pi pi-briefcase text-sky-500' },
   { label: 'Cuti Tahunan', value: 'LEAVE_ANNUAL', icon: 'pi pi-calendar text-purple-500' },
   { label: 'Cuti Melahirkan', value: 'LEAVE_MATERNITY', icon: 'pi pi-user text-pink-500' },
   { label: 'Cuti Menikah', value: 'LEAVE_MARRIAGE', icon: 'pi pi-heart-fill text-rose-500' },
   { label: 'Cuti Berkabung (Kedukaan)', value: 'LEAVE_BEREAVEMENT', icon: 'pi pi-moon text-slate-500' },
   { label: 'Cuti Ibadah (Haji / Umroh)', value: 'LEAVE_PILGRIMAGE', icon: 'pi pi-compass text-emerald-500' },
   { label: 'Cuti di Luar Tanggungan', value: 'LEAVE_UNPAID', icon: 'pi pi-file text-slate-400' },
-  { label: 'Hadir Manual (Verifikasi Kehadiran)', value: 'PRESENT', icon: 'pi pi-check text-emerald-600' },
   { label: 'Alpa (Tetap Tanpa Keterangan)', value: 'ABSENT', icon: 'pi pi-times-circle text-rose-600' }
 ]
 
 function openEditAttendanceModal(record: any, staff: any) {
   const isNoCheckout = !record.check_out || record.check_out === '-'
-  const initialStatus = isNoCheckout && record.check_in ? 'PRESENT' : (record.status || 'SICK')
+  const initialStatus = record.status || (isNoCheckout && record.check_in ? 'PRESENT' : 'SICK')
   editAttendanceForm.value = {
     attendance_id: record.attendance_id || 0,
     employee_id: staff.employee_id,
@@ -1796,10 +1930,10 @@ function openEditAttendanceModal(record: any, staff: any) {
     date: record.date,
     day_name: record.day_name,
     status: initialStatus,
-    original_status: isNoCheckout && record.check_in ? 'NO_CHECKOUT' : 'ABSENT',
-    check_in: record.check_in || '',
+    original_status: record.status || (isNoCheckout && record.check_in ? 'NO_CHECKOUT' : 'ABSENT'),
+    check_in: record.check_in && record.check_in !== '-' ? record.check_in : '',
     check_out: (record.check_out && record.check_out !== '-') ? record.check_out : '',
-    notes: record.notes && record.notes !== 'Tidak ada data di Fingerprint' && record.notes !== 'Tanpa Keterangan' && record.notes !== 'Tidak tap pulang' ? record.notes : ''
+    notes: record.notes && record.notes !== 'Tidak ada data di Fingerprint' && record.notes !== 'Tanpa Keterangan' && record.notes !== 'Tidak tap pulang' && record.notes !== 'Terlambat' ? record.notes : ''
   }
   showEditAttendanceModal.value = true
 }
