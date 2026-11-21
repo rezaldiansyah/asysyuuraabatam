@@ -452,3 +452,14 @@ async def trigger_seed_sdit(
     return seed_sdit_data(db, force=force)
 
 
+@router.post("/merge-teachers")
+async def trigger_merge_teachers(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Merge duplicate employee & user records (Dr. M. Tholibin Azhari and Debby Liyani Ra'ad)."""
+    from merge_duplicate_teachers import merge_all_duplicates
+    return merge_all_duplicates(db)
+
+
+

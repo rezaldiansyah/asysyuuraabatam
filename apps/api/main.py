@@ -915,7 +915,20 @@ def run_migrations_on_startup():
     except Exception as e:
         print(f"[Startup R2 Migration] CMS migration note: {e}")
 
-    # 10. Auto-seed SMPIT schedule data if not yet populated
+    # 10. Merge duplicate teacher profiles (e.g. Dr. M. Tholibin Azhari & Debby Liyani Ra'ad)
+    try:
+        from merge_duplicate_teachers import merge_all_duplicates
+        from database import SessionLocal
+        merge_db = SessionLocal()
+        try:
+            m_res = merge_all_duplicates(merge_db)
+            print(f"[Startup Merge] Duplicate teachers status: {m_res}")
+        finally:
+            merge_db.close()
+    except Exception as e:
+        print(f"[Startup Merge] Duplicate teachers note: {e}")
+
+    # 11. Auto-seed SMPIT schedule data if not yet populated
     try:
         from seed_smpit_schedules import seed_smpit_data
         from database import SessionLocal
@@ -928,7 +941,7 @@ def run_migrations_on_startup():
     except Exception as e:
         print(f"[Startup Seed] SMPIT schedules note: {e}")
 
-    # 11. Auto-seed SDIT data (classrooms, subjects, teachers, students, and schedules)
+    # 12. Auto-seed SDIT data (classrooms, subjects, teachers, students, and schedules)
     try:
         from seed_sdit_data import seed_sdit_data
         from database import SessionLocal
