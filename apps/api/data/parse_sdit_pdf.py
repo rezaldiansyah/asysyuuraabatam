@@ -284,7 +284,7 @@ def parse_all():
                     subject_name = SUBJECT_NAMES.get(subject_code, subject_code)
 
                     schedules.append({
-                        'day': day,
+                        'day': day.upper(),
                         'start_time': start_t,
                         'end_time': end_t,
                         'classroom_name': cr_name,

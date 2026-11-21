@@ -298,12 +298,13 @@ def seed_sdit_data(db: Session, force: bool = False):
         teacher = teachers_map.get(item["teacher_nik"])
 
         if cr and subj and teacher:
+            day_str = str(item.get("day", "")).strip().upper()
             try:
                 with db.begin_nested():
                     existing = db.query(models.Schedule).filter(
                         models.Schedule.academic_year_id == ay.id,
                         models.Schedule.classroom_id == cr.id,
-                        models.Schedule.day == item["day"],
+                        models.Schedule.day == day_str,
                         models.Schedule.start_time == item["start_time"]
                     ).first()
                     if not existing:
@@ -312,7 +313,7 @@ def seed_sdit_data(db: Session, force: bool = False):
                             classroom_id=cr.id,
                             subject_id=subj.id,
                             teacher_id=teacher.id,
-                            day=item["day"],
+                            day=day_str,
                             start_time=item["start_time"],
                             end_time=item["end_time"]
                         )
