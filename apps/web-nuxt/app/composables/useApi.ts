@@ -4,6 +4,8 @@ interface FetchOptions {
     method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
     body?: any
     headers?: Record<string, string>
+    params?: Record<string, any>
+    query?: Record<string, any>
 }
 
 export function useApi() {
@@ -45,10 +47,12 @@ export function useApi() {
         const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`
 
         try {
+            const query = options.params || options.query
             const response = await $fetch<T>(url, {
                 method: options.method || 'GET',
                 headers,
-                body: options.body ? JSON.stringify(options.body) : undefined,
+                query,
+                body: options.body ? (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)) : undefined,
             })
             return response
         } catch (err: any) {
@@ -196,11 +200,11 @@ export function useApi() {
     }
 
     return {
-        get: <T>(endpoint: string) => fetch<T>(endpoint),
-        post: <T>(endpoint: string, body: any) => fetch<T>(endpoint, { method: 'POST', body }),
-        put: <T>(endpoint: string, body: any) => fetch<T>(endpoint, { method: 'PUT', body }),
-        patch: <T>(endpoint: string, body: any) => fetch<T>(endpoint, { method: 'PATCH', body }),
-        delete: <T>(endpoint: string) => fetch<T>(endpoint, { method: 'DELETE' }),
+        get: <T>(endpoint: string, options: FetchOptions = {}) => fetch<T>(endpoint, { ...options, method: 'GET' }),
+        post: <T>(endpoint: string, body?: any, options: FetchOptions = {}) => fetch<T>(endpoint, { ...options, method: 'POST', body }),
+        put: <T>(endpoint: string, body?: any, options: FetchOptions = {}) => fetch<T>(endpoint, { ...options, method: 'PUT', body }),
+        patch: <T>(endpoint: string, body?: any, options: FetchOptions = {}) => fetch<T>(endpoint, { ...options, method: 'PATCH', body }),
+        delete: <T>(endpoint: string, options: FetchOptions = {}) => fetch<T>(endpoint, { ...options, method: 'DELETE' }),
         upload,
     }
 }

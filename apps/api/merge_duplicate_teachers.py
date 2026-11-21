@@ -109,9 +109,18 @@ def merge_employee_and_user_pair(
             )
             db.flush()
 
-            # Delete secondary employee
-            db.delete(sec_emp)
-            db.flush()
+            # Delete secondary employee safely with savepoint
+            try:
+                with db.begin_nested():
+                    db.delete(sec_emp)
+                    db.flush()
+                print(f"[{target_label}] Deleted secondary employee ID={sec_emp.id}.")
+            except Exception as del_err:
+                print(f"[{target_label}] Could not delete secondary employee {sec_emp.id} ({del_err}), deactivating instead.")
+                sec_emp.is_active = False
+                sec_emp.nik_kepegawaian = f"dup_{sec_emp.id}"
+                sec_emp.nip = None
+                db.flush()
 
     # Reassign schedules and user foreign keys
     if primary_user:
@@ -147,9 +156,18 @@ def merge_employee_and_user_pair(
                     pass
 
             db.flush()
-            # Delete secondary user
-            db.delete(sec_user)
-            db.flush()
+            # Delete secondary user safely with savepoint
+            try:
+                with db.begin_nested():
+                    db.delete(sec_user)
+                    db.flush()
+                print(f"[{target_label}] Deleted secondary user ID={sec_user.id}.")
+            except Exception as del_err:
+                print(f"[{target_label}] Could not delete secondary user {sec_user.id} ({del_err}), deactivating instead.")
+                sec_user.is_active = False
+                sec_user.nik = f"dup_{sec_user.id}"
+                sec_user.email = f"merged_{sec_user.id}_{sec_user.email}"
+                db.flush()
 
     # Finally, standardize canonical names and NIK on primary
     if primary_emp:

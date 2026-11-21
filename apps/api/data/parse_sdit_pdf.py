@@ -17,7 +17,7 @@ TEACHERS = {
     'Lastri': {'nik': '1120160087', 'name': 'Sulastri, S.E., Gr.', 'email': 'sulastri@asy-syuuraabatam.or.id'},
     'Hafsah': {'nik': '1120230168', 'name': 'Hafsah Fauziyyah Yusra, S.Pd., Gr.', 'email': 'hafsah.fauziyyah@asy-syuuraabatam.or.id'},
     'Yellya': {'nik': '1120090020', 'name': 'Yellya Asri, S.Pd., Gr.', 'email': 'yellya.asri@asy-syuuraabatam.or.id'},
-    'Aji': {'nik': '1120230171', 'name': 'Tri Aji Pangestu, S.Pd', 'email': 'tri.aji@asy-syuuraabatam.or.id'},
+    'Aji': {'nik': '1120240171', 'name': 'Aji Pramana, S.Pd', 'email': 'ajipramana250617@gmail.com'},
     'Deby': {'nik': '1120220152', 'name': 'Debby Liyany Ra\'ad, S.Pd., Gr.', 'email': 'debby.liyani@asy-syuuraabatam.or.id'},
     'Ayu': {'nik': '1120220146', 'name': 'Ayu Zahara Salsabila', 'email': 'ayu.zahara@asy-syuuraabatam.or.id'},
     'Fifah': {'nik': '1120240176', 'name': 'Khafifah Mulya Ikhwani, S.Ag', 'email': 'khafifah.mulya@asy-syuuraabatam.or.id'},
