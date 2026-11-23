@@ -46,30 +46,46 @@ def seed_smpit_data(db: Session, force: bool = False):
     # 3. Classrooms
     classrooms_map = {}
     class_specs = [
-        {"name": "VII", "level": 7},
-        {"name": "VIII", "level": 8},
-        {"name": "IX-A", "level": 9},
-        {"name": "IX-B", "level": 9},
+        {"name": "VII", "level": 7, "homeroom_nik": "1220220155"},  # Astina Marru Kirama Baifar, S.Pd
+        {"name": "VIII", "level": 8, "homeroom_nik": "1220250179"}, # Nurmatin Khanifah, S.H
+        {"name": "IX-A", "level": 9, "homeroom_nik": "1220140051"}, # Lismanizar, S.Si
+        {"name": "IX-B", "level": 9, "homeroom_nik": "1220240172"}, # Permadi, S.Sos
     ]
     for cs in class_specs:
         cr = db.query(models.Classroom).filter(
             models.Classroom.unit_id == smpit_unit.id,
             models.Classroom.name == cs["name"]
         ).first()
+
+        hr_user = None
+        if cs.get("homeroom_nik"):
+            emp = db.query(models.Employee).filter(models.Employee.nik == cs["homeroom_nik"]).first()
+            if emp:
+                hr_user = db.query(models.User).filter(models.User.id == emp.user_id).first()
+                if not hr_user:
+                    hr_user = db.query(models.User).filter(models.User.email == emp.email).first()
+
         if not cr:
             cr = models.Classroom(
                 name=cs["name"],
                 level=cs["level"],
                 unit_id=smpit_unit.id,
-                academic_year_id=ay.id
+                academic_year_id=ay.id,
+                homeroom_teacher_id=hr_user.id if hr_user else None
             )
             db.add(cr)
             db.flush()
             print(f"[Seed SMPIT] Created Classroom {cr.name}")
         else:
+            updated = False
             if cr.academic_year_id != ay.id or cr.level != cs["level"]:
                 cr.academic_year_id = ay.id
                 cr.level = cs["level"]
+                updated = True
+            if hr_user and cr.homeroom_teacher_id != hr_user.id:
+                cr.homeroom_teacher_id = hr_user.id
+                updated = True
+            if updated:
                 db.flush()
         classrooms_map[cs["name"]] = cr
 

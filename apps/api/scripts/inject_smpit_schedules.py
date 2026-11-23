@@ -63,13 +63,21 @@ def run_injection():
 
     # 3. Classrooms: VII, VIII, IX-A, IX-B
     class_specs = [
-        {"name": "VII", "level": 7},
-        {"name": "VIII", "level": 8},
-        {"name": "IX-A", "level": 9},
-        {"name": "IX-B", "level": 9},
+        {"name": "VII", "level": 7, "homeroom_nik": "1220220155"},  # Astina Marru Kirama Baifar, S.Pd
+        {"name": "VIII", "level": 8, "homeroom_nik": "1220250179"}, # Nurmatin Khanifah, S.H
+        {"name": "IX-A", "level": 9, "homeroom_nik": "1220140051"}, # Lismanizar, S.Si
+        {"name": "IX-B", "level": 9, "homeroom_nik": "1220240172"}, # Permadi, S.Sos
     ]
     classrooms = {}
     for cs in class_specs:
+        hr_user = None
+        if cs.get("homeroom_nik"):
+            emp = db.query(models.Employee).filter(models.Employee.nik == cs["homeroom_nik"]).first()
+            if emp:
+                hr_user = db.query(models.User).filter(models.User.id == emp.user_id).first()
+                if not hr_user:
+                    hr_user = db.query(models.User).filter(models.User.email == emp.email).first()
+
         cr = db.query(models.Classroom).filter(
             models.Classroom.unit_id == smpit_unit.id,
             models.Classroom.academic_year_id == ay.id,
@@ -84,16 +92,23 @@ def run_injection():
             if cr:
                 cr.academic_year_id = ay.id
                 cr.level = cs["level"]
+                if hr_user:
+                    cr.homeroom_teacher_id = hr_user.id
             else:
                 cr = models.Classroom(
                     name=cs["name"],
                     level=cs["level"],
                     unit_id=smpit_unit.id,
-                    academic_year_id=ay.id
+                    academic_year_id=ay.id,
+                    homeroom_teacher_id=hr_user.id if hr_user else None
                 )
                 db.add(cr)
                 db.flush()
                 print(f"Created Classroom: {cr.name} (Level: {cr.level}, ID: {cr.id})")
+        else:
+            if hr_user and cr.homeroom_teacher_id != hr_user.id:
+                cr.homeroom_teacher_id = hr_user.id
+                db.flush()
         classrooms[cs["name"]] = cr
     db.commit()
 
