@@ -861,6 +861,28 @@ class _NotulenDocParser(HTMLParser):
             self.elements.append((kind, txt, prefix))
 
 
+def _chunk_text_to_items(kind, text, prefix=''):
+    if not text or len(text) <= 400:
+        return [(kind, text, prefix)]
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    result = []
+    curr_chunk = []
+    curr_len = 0
+    pfx = prefix
+    for s in sentences:
+        if curr_len + len(s) > 400 and curr_chunk:
+            result.append((kind, ' '.join(curr_chunk), pfx))
+            curr_chunk = [s]
+            curr_len = len(s)
+            pfx = ''
+        else:
+            curr_chunk.append(s)
+            curr_len += len(s)
+    if curr_chunk:
+        result.append((kind, ' '.join(curr_chunk), pfx))
+    return result
+
+
 def _render_notulen_content_to_flowables(raw_html, body_style, header_style, meta_key, colors, Table, TableStyle, Paragraph, Spacer, notulen_body_style=None):
     from reportlab.lib.styles import ParagraphStyle
 
@@ -900,12 +922,12 @@ def _render_notulen_content_to_flowables(raw_html, body_style, header_style, met
 
         def _cell_to_flowable(cell_val, is_head):
             if not cell_val:
-                return Paragraph("-", body_style)
+                return Paragraph("", meta_key if is_head else body_style)
             # If already a string (fallback / legacy format)
             if isinstance(cell_val, str):
                 clean = cell_val.replace('\u00a0', ' ').replace('&nbsp;', ' ').strip()
                 if not clean:
-                    return Paragraph("-", body_style)
+                    return Paragraph("", meta_key if is_head else body_style)
                 if '&bull;' in clean or '•' in clean:
                     parts = re.split(r'(?:<br\s*/?>\s*)?(?:&bull;|•)\s*', clean)
                     fls = []
@@ -917,7 +939,7 @@ def _render_notulen_content_to_flowables(raw_html, body_style, header_style, met
                             fls.append(Paragraph(part, body_style))
                         else:
                             fls.append(Paragraph(f"&bull;&nbsp; {part}", bullet_style))
-                    return fls if len(fls) > 1 else (fls[0] if fls else Paragraph("-", body_style))
+                    return fls if len(fls) > 1 else (fls[0] if fls else Paragraph("", body_style))
                 return Paragraph(clean, meta_key if is_head else body_style)
 
             # Structured list of items from parser: [(kind, txt, prefix), ...]
@@ -939,7 +961,7 @@ def _render_notulen_content_to_flowables(raw_html, body_style, header_style, met
                     else:
                         fls.append(Paragraph(txt, body_style))
             if not fls:
-                return Paragraph("-", body_style)
+                return Paragraph("", meta_key if is_head else body_style)
             return fls if len(fls) > 1 else fls[0]
 
         for item in parser.elements:
@@ -969,14 +991,66 @@ def _render_notulen_content_to_flowables(raw_html, body_style, header_style, met
                     continue
 
                 table_rows = []
+                row_styles = []  # Track end of each logical row for styling
+
                 for row_idx, row in enumerate(val):
-                    cells = []
                     is_header_row = (row_idx == 0) or all(c[1] for c in row)
-                    for col_idx, (cell_content, is_head) in enumerate(row):
-                        cells.append(_cell_to_flowable(cell_content, is_head or is_header_row))
-                    while len(cells) < max_cols:
-                        cells.append(Paragraph("-", meta_key if is_header_row else body_style))
-                    table_rows.append(cells)
+                    if is_header_row:
+                        cells = []
+                        for col_idx, (cell_content, is_head) in enumerate(row):
+                            cells.append(_cell_to_flowable(cell_content, True))
+                        while len(cells) < max_cols:
+                            cells.append(Paragraph("", meta_key))
+                        table_rows.append(cells)
+                        row_styles.append(True)
+                    else:
+                        # Process content row: expand and chunk large cells into sub-rows
+                        # to prevent Table rows exceeding page frame height.
+                        col_chunks = []
+                        for col_idx in range(max_cols):
+                            if col_idx < len(row):
+                                cell_content, is_head = row[col_idx]
+                            else:
+                                cell_content, is_head = [], False
+
+                            expanded_items = []
+                            if isinstance(cell_content, list):
+                                for it in cell_content:
+                                    if isinstance(it, tuple) and len(it) >= 2:
+                                        expanded_items.extend(_chunk_text_to_items(it[0], it[1], it[2] if len(it) > 2 else ''))
+                                    else:
+                                        expanded_items.append(it)
+                            elif isinstance(cell_content, str):
+                                expanded_items = _chunk_text_to_items('p', cell_content)
+                            else:
+                                expanded_items = [cell_content]
+
+                            # Chunk items into sub-rows of at most 2 items and max 350 chars
+                            chunks = []
+                            cur_chunk = []
+                            cur_chars = 0
+                            for it in expanded_items:
+                                it_len = len(it[1]) if isinstance(it, tuple) and len(it) >= 2 else (len(it) if isinstance(it, str) else 0)
+                                if cur_chunk and (len(cur_chunk) >= 2 or (cur_chars + it_len > 350)):
+                                    chunks.append(cur_chunk)
+                                    cur_chunk = [it]
+                                    cur_chars = it_len
+                                else:
+                                    cur_chunk.append(it)
+                                    cur_chars += it_len
+                            if cur_chunk or not chunks:
+                                chunks.append(cur_chunk)
+                            col_chunks.append(chunks)
+
+                        num_subrows = max(len(c) for c in col_chunks) if col_chunks else 1
+                        for s in range(num_subrows):
+                            cells = []
+                            for col_idx in range(max_cols):
+                                chunks = col_chunks[col_idx]
+                                cell_items = chunks[s] if s < len(chunks) else []
+                                cells.append(_cell_to_flowable(cell_items, False))
+                            table_rows.append(cells)
+                            row_styles.append(s == num_subrows - 1)
 
                 if table_rows:
                     tot_w = 515
@@ -995,17 +1069,24 @@ def _render_notulen_content_to_flowables(raw_html, body_style, header_style, met
                     else:
                         widths = [tot_w / max_cols] * max_cols
 
-                    t = Table(table_rows, colWidths=widths)
-                    t.setStyle(TableStyle([
-                        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#94A3B8')),
+                    t = Table(table_rows, colWidths=widths, repeatRows=1)
+                    t_style = [
+                        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#94A3B8')),
+                        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
                         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F1F5F9')),
                         ('VALIGN', (0,0), (-1,-1), 'TOP'),
                         ('ALIGN', (0,0), (0,-1), 'CENTER'),  # Column 0 (No) centered
-                        ('TOPPADDING', (0,0), (-1,-1), 5),
-                        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-                        ('LEFTPADDING', (0,0), (-1,-1), 6),
-                        ('RIGHTPADDING', (0,0), (-1,-1), 6),
-                    ]))
+                        ('TOPPADDING', (0,0), (-1,-1), 4),
+                        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+                        ('LEFTPADDING', (0,0), (-1,-1), 5),
+                        ('RIGHTPADDING', (0,0), (-1,-1), 5),
+                        ('LINEBELOW', (0, 0), (-1, 0), 1.0, colors.HexColor('#64748B')),
+                    ]
+                    for r_idx, is_end in enumerate(row_styles):
+                        if is_end:
+                            t_style.append(('LINEBELOW', (0, r_idx), (-1, r_idx), 0.75, colors.HexColor('#94A3B8')))
+
+                    t.setStyle(TableStyle(t_style))
                     flowables.append(Spacer(1, 4))
                     flowables.append(t)
                     flowables.append(Spacer(1, 6))
@@ -1242,26 +1323,38 @@ async def export_meeting_minute_pdf(
         elements.append(Paragraph(f"{r_title}. DAFTAR KEHADIRAN PESERTA", section_h2))
         elements.append(Spacer(1, 4))
 
-        hadir_text = "<br/>".join([f"{idx}. {n}" for idx, n in enumerate(attendee_names, 1)]) if attendee_names else "<i>(Tidak ada catatan kehadiran)</i>"
-        izin_text = "<br/>".join([f"{idx}. {n}" for idx, n in enumerate(absent_names, 1)]) if absent_names else "<i>(Semua peserta hadir / nihil)</i>"
-
         att_table_data = [
             [
                 Paragraph(f"<b>PESERTA HADIR ({len(attendee_names)})</b>", meta_key),
                 Paragraph(f"<b>BERHALANGAN / IZIN ({len(absent_names)})</b>", meta_key)
-            ],
-            [
-                Paragraph(hadir_text, body_style),
-                Paragraph(izin_text, body_style)
             ]
         ]
-        att_table = Table(att_table_data, colWidths=[255, 260])
+
+        hadir_list = [f"{idx}. {n}" for idx, n in enumerate(attendee_names, 1)] if attendee_names else ["<i>(Tidak ada catatan kehadiran)</i>"]
+        izin_list = [f"{idx}. {n}" for idx, n in enumerate(absent_names, 1)] if absent_names else ["<i>(Semua peserta hadir / nihil)</i>"]
+
+        # Chunk into sub-rows of at most 5 items per cell to allow clean page breaks
+        chunk_sz = 5
+        h_chunks = [hadir_list[i:i + chunk_sz] for i in range(0, len(hadir_list), chunk_sz)]
+        z_chunks = [izin_list[i:i + chunk_sz] for i in range(0, len(izin_list), chunk_sz)]
+        max_att_rows = max(len(h_chunks), len(z_chunks))
+
+        for i in range(max_att_rows):
+            h_text = "<br/>".join(h_chunks[i]) if i < len(h_chunks) else ""
+            z_text = "<br/>".join(z_chunks[i]) if i < len(z_chunks) else ""
+            att_table_data.append([
+                Paragraph(h_text, body_style),
+                Paragraph(z_text, body_style)
+            ])
+
+        att_table = Table(att_table_data, colWidths=[255, 260], repeatRows=1)
         att_table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F1F5F9')),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+            ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('TOPPADDING', (0,0), (-1,-1), 5),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
             ('LEFTPADDING', (0,0), (-1,-1), 6),
             ('RIGHTPADDING', (0,0), (-1,-1), 6),
         ]))
@@ -1320,7 +1413,7 @@ async def export_meeting_minute_pdf(
                 Paragraph(d_line, body_style),
                 Paragraph(st_map.get(ai.status, ai.status), body_style)
             ])
-        ai_table = Table(ai_table_data, colWidths=[25, 210, 130, 75, 75])
+        ai_table = Table(ai_table_data, colWidths=[25, 210, 130, 75, 75], repeatRows=1)
         ai_table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F1F5F9')),
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
